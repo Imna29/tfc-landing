@@ -1,0 +1,115 @@
+{
+  "id": "hero_section",
+  "type": "SharedSlice",
+  "name": "HeroSection",
+  "description": "HeroSection",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "background_image": {
+          "type": "Image",
+          "config": {
+            "label": "Background Image",
+            "constraint": {},
+            "thumbnails": []
+          }
+        },
+        "badge_text": {
+          "type": "Text",
+          "config": {
+            "label": "Badge Text",
+            "placeholder": ""
+          }
+        },
+        "headline_1": {
+          "type": "Text",
+          "config": {
+            "label": "Headline 1",
+            "placeholder": ""
+          }
+        },
+        "headline_2": {
+          "type": "Text",
+          "config": {
+            "label": "Headline 2",
+            "placeholder": ""
+          }
+        },
+        "headline_3": {
+          "type": "Text",
+          "config": {
+            "label": "Headline 3",
+            "placeholder": ""
+          }
+        },
+        "description": {
+          "type": "StructuredText",
+          "config": {
+            "label": "description",
+            "placeholder": "",
+            "allowTargetBlank": true,
+            "single": "paragraph,strong,em,hyperlink"
+          }
+        },
+        "event_time": {
+          "type": "Timestamp",
+          "config": {
+            "label": "Event time",
+            "placeholder": ""
+          }
+        },
+        "event_location": {
+          "type": "Text",
+          "config": {
+            "label": "Event Location",
+            "placeholder": ""
+          }
+        },
+        "cta": {
+          "type": "Group",
+          "config": {
+            "label": "cta",
+            "fields": {
+              "label": {
+                "type": "Text",
+                "config": {
+                  "label": "label",
+                  "placeholder": ""
+                }
+              },
+              "link": {
+                "type": "Link",
+                "config": {
+                  "label": "link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": true,
+                  "repeat": false,
+                  "variants": [
+                    "Primary",
+                    "Secondary"
+                  ]
+                }
+              },
+              "icon": {
+                "type": "Text",
+                "config": {
+                  "label": "icon",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}

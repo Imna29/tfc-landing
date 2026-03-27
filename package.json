@@ -1,0 +1,29 @@
+{
+  "name": "tfc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "dependencies": {
+    "@nuxt/icon": "2.2.1",
+    "@nuxtjs/i18n": "10.2.4",
+    "@nuxtjs/prismic": "^5.2.0",
+    "@prismicio/client": "^7.21.6",
+    "@tailwindcss/vite": "^4.2.2",
+    "nuxt": "^4.4.2",
+    "tailwindcss": "^4.2.2",
+    "vue": "^3.5.30",
+    "vue-router": "^5.0.4"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.41.0",
+    "oxlint": "^1.56.0"
+  }
+}

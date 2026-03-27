@@ -1,0 +1,91 @@
+{
+  "id": "featured_fighters",
+  "type": "SharedSlice",
+  "name": "FeaturedFighters",
+  "description": "FeaturedFighters",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "Title",
+            "placeholder": ""
+          }
+        },
+        "subtitle": {
+          "type": "Text",
+          "config": {
+            "label": "Subtitle",
+            "placeholder": ""
+          }
+        },
+        "fighters": {
+          "type": "Group",
+          "config": {
+            "label": "Fighters",
+            "fields": {
+              "name": {
+                "type": "Text",
+                "config": {
+                  "label": "name",
+                  "placeholder": ""
+                }
+              },
+              "nickname": {
+                "type": "Text",
+                "config": {
+                  "label": "nickname",
+                  "placeholder": ""
+                }
+              },
+              "record": {
+                "type": "Text",
+                "config": {
+                  "label": "record",
+                  "placeholder": ""
+                }
+              },
+              "nationality": {
+                "type": "Text",
+                "config": {
+                  "label": "nationality",
+                  "placeholder": ""
+                }
+              },
+              "height": {
+                "type": "Text",
+                "config": {
+                  "label": "height",
+                  "placeholder": ""
+                }
+              },
+              "age": {
+                "type": "Text",
+                "config": {
+                  "label": "age",
+                  "placeholder": ""
+                }
+              },
+              "fighter_image": {
+                "type": "Image",
+                "config": {
+                  "label": "fighter image",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}

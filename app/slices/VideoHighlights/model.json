@@ -1,0 +1,63 @@
+{
+  "id": "video_highlights",
+  "type": "SharedSlice",
+  "name": "VideoHighlights",
+  "description": "VideoHighlights",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "description": {
+          "type": "Text",
+          "config": {
+            "label": "description",
+            "placeholder": ""
+          }
+        },
+        "videos": {
+          "type": "Group",
+          "config": {
+            "label": "highlights",
+            "fields": {
+              "title": {
+                "type": "Text",
+                "config": {
+                  "label": "title",
+                  "placeholder": ""
+                }
+              },
+              "thumbnail": {
+                "type": "Image",
+                "config": {
+                  "label": "thumbnail",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              },
+              "youtube_url": {
+                "type": "Embed",
+                "config": {
+                  "label": "youtube url",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}

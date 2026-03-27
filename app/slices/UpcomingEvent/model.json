@@ -1,0 +1,68 @@
+{
+  "id": "upcoming_event",
+  "type": "SharedSlice",
+  "name": "UpcomingEvent",
+  "description": "UpcomingEvent",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "event_date": {
+          "type": "Timestamp",
+          "config": {
+            "label": "Event Date",
+            "placeholder": ""
+          }
+        },
+        "event_venue": {
+          "type": "Text",
+          "config": {
+            "label": "Event Venue",
+            "placeholder": ""
+          }
+        },
+        "event_poster": {
+          "type": "Image",
+          "config": {
+            "label": "Event Poster",
+            "constraint": {},
+            "thumbnails": []
+          }
+        },
+        "main_headline": {
+          "type": "Text",
+          "config": {
+            "label": "Main Headline",
+            "placeholder": ""
+          }
+        },
+        "subtitle": {
+          "type": "Text",
+          "config": {
+            "label": "Subtitle",
+            "placeholder": ""
+          }
+        },
+        "background_watermark": {
+          "type": "Text",
+          "config": {
+            "label": "Background Watermark",
+            "placeholder": ""
+          }
+        }
+      }
+    }
+  ]
+}

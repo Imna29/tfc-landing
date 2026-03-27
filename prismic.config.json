@@ -1,0 +1,13 @@
+{
+  "repositoryName": "tfc-landing",
+  "routes": [
+    {
+      "type": "home_page",
+      "path": "/"
+    },
+    {
+      "type": "page",
+      "path": "/:uid"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "id": "home_page",
+  "json": {
+    "Main": {
+      "slices": {
+        "config": {
+          "choices": {
+            "hero_section": {
+              "type": "SharedSlice"
+            },
+            "upcoming_event": {
+              "type": "SharedSlice"
+            },
+            "featured_fighters": {
+              "type": "SharedSlice"
+            },
+            "video_highlights": {
+              "type": "SharedSlice"
+            },
+            "latest_news": {
+              "type": "SharedSlice"
+            },
+            "newsletter": {
+              "type": "SharedSlice"
+            },
+            "sponsor_logos": {
+              "type": "SharedSlice"
+            }
+          }
+        },
+        "fieldset": "Slice Zone",
+        "type": "Slices"
+      }
+    },
+    "SEO & Metadata": {
+      "meta_title": {
+        "config": {
+          "label": "Meta Title",
+          "placeholder": "A title of the page used for social media and search engines"
+        },
+        "type": "Text"
+      },
+      "meta_description": {
+        "config": {
+          "label": "Meta Description",
+          "placeholder": "A brief summary of the page"
+        },
+        "type": "Text"
+      },
+      "meta_image": {
+        "config": {
+          "constraint": {
+            "height": 1260,
+            "width": 2400
+          },
+          "label": "Meta Image",
+          "thumbnails": []
+        },
+        "type": "Image"
+      }
+    }
+  },
+  "label": "Home page",
+  "repeatable": false,
+  "status": true,
+  "format": "page"
+}

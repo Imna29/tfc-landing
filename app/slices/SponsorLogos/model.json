@@ -1,0 +1,53 @@
+{
+  "id": "sponsor_logos",
+  "type": "SharedSlice",
+  "name": "SponsorLogos",
+  "description": "SponsorLogos",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "sponsors": {
+          "type": "Group",
+          "config": {
+            "label": "sponsors",
+            "fields": {
+              "logo": {
+                "type": "Image",
+                "config": {
+                  "label": "logo",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              },
+              "link": {
+                "type": "Link",
+                "config": {
+                  "label": "link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": false,
+                  "repeat": false
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}

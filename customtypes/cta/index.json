@@ -1,0 +1,46 @@
+{
+  "id": "cta",
+  "json": {
+    "Main": {
+      "uid": {
+        "type": "UID",
+        "config": {
+          "label": "UID"
+        }
+      },
+      "label": {
+        "type": "Text",
+        "config": {
+          "label": "label",
+          "placeholder": ""
+        }
+      },
+      "link": {
+        "type": "Link",
+        "config": {
+          "label": "link",
+          "placeholder": "",
+          "select": null,
+          "allowTargetBlank": true,
+          "allowText": true,
+          "repeat": false,
+          "variants": [
+            "Primary",
+            "Secondary"
+          ]
+        }
+      },
+      "icon": {
+        "type": "Text",
+        "config": {
+          "label": "icon",
+          "placeholder": ""
+        }
+      }
+    }
+  },
+  "label": "cta",
+  "repeatable": true,
+  "status": true,
+  "format": "custom"
+}

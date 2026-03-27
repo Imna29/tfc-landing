@@ -1,0 +1,85 @@
+{
+  "id": "latest_news",
+  "type": "SharedSlice",
+  "name": "LatestNews",
+  "description": "LatestNews",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "show_all_link": {
+          "type": "Link",
+          "config": {
+            "label": "show all link",
+            "placeholder": "",
+            "select": null,
+            "allowTargetBlank": true,
+            "allowText": true,
+            "repeat": false
+          }
+        },
+        "articles": {
+          "type": "Group",
+          "config": {
+            "label": "articles",
+            "fields": {
+              "title": {
+                "type": "Text",
+                "config": {
+                  "label": "title",
+                  "placeholder": ""
+                }
+              },
+              "date": {
+                "type": "Date",
+                "config": {
+                  "label": "date",
+                  "placeholder": ""
+                }
+              },
+              "excerpt": {
+                "type": "Text",
+                "config": {
+                  "label": "excerpt",
+                  "placeholder": ""
+                }
+              },
+              "image": {
+                "type": "Image",
+                "config": {
+                  "label": "image",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              },
+              "article_link": {
+                "type": "Link",
+                "config": {
+                  "label": "article link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": false,
+                  "repeat": false
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}
