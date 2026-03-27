@@ -10,13 +10,8 @@ const { locale, locales, setLocale } = useI18n();
       class="sticky top-0 z-50 bg-surface-container-high/70 backdrop-blur-xl border-b border-outline-variant/15 px-6 md:px-20 py-4"
     >
       <div class="max-w-[1440px] mx-auto flex items-center justify-between">
-        <NuxtLink to="/" class="flex items-center gap-4">
-          <div class="w-8 h-8 text-primary-container">
-            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor" />
-            </svg>
-          </div>
-          <h2 class="font-headline text-2xl font-bold tracking-tighter uppercase italic">TFC</h2>
+        <NuxtLink to="/" class="flex items-center">
+          <img src="/tfc_logo.png" alt="TFC Logo" class="w-24 h-12 object-contain" />
         </NuxtLink>
 
         <nav class="hidden md:flex items-center gap-10">
@@ -81,15 +76,8 @@ const { locale, locales, setLocale } = useI18n();
       <div class="container mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-16 mb-24">
           <div class="col-span-1 md:col-span-1">
-            <div class="flex items-center gap-4 text-white mb-8">
-              <div class="w-8 h-8 text-primary-container">
-                <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor" />
-                </svg>
-              </div>
-              <h2 class="font-headline text-3xl font-black italic tracking-tighter uppercase">
-                TFC
-              </h2>
+            <div class="flex items-center text-white mb-8">
+              <img src="/tfc_logo.png" alt="TFC Logo" class="w-24 h-12 object-contain" />
             </div>
             <p class="text-on-surface-variant text-sm leading-relaxed mb-8">
               The heartbeat of combat sports in the Caucasus. Promoting elite mixed martial arts
