@@ -1,0 +1,101 @@
+{
+  "id": "venue_information",
+  "type": "SharedSlice",
+  "name": "VenueInformation",
+  "description": "VenueInformation",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title_line_1": {
+          "type": "Text",
+          "config": {
+            "label": "title line 1",
+            "placeholder": ""
+          }
+        },
+        "title_line_2": {
+          "type": "Text",
+          "config": {
+            "label": "title line 2",
+            "placeholder": ""
+          }
+        },
+        "venue_label": {
+          "type": "Text",
+          "config": {
+            "label": "venue label",
+            "placeholder": ""
+          }
+        },
+        "venue_name": {
+          "type": "Text",
+          "config": {
+            "label": "venue name",
+            "placeholder": ""
+          }
+        },
+        "transport_info": {
+          "type": "Group",
+          "config": {
+            "label": "transport info",
+            "fields": {
+              "icon": {
+                "type": "Text",
+                "config": {
+                  "label": "icon",
+                  "placeholder": ""
+                }
+              },
+              "text": {
+                "type": "Text",
+                "config": {
+                  "label": "text",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        },
+        "directions_button_label": {
+          "type": "Text",
+          "config": {
+            "label": "directions button label",
+            "placeholder": ""
+          }
+        },
+        "directions_buttons_link": {
+          "type": "Link",
+          "config": {
+            "label": "directions buttons link",
+            "placeholder": "",
+            "select": null,
+            "allowTargetBlank": true,
+            "allowText": true,
+            "repeat": false
+          }
+        },
+        "address": {
+          "type": "Text",
+          "config": {
+            "label": "address",
+            "placeholder": ""
+          }
+        },
+        "google_maps_embed": {
+          "type": "Text",
+          "config": {
+            "label": "google maps embed",
+            "placeholder": ""
+          }
+        }
+      }
+    }
+  ]
+}

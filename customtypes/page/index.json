@@ -31,6 +31,18 @@
             },
             "sponsor_logos": {
               "type": "SharedSlice"
+            },
+            "event_archive_table": {
+              "type": "SharedSlice"
+            },
+            "featured_event_hero": {
+              "type": "SharedSlice"
+            },
+            "upcoming_events_grid": {
+              "type": "SharedSlice"
+            },
+            "venue_information": {
+              "type": "SharedSlice"
             }
           }
         },

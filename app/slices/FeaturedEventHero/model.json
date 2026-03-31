@@ -1,0 +1,92 @@
+{
+  "id": "featured_event_hero",
+  "type": "SharedSlice",
+  "name": "FeaturedEventHero",
+  "description": "FeaturedEventHero",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "badge": {
+          "type": "Text",
+          "config": {
+            "label": "badge",
+            "placeholder": ""
+          }
+        },
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "subtitle": {
+          "type": "Text",
+          "config": {
+            "label": "subtitle",
+            "placeholder": ""
+          }
+        },
+        "date": {
+          "type": "Timestamp",
+          "config": {
+            "label": "date",
+            "placeholder": ""
+          }
+        },
+        "image": {
+          "type": "Image",
+          "config": {
+            "label": "image",
+            "constraint": {},
+            "thumbnails": []
+          }
+        },
+        "cta": {
+          "type": "Group",
+          "config": {
+            "label": "cta",
+            "fields": {
+              "label": {
+                "type": "Text",
+                "config": {
+                  "label": "label",
+                  "placeholder": ""
+                }
+              },
+              "link": {
+                "type": "Link",
+                "config": {
+                  "label": "link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": true,
+                  "repeat": false,
+                  "variants": [
+                    "Primary",
+                    "Secondary"
+                  ]
+                }
+              }
+            },
+            "repeat": true
+          }
+        },
+        "location": {
+          "type": "Text",
+          "config": {
+            "label": "location",
+            "placeholder": ""
+          }
+        }
+      }
+    }
+  ]
+}

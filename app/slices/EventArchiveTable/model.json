@@ -1,0 +1,96 @@
+{
+  "id": "event_archive_table",
+  "type": "SharedSlice",
+  "name": "EventArchiveTable",
+  "description": "EventArchiveTable",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "table_headers": {
+          "type": "Group",
+          "config": {
+            "label": "table headers",
+            "fields": {
+              "text": {
+                "type": "Text",
+                "config": {
+                  "label": "text",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        },
+        "events": {
+          "type": "Group",
+          "config": {
+            "label": "events",
+            "fields": {
+              "name": {
+                "type": "Text",
+                "config": {
+                  "label": "name",
+                  "placeholder": ""
+                }
+              },
+              "date": {
+                "type": "Date",
+                "config": {
+                  "label": "date",
+                  "placeholder": ""
+                }
+              },
+              "result": {
+                "type": "Text",
+                "config": {
+                  "label": "result",
+                  "placeholder": ""
+                }
+              },
+              "replay_youtube_link": {
+                "type": "Embed",
+                "config": {
+                  "label": "replay youtube link",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        },
+        "load_more_button_label": {
+          "type": "Text",
+          "config": {
+            "label": "load more button label",
+            "placeholder": ""
+          }
+        },
+        "load_more_button_link": {
+          "type": "Link",
+          "config": {
+            "label": "load more button link",
+            "placeholder": "",
+            "select": null,
+            "allowTargetBlank": true,
+            "allowText": true,
+            "repeat": false
+          }
+        }
+      }
+    }
+  ]
+}

@@ -155,7 +155,7 @@ interface HomePageDocumentData {
  */
 export type HomePageDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<HomePageDocumentData>, "home_page", Lang>;
 
-type PageDocumentDataSlicesSlice = HeroSectionSlice | UpcomingEventSlice | FeaturedFightersSlice | LatestNewsSlice | VideoHighlightsSlice | NewsletterSlice | SponsorLogosSlice
+type PageDocumentDataSlicesSlice = HeroSectionSlice | UpcomingEventSlice | FeaturedFightersSlice | LatestNewsSlice | VideoHighlightsSlice | NewsletterSlice | SponsorLogosSlice | EventArchiveTableSlice | FeaturedEventHeroSlice | UpcomingEventsGridSlice | VenueInformationSlice
 
 /**
  * Content for page documents
@@ -216,6 +216,267 @@ interface PageDocumentData {
 export type PageDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<PageDocumentData>, "page", Lang>;
 
 export type AllDocumentTypes = CtaDocument | HomePageDocument | PageDocument;
+
+/**
+ * Item in *EventArchiveTable → Default → Primary → table headers*
+ */
+export interface EventArchiveTableSliceDefaultPrimaryTableHeadersItem {
+	/**
+	 * text field in *EventArchiveTable → Default → Primary → table headers*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.table_headers[].text
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	text: prismic.KeyTextField;
+}
+
+/**
+ * Item in *EventArchiveTable → Default → Primary → events*
+ */
+export interface EventArchiveTableSliceDefaultPrimaryEventsItem {
+	/**
+	 * name field in *EventArchiveTable → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.events[].name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	name: prismic.KeyTextField;
+	
+	/**
+	 * date field in *EventArchiveTable → Default → Primary → events*
+	 *
+	 * - **Field Type**: Date
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.events[].date
+	 * - **Documentation**: https://prismic.io/docs/fields/date
+	 */
+	date: prismic.DateField;
+	
+	/**
+	 * result field in *EventArchiveTable → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.events[].result
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	result: prismic.KeyTextField;
+	
+	/**
+	 * replay youtube link field in *EventArchiveTable → Default → Primary → events*
+	 *
+	 * - **Field Type**: Embed
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.events[].replay_youtube_link
+	 * - **Documentation**: https://prismic.io/docs/fields/embed
+	 */
+	replay_youtube_link: prismic.EmbedField
+}
+
+/**
+ * Primary content in *EventArchiveTable → Default → Primary*
+ */
+export interface EventArchiveTableSliceDefaultPrimary {
+	/**
+	 * title field in *EventArchiveTable → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.title
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * table headers field in *EventArchiveTable → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.table_headers[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	table_headers: prismic.GroupField<Simplify<EventArchiveTableSliceDefaultPrimaryTableHeadersItem>>;
+	
+	/**
+	 * events field in *EventArchiveTable → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.events[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	events: prismic.GroupField<Simplify<EventArchiveTableSliceDefaultPrimaryEventsItem>>;
+	
+	/**
+	 * load more button label field in *EventArchiveTable → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.load_more_button_label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	load_more_button_label: prismic.KeyTextField;
+	
+	/**
+	 * load more button link field in *EventArchiveTable → Default → Primary*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event_archive_table.default.primary.load_more_button_link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	load_more_button_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Default variation for EventArchiveTable Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type EventArchiveTableSliceDefault = prismic.SharedSliceVariation<"default", Simplify<EventArchiveTableSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *EventArchiveTable*
+ */
+type EventArchiveTableSliceVariation = EventArchiveTableSliceDefault
+
+/**
+ * EventArchiveTable Shared Slice
+ *
+ * - **API ID**: `event_archive_table`
+ * - **Description**: EventArchiveTable
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type EventArchiveTableSlice = prismic.SharedSlice<"event_archive_table", EventArchiveTableSliceVariation>;
+
+/**
+ * Item in *FeaturedEventHero → Default → Primary → cta*
+ */
+export interface FeaturedEventHeroSliceDefaultPrimaryCtaItem {
+	/**
+	 * label field in *FeaturedEventHero → Default → Primary → cta*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.cta[].label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	label: prismic.KeyTextField;
+	
+	/**
+	 * link field in *FeaturedEventHero → Default → Primary → cta*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.cta[].link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	link: prismic.LinkField<string, string, unknown, prismic.FieldState, "Primary" | "Secondary">;
+}
+
+/**
+ * Primary content in *FeaturedEventHero → Default → Primary*
+ */
+export interface FeaturedEventHeroSliceDefaultPrimary {
+	/**
+	 * badge field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.badge
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	badge: prismic.KeyTextField;
+	
+	/**
+	 * title field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.title
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * subtitle field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.subtitle
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	subtitle: prismic.KeyTextField;
+	
+	/**
+	 * date field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Timestamp
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.date
+	 * - **Documentation**: https://prismic.io/docs/fields/timestamp
+	 */
+	date: prismic.TimestampField;
+	
+	/**
+	 * image field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.image
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	image: prismic.ImageField<never>;
+	
+	/**
+	 * cta field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.cta[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	cta: prismic.GroupField<Simplify<FeaturedEventHeroSliceDefaultPrimaryCtaItem>>;
+	
+	/**
+	 * location field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_event_hero.default.primary.location
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	location: prismic.KeyTextField;
+}
+
+/**
+ * Default variation for FeaturedEventHero Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type FeaturedEventHeroSliceDefault = prismic.SharedSliceVariation<"default", Simplify<FeaturedEventHeroSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *FeaturedEventHero*
+ */
+type FeaturedEventHeroSliceVariation = FeaturedEventHeroSliceDefault
+
+/**
+ * FeaturedEventHero Shared Slice
+ *
+ * - **API ID**: `featured_event_hero`
+ * - **Description**: FeaturedEventHero
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type FeaturedEventHeroSlice = prismic.SharedSlice<"featured_event_hero", FeaturedEventHeroSliceVariation>;
 
 /**
  * Item in *FeaturedFighters → Default → Primary → Fighters*
@@ -886,6 +1147,322 @@ type UpcomingEventSliceVariation = UpcomingEventSliceDefault
 export type UpcomingEventSlice = prismic.SharedSlice<"upcoming_event", UpcomingEventSliceVariation>;
 
 /**
+ * Item in *UpcomingEventsGrid → Default → Primary → events*
+ */
+export interface UpcomingEventsGridSliceDefaultPrimaryEventsItem {
+	/**
+	 * badge field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].badge
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	badge: prismic.KeyTextField;
+	
+	/**
+	 * title field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].title
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * date field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Date
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].date
+	 * - **Documentation**: https://prismic.io/docs/fields/date
+	 */
+	date: prismic.DateField;
+	
+	/**
+	 * venue field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].venue
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	venue: prismic.KeyTextField;
+	
+	/**
+	 * image field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].image
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	image: prismic.ImageField<never>;
+	
+	/**
+	 * tags comma separated field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].tags_comma_separated
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	tags_comma_separated: prismic.KeyTextField;
+	
+	/**
+	 * tickets button text field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].tickets_button_text
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	tickets_button_text: prismic.KeyTextField;
+	
+	/**
+	 * tickets button link field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].tickets_button_link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	tickets_button_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+	
+	/**
+	 * stream button text field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].stream_button_text
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	stream_button_text: prismic.KeyTextField;
+	
+	/**
+	 * stream button link field in *UpcomingEventsGrid → Default → Primary → events*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[].stream_button_link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	stream_button_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Primary content in *UpcomingEventsGrid → Default → Primary*
+ */
+export interface UpcomingEventsGridSliceDefaultPrimary {
+	/**
+	 * title field in *UpcomingEventsGrid → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.title
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * subtitle field in *UpcomingEventsGrid → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.subtitle
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	subtitle: prismic.KeyTextField;
+	
+	/**
+	 * decorative text field in *UpcomingEventsGrid → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.decorative_text
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	decorative_text: prismic.KeyTextField;
+	
+	/**
+	 * events field in *UpcomingEventsGrid → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: upcoming_events_grid.default.primary.events[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	events: prismic.GroupField<Simplify<UpcomingEventsGridSliceDefaultPrimaryEventsItem>>;
+}
+
+/**
+ * Default variation for UpcomingEventsGrid Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type UpcomingEventsGridSliceDefault = prismic.SharedSliceVariation<"default", Simplify<UpcomingEventsGridSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *UpcomingEventsGrid*
+ */
+type UpcomingEventsGridSliceVariation = UpcomingEventsGridSliceDefault
+
+/**
+ * UpcomingEventsGrid Shared Slice
+ *
+ * - **API ID**: `upcoming_events_grid`
+ * - **Description**: UpcomingEventsGrid
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type UpcomingEventsGridSlice = prismic.SharedSlice<"upcoming_events_grid", UpcomingEventsGridSliceVariation>;
+
+/**
+ * Item in *VenueInformation → Default → Primary → transport info*
+ */
+export interface VenueInformationSliceDefaultPrimaryTransportInfoItem {
+	/**
+	 * icon field in *VenueInformation → Default → Primary → transport info*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.transport_info[].icon
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	icon: prismic.KeyTextField;
+	
+	/**
+	 * text field in *VenueInformation → Default → Primary → transport info*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.transport_info[].text
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	text: prismic.KeyTextField;
+}
+
+/**
+ * Primary content in *VenueInformation → Default → Primary*
+ */
+export interface VenueInformationSliceDefaultPrimary {
+	/**
+	 * title line 1 field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.title_line_1
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title_line_1: prismic.KeyTextField;
+	
+	/**
+	 * title line 2 field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.title_line_2
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title_line_2: prismic.KeyTextField;
+	
+	/**
+	 * venue label field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.venue_label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	venue_label: prismic.KeyTextField;
+	
+	/**
+	 * venue name field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.venue_name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	venue_name: prismic.KeyTextField;
+	
+	/**
+	 * transport info field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.transport_info[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	transport_info: prismic.GroupField<Simplify<VenueInformationSliceDefaultPrimaryTransportInfoItem>>;
+	
+	/**
+	 * directions button label field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.directions_button_label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	directions_button_label: prismic.KeyTextField;
+	
+	/**
+	 * directions buttons link field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.directions_buttons_link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	directions_buttons_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+	
+	/**
+	 * address field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.address
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	address: prismic.KeyTextField;
+	
+	/**
+	 * google maps embed field in *VenueInformation → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: venue_information.default.primary.google_maps_embed
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	google_maps_embed: prismic.KeyTextField;
+}
+
+/**
+ * Default variation for VenueInformation Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type VenueInformationSliceDefault = prismic.SharedSliceVariation<"default", Simplify<VenueInformationSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *VenueInformation*
+ */
+type VenueInformationSliceVariation = VenueInformationSliceDefault
+
+/**
+ * VenueInformation Shared Slice
+ *
+ * - **API ID**: `venue_information`
+ * - **Description**: VenueInformation
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type VenueInformationSlice = prismic.SharedSlice<"venue_information", VenueInformationSliceVariation>;
+
+/**
  * Item in *VideoHighlights → Default → Primary → highlights*
  */
 export interface VideoHighlightsSliceDefaultPrimaryVideosItem {
@@ -1002,6 +1579,17 @@ declare module "@prismicio/client" {
 			PageDocumentData,
 			PageDocumentDataSlicesSlice,
 			AllDocumentTypes,
+			EventArchiveTableSlice,
+			EventArchiveTableSliceDefaultPrimaryTableHeadersItem,
+			EventArchiveTableSliceDefaultPrimaryEventsItem,
+			EventArchiveTableSliceDefaultPrimary,
+			EventArchiveTableSliceVariation,
+			EventArchiveTableSliceDefault,
+			FeaturedEventHeroSlice,
+			FeaturedEventHeroSliceDefaultPrimaryCtaItem,
+			FeaturedEventHeroSliceDefaultPrimary,
+			FeaturedEventHeroSliceVariation,
+			FeaturedEventHeroSliceDefault,
 			FeaturedFightersSlice,
 			FeaturedFightersSliceDefaultPrimaryFightersItem,
 			FeaturedFightersSliceDefaultPrimary,
@@ -1030,6 +1618,16 @@ declare module "@prismicio/client" {
 			UpcomingEventSliceDefaultPrimary,
 			UpcomingEventSliceVariation,
 			UpcomingEventSliceDefault,
+			UpcomingEventsGridSlice,
+			UpcomingEventsGridSliceDefaultPrimaryEventsItem,
+			UpcomingEventsGridSliceDefaultPrimary,
+			UpcomingEventsGridSliceVariation,
+			UpcomingEventsGridSliceDefault,
+			VenueInformationSlice,
+			VenueInformationSliceDefaultPrimaryTransportInfoItem,
+			VenueInformationSliceDefaultPrimary,
+			VenueInformationSliceVariation,
+			VenueInformationSliceDefault,
 			VideoHighlightsSlice,
 			VideoHighlightsSliceDefaultPrimaryVideosItem,
 			VideoHighlightsSliceDefaultPrimary,

@@ -4,11 +4,15 @@ import { defineAsyncComponent } from "vue";
 import { defineSliceZoneComponents } from "@prismicio/vue";
 
 export const components = defineSliceZoneComponents({
+	event_archive_table: defineAsyncComponent(() => import("./EventArchiveTable/index.vue")),
+	featured_event_hero: defineAsyncComponent(() => import("./FeaturedEventHero/index.vue")),
 	featured_fighters: defineAsyncComponent(() => import("./FeaturedFighters/index.vue")),
 	hero_section: defineAsyncComponent(() => import("./HeroSection/index.vue")),
 	latest_news: defineAsyncComponent(() => import("./LatestNews/index.vue")),
 	newsletter: defineAsyncComponent(() => import("./Newsletter/index.vue")),
 	sponsor_logos: defineAsyncComponent(() => import("./SponsorLogos/index.vue")),
 	upcoming_event: defineAsyncComponent(() => import("./UpcomingEvent/index.vue")),
+	upcoming_events_grid: defineAsyncComponent(() => import("./UpcomingEventsGrid/index.vue")),
+	venue_information: defineAsyncComponent(() => import("./VenueInformation/index.vue")),
 	video_highlights: defineAsyncComponent(() => import("./VideoHighlights/index.vue"))
 });

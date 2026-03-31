@@ -1,0 +1,127 @@
+{
+  "id": "upcoming_events_grid",
+  "type": "SharedSlice",
+  "name": "UpcomingEventsGrid",
+  "description": "UpcomingEventsGrid",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "docURL": "...",
+      "version": "initial",
+      "description": "Default",
+      "imageUrl": "",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "subtitle": {
+          "type": "Text",
+          "config": {
+            "label": "subtitle",
+            "placeholder": ""
+          }
+        },
+        "decorative_text": {
+          "type": "Text",
+          "config": {
+            "label": "decorative text",
+            "placeholder": ""
+          }
+        },
+        "events": {
+          "type": "Group",
+          "config": {
+            "label": "events",
+            "fields": {
+              "badge": {
+                "type": "Text",
+                "config": {
+                  "label": "badge",
+                  "placeholder": ""
+                }
+              },
+              "title": {
+                "type": "Text",
+                "config": {
+                  "label": "title",
+                  "placeholder": ""
+                }
+              },
+              "date": {
+                "type": "Date",
+                "config": {
+                  "label": "date",
+                  "placeholder": ""
+                }
+              },
+              "venue": {
+                "type": "Text",
+                "config": {
+                  "label": "venue",
+                  "placeholder": ""
+                }
+              },
+              "image": {
+                "type": "Image",
+                "config": {
+                  "label": "image",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              },
+              "tags_comma_separated": {
+                "type": "Text",
+                "config": {
+                  "label": "tags comma separated",
+                  "placeholder": ""
+                }
+              },
+              "tickets_button_text": {
+                "type": "Text",
+                "config": {
+                  "label": "tickets button text",
+                  "placeholder": ""
+                }
+              },
+              "tickets_button_link": {
+                "type": "Link",
+                "config": {
+                  "label": "tickets button link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": true,
+                  "repeat": false
+                }
+              },
+              "stream_button_text": {
+                "type": "Text",
+                "config": {
+                  "label": "stream button text",
+                  "placeholder": ""
+                }
+              },
+              "stream_button_link": {
+                "type": "Link",
+                "config": {
+                  "label": "stream button link",
+                  "placeholder": "",
+                  "select": null,
+                  "allowTargetBlank": true,
+                  "allowText": true,
+                  "repeat": false
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ]
+}
