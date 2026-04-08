@@ -7,6 +7,7 @@ export const components = defineSliceZoneComponents({
 	event_archive_table: defineAsyncComponent(() => import("./EventArchiveTable/index.vue")),
 	featured_event_hero: defineAsyncComponent(() => import("./FeaturedEventHero/index.vue")),
 	featured_fighters: defineAsyncComponent(() => import("./FeaturedFighters/index.vue")),
+	fighters_section: defineAsyncComponent(() => import("./FightersSection/index.vue")),
 	hero_section: defineAsyncComponent(() => import("./HeroSection/index.vue")),
 	latest_news: defineAsyncComponent(() => import("./LatestNews/index.vue")),
 	newsletter: defineAsyncComponent(() => import("./Newsletter/index.vue")),

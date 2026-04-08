@@ -1,0 +1,98 @@
+{
+  "id": "fighters_section",
+  "type": "SharedSlice",
+  "name": "FightersSection",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "title_highlight": {
+          "type": "Text",
+          "config": {
+            "label": "title highlight",
+            "placeholder": ""
+          }
+        },
+        "subtitle": {
+          "type": "Text",
+          "config": {
+            "label": "subtitle",
+            "placeholder": ""
+          }
+        },
+        "search_placeholder": {
+          "type": "Text",
+          "config": {
+            "label": "search placeholder",
+            "placeholder": ""
+          }
+        },
+        "load_more_label": {
+          "type": "Text",
+          "config": {
+            "label": "load more label",
+            "placeholder": ""
+          }
+        },
+        "fighters": {
+          "type": "Group",
+          "config": {
+            "label": "fighters",
+            "fields": {
+              "fighter": {
+                "type": "Link",
+                "config": {
+                  "label": "fighter",
+                  "select": "document",
+                  "repeat": false,
+                  "customtypes": [
+                    {
+                      "id": "fighter",
+                      "fields": [
+                        "name",
+                        "nickname",
+                        "record",
+                        "image",
+                        {
+                          "id": "division",
+                          "customtypes": [
+                            {
+                              "id": "division",
+                              "fields": [
+                                "name"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "id": "badges",
+                          "fields": [
+                            "label"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ],
+  "description": "FightersSection"
+}

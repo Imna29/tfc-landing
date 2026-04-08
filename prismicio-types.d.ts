@@ -95,6 +95,130 @@ interface CtaDocumentData {
  */
 export type CtaDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<CtaDocumentData>, "cta", Lang>;
 
+/**
+ * Content for Division documents
+ */
+interface DivisionDocumentData {
+	/**
+	 * name field in *Division*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: division.name
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	name: prismic.KeyTextField;
+}
+
+/**
+ * Division document from Prismic
+ *
+ * - **API ID**: `division`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type DivisionDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<DivisionDocumentData>, "division", Lang>;
+
+/**
+ * Item in *Fighter → badges*
+ */
+export interface FighterDocumentDataBadgesItem {
+	/**
+	 * label field in *Fighter → badges*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.badges[].label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	label: prismic.KeyTextField;
+}
+
+/**
+ * Content for Fighter documents
+ */
+interface FighterDocumentData {
+	/**
+	 * name field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.name
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	name: prismic.KeyTextField;
+	
+	/**
+	 * nickname field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.nickname
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	nickname: prismic.KeyTextField;
+	
+	/**
+	 * record field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.record
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	record: prismic.KeyTextField;
+	
+	/**
+	 * image field in *Fighter*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.image
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	image: prismic.ImageField<never>;
+	
+	/**
+	 * division field in *Fighter*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.division
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	division: ContentRelationshipFieldWithData<[{"id":"division","fields":["name"]}]>;
+	
+	/**
+	 * badges field in *Fighter*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.badges[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	badges: prismic.GroupField<Simplify<FighterDocumentDataBadgesItem>>;
+}
+
+/**
+ * Fighter document from Prismic
+ *
+ * - **API ID**: `fighter`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type FighterDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<FighterDocumentData>, "fighter", Lang>;
+
 type HomePageDocumentDataSlicesSlice = HeroSectionSlice | UpcomingEventSlice | FeaturedFightersSlice | VideoHighlightsSlice | LatestNewsSlice | NewsletterSlice | SponsorLogosSlice
 
 /**
@@ -215,7 +339,7 @@ interface PageDocumentData {
  */
 export type PageDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<PageDocumentData>, "page", Lang>;
 
-export type AllDocumentTypes = CtaDocument | HomePageDocument | PageDocument;
+export type AllDocumentTypes = CtaDocument | DivisionDocument | FighterDocument | HomePageDocument | PageDocument;
 
 /**
  * Item in *EventArchiveTable → Default → Primary → table headers*
@@ -610,6 +734,109 @@ type FeaturedFightersSliceVariation = FeaturedFightersSliceDefault
  * - **Documentation**: https://prismic.io/docs/slices
  */
 export type FeaturedFightersSlice = prismic.SharedSlice<"featured_fighters", FeaturedFightersSliceVariation>;
+
+/**
+ * Item in *FightersSection → Default → Primary → fighters*
+ */
+export interface FightersSectionSliceDefaultPrimaryFightersItem {
+	/**
+	 * fighter field in *FightersSection → Default → Primary → fighters*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.fighters[].fighter
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","image",{"id":"division","customtypes":[{"id":"division","fields":["name"]}]},{"id":"badges","fields":["label"]}]}]>;
+}
+
+/**
+ * Primary content in *FightersSection → Default → Primary*
+ */
+export interface FightersSectionSliceDefaultPrimary {
+	/**
+	 * title field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.title
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * title highlight field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.title_highlight
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title_highlight: prismic.KeyTextField;
+	
+	/**
+	 * subtitle field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.subtitle
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	subtitle: prismic.KeyTextField;
+	
+	/**
+	 * search placeholder field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.search_placeholder
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	search_placeholder: prismic.KeyTextField;
+	
+	/**
+	 * load more label field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.load_more_label
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	load_more_label: prismic.KeyTextField;
+	
+	/**
+	 * fighters field in *FightersSection → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighters_section.default.primary.fighters[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	fighters: prismic.GroupField<Simplify<FightersSectionSliceDefaultPrimaryFightersItem>>;
+}
+
+/**
+ * Default variation for FightersSection Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type FightersSectionSliceDefault = prismic.SharedSliceVariation<"default", Simplify<FightersSectionSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *FightersSection*
+ */
+type FightersSectionSliceVariation = FightersSectionSliceDefault
+
+/**
+ * FightersSection Shared Slice
+ *
+ * - **API ID**: `fighters_section`
+ * - **Description**: FightersSection
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type FightersSectionSlice = prismic.SharedSlice<"fighters_section", FightersSectionSliceVariation>;
 
 /**
  * Item in *HeroSection → Default → Primary → cta*
@@ -1572,6 +1799,11 @@ declare module "@prismicio/client" {
 		export type {
 			CtaDocument,
 			CtaDocumentData,
+			DivisionDocument,
+			DivisionDocumentData,
+			FighterDocument,
+			FighterDocumentData,
+			FighterDocumentDataBadgesItem,
 			HomePageDocument,
 			HomePageDocumentData,
 			HomePageDocumentDataSlicesSlice,
@@ -1595,6 +1827,11 @@ declare module "@prismicio/client" {
 			FeaturedFightersSliceDefaultPrimary,
 			FeaturedFightersSliceVariation,
 			FeaturedFightersSliceDefault,
+			FightersSectionSlice,
+			FightersSectionSliceDefaultPrimaryFightersItem,
+			FightersSectionSliceDefaultPrimary,
+			FightersSectionSliceVariation,
+			FightersSectionSliceDefault,
 			HeroSectionSlice,
 			HeroSectionSliceDefaultPrimaryCtaItem,
 			HeroSectionSliceDefaultPrimary,

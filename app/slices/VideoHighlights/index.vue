@@ -54,10 +54,17 @@ const closeModal = () => {
           "
         >
           <img
-            v-if="isFilled.image(slice.primary.videos[0].thumbnail) || slice.primary.videos[0].youtube_url?.thumbnail_url"
+            v-if="
+              isFilled.image(slice.primary.videos[0].thumbnail) ||
+              slice.primary.videos[0].youtube_url?.thumbnail_url
+            "
             :alt="slice.primary.videos[0].title || 'Video'"
             class="w-full h-full object-cover"
-            :src="isFilled.image(slice.primary.videos[0].thumbnail) ? slice.primary.videos[0].thumbnail.url : slice.primary.videos[0].youtube_url?.thumbnail_url"
+            :src="
+              isFilled.image(slice.primary.videos[0].thumbnail)
+                ? slice.primary.videos[0].thumbnail.url!
+                : slice.primary.videos[0].youtube_url?.thumbnail_url!
+            "
           />
           <div
             class="absolute inset-0 bg-background/30 flex items-center justify-center group-hover:bg-background/10 transition-colors"
@@ -93,7 +100,11 @@ const closeModal = () => {
                 v-if="isFilled.image(video.thumbnail) || video.youtube_url?.thumbnail_url"
                 :alt="video.title || 'Video'"
                 class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
-                :src="isFilled.image(video.thumbnail) ? video.thumbnail.url : video.youtube_url?.thumbnail_url"
+                :src="
+                  isFilled.image(video.thumbnail)
+                    ? video.thumbnail.url
+                    : video.youtube_url?.thumbnail_url!
+                "
               />
               <div class="absolute inset-0 flex items-center justify-center">
                 <Icon name="material-symbols:play-circle" class="text-4xl text-white" />
