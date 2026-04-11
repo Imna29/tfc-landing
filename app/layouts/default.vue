@@ -1,5 +1,17 @@
 <script setup lang="ts">
 const { locale, locales, setLocale } = useI18n();
+const isMobileMenuOpen = ref(false);
+
+const mobileNavLinks = [
+  { to: "/events", label: "Events" },
+  { to: "/fighters", label: "Fighters" },
+  { to: "/media", label: "Media" },
+  { to: "/about", label: "About" },
+];
+
+const closeMobileMenu = () => {
+  isMobileMenuOpen.value = false;
+};
 </script>
 
 <template>
@@ -9,60 +21,97 @@ const { locale, locales, setLocale } = useI18n();
     <header
       class="sticky top-0 z-50 bg-surface-container-high/70 backdrop-blur-xl border-b border-outline-variant/15 px-6 md:px-20 py-4"
     >
-      <div class="max-w-[1440px] mx-auto flex items-center justify-between">
-        <NuxtLink to="/" class="flex items-center">
-          <img src="/tfc_logo.png" alt="TFC Logo" class="w-24 h-12 object-contain" />
-        </NuxtLink>
+      <div class="max-w-[1440px] mx-auto">
+        <div class="flex items-center justify-between">
+          <NuxtLink to="/" class="flex items-center">
+            <img
+              src="/tfc_logo.png"
+              alt="TFC Logo"
+              width="96"
+              height="48"
+              loading="eager"
+              decoding="async"
+              fetchpriority="high"
+              class="w-24 h-12 object-contain"
+            />
+          </NuxtLink>
 
-        <nav class="hidden md:flex items-center gap-10">
+          <nav class="hidden md:flex items-center gap-10">
+            <NuxtLink
+              to="/events"
+              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              Events
+            </NuxtLink>
+            <NuxtLink
+              to="/fighters"
+              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              Fighters
+            </NuxtLink>
+            <NuxtLink
+              to="/media"
+              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              Media
+            </NuxtLink>
+            <NuxtLink
+              to="/about"
+              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              About
+            </NuxtLink>
+          </nav>
+
+          <div class="flex items-center gap-6">
+            <select
+              :value="locale"
+              @change="setLocale(($event?.target as HTMLSelectElement)?.value as 'en-us' | 'ka')"
+              class="bg-transparent text-xl cursor-pointer border border-outline-variant/30 px-2 py-1 hover:border-primary transition-colors"
+            >
+              <option
+                v-for="loc in locales"
+                :key="loc.code"
+                :value="loc.code"
+                class="bg-surface-container-high text-sm"
+              >
+                {{ loc.code === "en-us" ? "🇺🇸" : "🇬🇪" }}
+              </option>
+            </select>
+            <NuxtLink
+              to="/contact"
+              class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
+            >
+              Contact
+            </NuxtLink>
+            <button
+              type="button"
+              class="md:hidden w-11 h-11 border border-outline-variant/30 flex items-center justify-center hover:border-primary transition-colors"
+              :aria-expanded="isMobileMenuOpen"
+              aria-controls="mobile-nav"
+              aria-label="Toggle navigation menu"
+              @click="isMobileMenuOpen = !isMobileMenuOpen"
+            >
+              <Icon :name="isMobileMenuOpen ? 'material-symbols:close' : 'material-symbols:menu'" />
+            </button>
+          </div>
+        </div>
+
+        <nav
+          v-if="isMobileMenuOpen"
+          id="mobile-nav"
+          class="md:hidden mt-4 border border-outline-variant/30 bg-surface-container-high"
+        >
           <NuxtLink
-            to="/events"
-            class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            v-for="link in mobileNavLinks"
+            :key="link.to"
+            :to="link.to"
+            class="block px-4 py-3 text-sm font-bold uppercase tracking-widest border-b border-outline-variant/15 last:border-b-0 hover:text-primary transition-colors"
+            @click="closeMobileMenu"
           >
-            Events
-          </NuxtLink>
-          <NuxtLink
-            to="/fighters"
-            class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            Fighters
-          </NuxtLink>
-          <NuxtLink
-            to="/media"
-            class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            Media
-          </NuxtLink>
-          <NuxtLink
-            to="/about"
-            class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-          >
-            About
+            {{ link.label }}
           </NuxtLink>
         </nav>
-
-        <div class="flex items-center gap-6">
-          <select
-            :value="locale"
-            @change="setLocale(($event?.target as HTMLSelectElement)?.value as 'en-us' | 'ka')"
-            class="bg-transparent text-xl cursor-pointer border border-outline-variant/30 px-2 py-1 hover:border-primary transition-colors"
-          >
-            <option
-              v-for="loc in locales"
-              :key="loc.code"
-              :value="loc.code"
-              class="bg-surface-container-high text-sm"
-            >
-              {{ loc.code === "en-us" ? "🇺🇸" : "🇬🇪" }}
-            </option>
-          </select>
-          <NuxtLink
-            to="/contact"
-            class="bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
-          >
-            Contact
-          </NuxtLink>
-        </div>
       </div>
     </header>
 
@@ -77,7 +126,15 @@ const { locale, locales, setLocale } = useI18n();
         <div class="grid grid-cols-1 md:grid-cols-4 gap-16 mb-24">
           <div class="col-span-1 md:col-span-1">
             <div class="flex items-center text-white mb-8">
-              <img src="/tfc_logo.png" alt="TFC Logo" class="w-24 h-12 object-contain" />
+              <img
+                src="/tfc_logo.png"
+                alt="TFC Logo"
+                width="96"
+                height="48"
+                loading="lazy"
+                decoding="async"
+                class="w-24 h-12 object-contain"
+              />
             </div>
             <p class="text-on-surface-variant text-sm leading-relaxed mb-8">
               The heartbeat of combat sports in the Caucasus. Promoting elite mixed martial arts

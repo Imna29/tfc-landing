@@ -7,6 +7,9 @@
       <div class="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent z-10" />
       <img
         alt="Hero Background"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
         class="w-full h-full object-cover grayscale opacity-60"
         src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmB1ZJVG8a5eQ8V0GrHVWiHz9zZMUsf6PDhO1vj5xQHF_DvoOj3YQW8wNmWO08COccUnu_s1YqccLjjBld7aOTBW9f3m88Ai66P7FMYT7F_neXfUXetwpSLO_uqCM_xU0jDNkq_gZAgEun0h-l2qGiMi29RfIgo1qt3fbcUv4UivuueuZ9jB0NvPU_uqnfhZgpyRQTPC5620OHc_IwNoXVYfdj4LN-YN-EVpDjJboJiyflhpHousJWeRwKrQlHbO1n5JIX5Dkxc-A"
       >

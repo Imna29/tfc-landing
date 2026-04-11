@@ -3,10 +3,25 @@ import { asText } from "@prismicio/client/richtext";
 import { asDate } from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
+import { computed } from "vue";
 
-defineProps(
+const props = defineProps(
   getSliceComponentProps<Content.HeroSectionSlice>(["slice", "index", "slices", "context"]),
 );
+
+const formattedEventDate = computed(() => {
+  const eventDate = asDate(props.slice.primary.event_time);
+
+  if (!eventDate) {
+    return "";
+  }
+
+  return eventDate.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).toUpperCase();
+});
 </script>
 
 <template>
@@ -22,6 +37,9 @@ defineProps(
       <img
         v-if="isFilled.image(slice.primary.background_image)"
         alt="Hero Background"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
         class="w-full h-full object-cover grayscale opacity-60"
         :src="slice.primary.background_image.url"
       />
@@ -35,7 +53,7 @@ defineProps(
           <span class="block skew-x-[12deg]">{{ slice.primary.badge_text }}</span>
         </div>
         <h1
-          class="font-headline text-6xl md:text-9xl font-black italic uppercase leading-[0.9] tracking-tighter mb-8 text-white"
+          class="font-headline text-5xl md:text-9xl font-black italic uppercase leading-[0.9] tracking-tighter mb-8 text-white"
         >
           {{ slice.primary.headline_1 }}<br />{{ slice.primary.headline_2 }}<br /><span
             class="text-primary-container"
@@ -71,7 +89,7 @@ defineProps(
 
     <div class="absolute bottom-10 right-20 hidden lg:block">
       <div class="flex flex-col items-end gap-2 text-primary font-headline italic font-bold">
-        <span class="text-6xl">{{ asDate(slice.primary.event_time)?.toLocaleDateString() }}</span>
+        <span class="text-6xl">{{ formattedEventDate }}</span>
         <span class="text-xl tracking-widest">{{ slice.primary.event_location }}</span>
       </div>
     </div>

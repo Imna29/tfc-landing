@@ -16,10 +16,16 @@ interface FighterCard {
   record: string;
   division: string;
   image: string;
+  imageWidth: number;
+  imageHeight: number;
+  nicknameDisplay: string;
+  searchText: string;
   badges: FighterBadge[];
 }
 
 const PLACEHOLDER_IMAGE = "/fighter-placeholder.svg";
+const ALL_DIVISIONS_LABEL = "All Divisions";
+const FIGHTERS_BATCH_SIZE = 9;
 
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
@@ -73,14 +79,24 @@ const fighters = computed<FighterCard[]>(() =>
 
       const image =
         isFilled.image(imageField) && imageField.url ? imageField.url : PLACEHOLDER_IMAGE;
+      const imageWidth =
+        isFilled.image(imageField) && imageField.dimensions?.width ? imageField.dimensions.width : 800;
+      const imageHeight =
+        isFilled.image(imageField) && imageField.dimensions?.height ? imageField.dimensions.height : 1000;
+      const name = fighterData?.name || "Unknown Fighter";
+      const nickname = fighterData?.nickname || "";
 
       return {
         id: fighter.uid || fighter.id,
-        name: fighterData?.name || "Unknown Fighter",
-        nickname: fighterData?.nickname || "",
+        name,
+        nickname,
         record: fighterData?.record || "—",
         division,
         image,
+        imageWidth,
+        imageHeight,
+        nicknameDisplay: nickname.toUpperCase(),
+        searchText: `${name} ${nickname}`.toLowerCase(),
         badges,
       };
     })
@@ -100,36 +116,46 @@ const loadMoreLabel = computed(() => props.slice.primary.load_more_label || "Loa
 const divisions = computed(() => {
   const uniqueDivisions = Array.from(new Set(fighters.value.map((fighter) => fighter.division)));
 
-  return ["All Divisions", ...uniqueDivisions];
+  return [ALL_DIVISIONS_LABEL, ...uniqueDivisions];
 });
 
-const selectedDivision = ref("All Divisions");
-const searchQuery = ref("");
+const selectedDivision = shallowRef(ALL_DIVISIONS_LABEL);
+const searchQuery = shallowRef("");
+const visibleCount = shallowRef(FIGHTERS_BATCH_SIZE);
+
+const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase());
 
 watch(divisions, (nextDivisions) => {
   if (!nextDivisions.includes(selectedDivision.value)) {
-    selectedDivision.value = "All Divisions";
+    selectedDivision.value = ALL_DIVISIONS_LABEL;
   }
+});
+
+watch([selectedDivision, normalizedSearchQuery], () => {
+  visibleCount.value = FIGHTERS_BATCH_SIZE;
 });
 
 const filteredFighters = computed(() => {
   let result = fighters.value;
 
-  if (selectedDivision.value !== "All Divisions") {
+  if (selectedDivision.value !== ALL_DIVISIONS_LABEL) {
     result = result.filter((fighter) => fighter.division === selectedDivision.value);
   }
 
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase();
-
-    result = result.filter(
-      (fighter) =>
-        fighter.name.toLowerCase().includes(query) || fighter.nickname.toLowerCase().includes(query),
-    );
+  if (normalizedSearchQuery.value) {
+    result = result.filter((fighter) => fighter.searchText.includes(normalizedSearchQuery.value));
   }
 
   return result;
 });
+
+const visibleFighters = computed(() => filteredFighters.value.slice(0, visibleCount.value));
+const hasMoreFighters = computed(() => visibleCount.value < filteredFighters.value.length);
+const showLoadMore = computed(() => filteredFighters.value.length > 0 && hasMoreFighters.value);
+
+const loadMore = () => {
+  visibleCount.value = Math.min(visibleCount.value + FIGHTERS_BATCH_SIZE, filteredFighters.value.length);
+};
 </script>
 
 <template>
@@ -165,6 +191,7 @@ const filteredFighters = computed(() => {
         <button
           v-for="division in divisions"
           :key="division"
+          type="button"
           class="px-8 py-3 font-headline font-black italic tracking-tighter uppercase whitespace-nowrap transition-colors"
           :class="selectedDivision === division
             ? 'bg-primary-container text-white'
@@ -179,14 +206,19 @@ const filteredFighters = computed(() => {
     <section class="px-8 max-w-7xl mx-auto">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
         <NuxtLink
-          v-for="fighter in filteredFighters"
+          v-for="fighter in visibleFighters"
           :key="fighter.id"
           :to="`/fighters/${fighter.id}`"
-          class="group relative fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-transform duration-500"
+          class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-transform duration-500"
         >
           <div class="h-[500px] relative">
             <img
               :alt="fighter.name"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+              :width="fighter.imageWidth"
+              :height="fighter.imageHeight"
               class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
               :src="fighter.image"
             >
@@ -209,18 +241,18 @@ const filteredFighters = computed(() => {
             </div>
             <div class="absolute bottom-6 left-6 right-6">
               <p v-if="fighter.nickname" class="text-primary font-headline italic font-black text-xl mb-1 uppercase tracking-tight">
-                "{{ fighter.nickname.toUpperCase() }}"
+                "{{ fighter.nicknameDisplay }}"
               </p>
               <h3 class="text-4xl font-headline font-black italic uppercase leading-none tracking-tighter mb-4">
                 {{ fighter.name }}
               </h3>
               <div class="flex justify-between items-center border-t border-white/10 pt-4">
                 <div>
-                  <p class="text-[10px] text-outline uppercase tracking-widest font-bold">RECORD</p>
+                  <p class="text-[10px] text-primary uppercase tracking-widest font-bold">RECORD</p>
                   <p class="text-2xl font-headline font-black italic text-on-surface tracking-tighter">{{ fighter.record }}</p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[10px] text-outline uppercase tracking-widest font-bold">DIVISION</p>
+                  <p class="text-[10px] text-primary uppercase tracking-widest font-bold">DIVISION</p>
                   <p class="text-lg font-headline font-black italic text-secondary tracking-tighter uppercase">{{ fighter.division }}</p>
                 </div>
               </div>
@@ -229,8 +261,12 @@ const filteredFighters = computed(() => {
         </NuxtLink>
       </div>
 
-      <div class="mt-20 flex justify-center">
-        <button class="group flex items-center gap-4 bg-surface-container-high border border-outline-variant px-12 py-6 font-headline font-black italic tracking-tighter uppercase hover:bg-primary-container hover:text-white transition-all duration-300">
+      <p v-if="filteredFighters.length === 0" class="mt-16 text-center text-on-surface-variant uppercase tracking-widest text-sm">
+        No fighters match your current filters.
+      </p>
+
+      <div v-if="showLoadMore" class="mt-20 flex justify-center">
+        <button type="button" class="group flex items-center gap-4 bg-surface-container-high border border-outline-variant px-12 py-6 font-headline font-black italic tracking-tighter uppercase hover:bg-primary-container hover:text-white transition-all duration-300" @click="loadMore">
           {{ loadMoreLabel }}
           <Icon name="material-symbols:keyboard-double-arrow-right" class="group-hover:translate-x-2 transition-transform" />
         </button>
@@ -240,7 +276,19 @@ const filteredFighters = computed(() => {
 </template>
 
 <style scoped>
+.fighter-card {
+  content-visibility: auto;
+  contain: layout paint style;
+  contain-intrinsic-size: 500px;
+}
+
 .fighter-card-skew {
   clip-path: polygon(0 0, 100% 0, 100% 90%, 90% 100%, 0 100%);
+}
+
+@media (max-width: 1024px) {
+  .fighter-card-skew {
+    clip-path: none;
+  }
 }
 </style>

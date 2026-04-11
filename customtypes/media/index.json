@@ -1,0 +1,71 @@
+{
+  "id": "media",
+  "json": {
+    "Main": {
+      "uid": {
+        "type": "UID",
+        "config": {
+          "label": "UID"
+        }
+      },
+      "media_type": {
+        "type": "Link",
+        "config": {
+          "label": "Media Type",
+          "select": "document",
+          "customtypes": [
+            {
+              "id": "media_type",
+              "fields": [
+                "name"
+              ]
+            }
+          ],
+          "repeat": false
+        }
+      },
+      "thumbnail": {
+        "type": "Image",
+        "config": {
+          "label": "thumbnail",
+          "constraint": {},
+          "thumbnails": []
+        }
+      },
+      "title": {
+        "type": "Text",
+        "config": {
+          "label": "title",
+          "placeholder": ""
+        }
+      },
+      "youtube_link": {
+        "type": "Embed",
+        "config": {
+          "label": "youtube link",
+          "placeholder": ""
+        }
+      },
+      "badges": {
+        "type": "Group",
+        "config": {
+          "label": "badges",
+          "repeat": true,
+          "fields": {
+            "name": {
+              "type": "Text",
+              "config": {
+                "label": "name",
+                "placeholder": ""
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "label": "Media",
+  "repeatable": true,
+  "status": true,
+  "format": "custom"
+}

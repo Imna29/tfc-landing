@@ -1,0 +1,79 @@
+{
+  "id": "the_architects",
+  "type": "SharedSlice",
+  "name": "TheArchitects",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "main": {
+          "type": "Group",
+          "config": {
+            "label": "main",
+            "fields": {
+              "name": {
+                "type": "Text",
+                "config": {
+                  "label": "name",
+                  "placeholder": ""
+                }
+              },
+              "position": {
+                "type": "Text",
+                "config": {
+                  "label": "position",
+                  "placeholder": ""
+                }
+              },
+              "image": {
+                "type": "Image",
+                "config": {
+                  "label": "image",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              }
+            },
+            "repeat": true
+          }
+        },
+        "more": {
+          "type": "Group",
+          "config": {
+            "label": "more",
+            "fields": {
+              "name": {
+                "type": "Text",
+                "config": {
+                  "label": "name",
+                  "placeholder": ""
+                }
+              },
+              "position": {
+                "type": "Text",
+                "config": {
+                  "label": "position",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ],
+  "description": "TheArchitects"
+}

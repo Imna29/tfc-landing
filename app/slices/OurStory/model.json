@@ -1,0 +1,65 @@
+{
+  "id": "our_story",
+  "type": "SharedSlice",
+  "name": "OurStory",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "body": {
+          "type": "StructuredText",
+          "config": {
+            "label": "body",
+            "placeholder": "",
+            "allowTargetBlank": true,
+            "multi": "paragraph,strong,em,hyperlink"
+          }
+        },
+        "image": {
+          "type": "Image",
+          "config": {
+            "label": "image",
+            "constraint": {},
+            "thumbnails": []
+          }
+        },
+        "stats": {
+          "type": "Group",
+          "config": {
+            "label": "stats",
+            "fields": {
+              "value": {
+                "type": "Text",
+                "config": {
+                  "label": "value",
+                  "placeholder": ""
+                }
+              },
+              "label": {
+                "type": "Text",
+                "config": {
+                  "label": "label",
+                  "placeholder": ""
+                }
+              }
+            },
+            "repeat": true
+          }
+        }
+      }
+    }
+  ],
+  "description": "OurStory"
+}

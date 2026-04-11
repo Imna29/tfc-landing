@@ -29,6 +29,9 @@ defineProps(
             v-if="isFilled.image(sponsor.logo)"
             :alt="sponsor.logo.alt || 'Sponsor'"
             :src="sponsor.logo.url"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="h-12 w-auto object-contain"
           >
         </component>

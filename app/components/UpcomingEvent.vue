@@ -82,6 +82,9 @@ onUnmounted(() => {
             <div class="relative aspect-video flex items-center justify-center group cursor-pointer overflow-hidden">
               <img
                 alt="Event Poster"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxlsbEPXTVa9HYsRi1DZWaAqyCp2gLjx-DU3DH893Y9mknSiG5pbzR1bB4IZM9KsxhPElb8h9ernXAyEAOvB7jDYSnXd6PprDyuTsrSx-VeZr8kfmYai7IdG77Gj3y5MDA-jD85unooXfMjNCA22RXPgcLh-z4kVUlTpHZ_laXeLT7A5SlMpxHkbmn5q4_yASNa29S8MnydERAA_WkS9Y2gAEtDMVeJB2NExTEAEhuznaMR1JltK78idhl5FyLB5YdJ-vx2T7RKno"
               >

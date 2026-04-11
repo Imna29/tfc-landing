@@ -86,6 +86,9 @@ const mainEvent = {
       <div class="absolute inset-0 z-0">
         <img
           :alt="mainEvent.title"
+          loading="eager"
+          decoding="async"
+          fetchpriority="high"
           class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-700"
           :src="mainEvent.image"
         />
@@ -161,6 +164,9 @@ const mainEvent = {
             <div class="w-full md:w-48 h-64 overflow-hidden relative">
               <img
                 :alt="event.title"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
                 :src="event.image"
               />
@@ -302,6 +308,9 @@ const mainEvent = {
         <div class="h-[500px] relative">
           <img
             alt="Map location of venue"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-full object-cover grayscale brightness-50"
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuBicXujtCvhoRs6l64Uxfn5mB2XaVoJ4MyICWPoAnq8_EUVJBDKkEBO5IdCs3TYsYkneYLZnoaDWVEQHlUk1r2ZnJ-yaBXNadi0GHZ-o-4pgmjNCfKmVyCCU8gBma22__KHBiRRlhD0WmxlyhO-TR9bYr1YPqenFaT9ZZbzYI4R2Rf2UWN0d8SOEqa1Jws46T2oUQMs1KVUH8Uw0A2zH1pGG-CC0PA1Q9EaN1z4wDTD3amOEHWfFvMHNPiWoVCof_W3x7ScTyJwpik"
           />

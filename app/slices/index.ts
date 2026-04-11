@@ -4,14 +4,23 @@ import { defineAsyncComponent } from "vue";
 import { defineSliceZoneComponents } from "@prismicio/vue";
 
 export const components = defineSliceZoneComponents({
+	about_us_cta: defineAsyncComponent(() => import("./AboutUsCta/index.vue")),
+	about_us_hero: defineAsyncComponent(() => import("./AboutUsHero/index.vue")),
+	culture_community: defineAsyncComponent(() => import("./CultureCommunity/index.vue")),
 	event_archive_table: defineAsyncComponent(() => import("./EventArchiveTable/index.vue")),
 	featured_event_hero: defineAsyncComponent(() => import("./FeaturedEventHero/index.vue")),
 	featured_fighters: defineAsyncComponent(() => import("./FeaturedFighters/index.vue")),
+	featured_video: defineAsyncComponent(() => import("./FeaturedVideo/index.vue")),
 	fighters_section: defineAsyncComponent(() => import("./FightersSection/index.vue")),
 	hero_section: defineAsyncComponent(() => import("./HeroSection/index.vue")),
+	image_gallery: defineAsyncComponent(() => import("./ImageGallery/index.vue")),
 	latest_news: defineAsyncComponent(() => import("./LatestNews/index.vue")),
+	media_archive: defineAsyncComponent(() => import("./MediaArchive/index.vue")),
+	mission_values_grid: defineAsyncComponent(() => import("./MissionValuesGrid/index.vue")),
 	newsletter: defineAsyncComponent(() => import("./Newsletter/index.vue")),
+	our_story: defineAsyncComponent(() => import("./OurStory/index.vue")),
 	sponsor_logos: defineAsyncComponent(() => import("./SponsorLogos/index.vue")),
+	the_architects: defineAsyncComponent(() => import("./TheArchitects/index.vue")),
 	upcoming_event: defineAsyncComponent(() => import("./UpcomingEvent/index.vue")),
 	upcoming_events_grid: defineAsyncComponent(() => import("./UpcomingEventsGrid/index.vue")),
 	venue_information: defineAsyncComponent(() => import("./VenueInformation/index.vue")),

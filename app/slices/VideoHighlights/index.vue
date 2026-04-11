@@ -59,6 +59,9 @@ const closeModal = () => {
               slice.primary.videos[0].youtube_url?.thumbnail_url
             "
             :alt="slice.primary.videos[0].title || 'Video'"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-full object-cover"
             :src="
               isFilled.image(slice.primary.videos[0].thumbnail)
@@ -99,6 +102,9 @@ const closeModal = () => {
               <img
                 v-if="isFilled.image(video.thumbnail) || video.youtube_url?.thumbnail_url"
                 :alt="video.title || 'Video'"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
                 :src="
                   isFilled.image(video.thumbnail)

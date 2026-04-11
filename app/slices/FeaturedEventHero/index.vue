@@ -18,6 +18,9 @@ defineProps(
       <img
         v-if="isFilled.image(slice.primary.image)"
         :alt="slice.primary.title || 'Event'"
+        loading="lazy"
+        decoding="async"
+        fetchpriority="low"
         class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-700"
         :src="slice.primary.image.url"
       >

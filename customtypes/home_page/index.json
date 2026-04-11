@@ -3,6 +3,8 @@
   "json": {
     "Main": {
       "slices": {
+        "type": "Slices",
+        "fieldset": "Slice Zone",
         "config": {
           "choices": {
             "hero_section": {
@@ -25,38 +27,57 @@
             },
             "sponsor_logos": {
               "type": "SharedSlice"
+            },
+            "event_archive_table": {
+              "type": "SharedSlice"
+            },
+            "featured_event_hero": {
+              "type": "SharedSlice"
+            },
+            "featured_video": {
+              "type": "SharedSlice"
+            },
+            "fighters_section": {
+              "type": "SharedSlice"
+            },
+            "image_gallery": {
+              "type": "SharedSlice"
+            },
+            "upcoming_events_grid": {
+              "type": "SharedSlice"
+            },
+            "venue_information": {
+              "type": "SharedSlice"
             }
           }
-        },
-        "fieldset": "Slice Zone",
-        "type": "Slices"
+        }
       }
     },
     "SEO & Metadata": {
       "meta_title": {
+        "type": "Text",
         "config": {
           "label": "Meta Title",
           "placeholder": "A title of the page used for social media and search engines"
-        },
-        "type": "Text"
+        }
       },
       "meta_description": {
+        "type": "Text",
         "config": {
           "label": "Meta Description",
           "placeholder": "A brief summary of the page"
-        },
-        "type": "Text"
+        }
       },
       "meta_image": {
+        "type": "Image",
         "config": {
-          "constraint": {
-            "height": 1260,
-            "width": 2400
-          },
           "label": "Meta Image",
+          "constraint": {
+            "width": 2400,
+            "height": 1260
+          },
           "thumbnails": []
-        },
-        "type": "Image"
+        }
       }
     }
   },

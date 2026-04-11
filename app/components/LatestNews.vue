@@ -45,6 +45,9 @@ const articles: NewsArticle[] = [
         <div class="bg-surface-container-highest mb-6 overflow-hidden">
           <img
             :alt="article.title"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-48 object-cover grayscale hover:grayscale-0 transition-all"
             :src="article.image"
           >

@@ -44,6 +44,9 @@ const getTags = (tagsString: string | null | undefined) => {
             <img
               v-if="isFilled.image(event.image)"
               :alt="event.title || 'Event'"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
               class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
               :src="event.image.url"
             >

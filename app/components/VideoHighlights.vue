@@ -51,6 +51,9 @@ const highlights: Highlight[] = [
         >
           <img
             :alt="highlights[0].title"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-full object-cover"
             :src="highlights[0].image"
           />
@@ -88,6 +91,9 @@ const highlights: Highlight[] = [
             <div class="relative aspect-video">
               <img
                 :alt="highlight.title"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 class="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity"
                 :src="highlight.image"
               />

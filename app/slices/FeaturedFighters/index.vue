@@ -31,6 +31,9 @@ defineProps(
           <img
             v-if="isFilled.image(fighter.fighter_image)"
             :alt="fighter.name || 'Fighter'"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100"
             :src="fighter.fighter_image.url"
           >
@@ -39,7 +42,7 @@ defineProps(
           <div class="flex justify-between items-start mb-6">
             <div>
               <h3 class="font-headline text-3xl font-black italic uppercase leading-none">{{ fighter.name }}</h3>
-              <p class="text-primary font-bold uppercase text-xs mt-1">'{{ fighter.nickname }}'</p>
+              <p v-if="fighter.nickname" class="text-primary font-bold uppercase text-xs mt-1">'{{ fighter.nickname }}'</p>
             </div>
             <div class="text-right">
               <p class="text-2xl font-black italic">{{ fighter.record }}</p>

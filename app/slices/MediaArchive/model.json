@@ -1,0 +1,39 @@
+{
+  "id": "media_archive",
+  "type": "SharedSlice",
+  "name": "MediaArchive",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "title": {
+          "type": "Text",
+          "config": {
+            "label": "title",
+            "placeholder": ""
+          }
+        },
+        "title_highlight": {
+          "type": "Text",
+          "config": {
+            "label": "title highlight",
+            "placeholder": ""
+          }
+        },
+        "description": {
+          "type": "Text",
+          "config": {
+            "label": "description",
+            "placeholder": ""
+          }
+        }
+      }
+    }
+  ],
+  "description": "MediaArchive"
+}

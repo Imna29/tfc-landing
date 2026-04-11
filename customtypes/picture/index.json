@@ -1,0 +1,17 @@
+{
+  "id": "picture",
+  "json": {
+    "Main": {
+      "uid": {
+        "type": "UID",
+        "config": {
+          "label": "UID"
+        }
+      }
+    }
+  },
+  "label": "Picture",
+  "repeatable": true,
+  "status": true,
+  "format": "custom"
+}

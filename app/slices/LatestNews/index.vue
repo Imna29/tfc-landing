@@ -28,6 +28,9 @@ defineProps(
           <img
             v-if="isFilled.image(article.image)"
             :alt="article.title || 'Article'"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-48 object-cover grayscale hover:grayscale-0 transition-all"
             :src="article.image.url"
           >

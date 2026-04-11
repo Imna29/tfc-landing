@@ -211,6 +211,9 @@ const handleSubmit = () => {
         <div class="relative h-[400px] lg:h-auto bg-surface-container-low group">
           <img
             alt="Tbilisi Cityscape Map Background"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
             class="w-full h-full object-cover opacity-50 grayscale contrast-125 group-hover:scale-105 transition-transform duration-1000"
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqJ7DE0m_ZzJDmJ3Ny21kIKqB6IW5w82yNm1KjNW3UgbYqo5u7QS3wbZQH23_2TwPaQd0QvxoNv9ftKtq4Ng0mHviLz0nW1DEsPlgBVoxsxcMgj8YA_EpPuGJuqPoGTtwzTdhroGHT7IhkwQ5Jr6FquM_cQyvfHZi8zV-M3HPDNKu5Ic0KYT6cpcEIzRrggdFQuhkNLlhz4XYgSLDJIzhmEjGqnPrALzDknQyAhjaP2U_YkxzVWpYqxSYzmPoDoQDNLeVaGzBOyxk"
           />

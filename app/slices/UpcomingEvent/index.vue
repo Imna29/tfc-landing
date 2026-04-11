@@ -95,6 +95,9 @@ onUnmounted(() => {
               <img
                 v-if="isFilled.image(slice.primary.event_poster)"
                 :alt="slice.primary.main_headline || 'Event Poster'"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
                 :src="slice.primary.event_poster.url"
               >
