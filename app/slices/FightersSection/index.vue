@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import * as prismic from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 
@@ -15,6 +16,7 @@ interface FighterCard {
   nickname: string;
   record: string;
   division: string;
+  disciplines: string[];
   image: string;
   imageWidth: number;
   imageHeight: number;
@@ -25,10 +27,49 @@ interface FighterCard {
 
 const PLACEHOLDER_IMAGE = "/fighter-placeholder.svg";
 const ALL_DIVISIONS_LABEL = "All Divisions";
+const ALL_DISCIPLINES_LABEL = "All Disciplines";
 const FIGHTERS_BATCH_SIZE = 9;
 
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
+);
+
+const { client } = usePrismic();
+const { locale } = useI18n();
+
+const referencedFighterDocumentIds = computed(() =>
+  Array.from(
+    new Set(
+      props.slice.primary.fighters.flatMap((item) =>
+        isFilled.contentRelationship(item.fighter) ? [item.fighter.id] : [],
+      ),
+    ),
+  ),
+);
+
+const { data: fighterDocuments } = await useAsyncData(
+  () =>
+    `fighters-section-fighters-${props.index}-${locale.value}-${referencedFighterDocumentIds.value.join(",") || "none"}`,
+  () => {
+    if (referencedFighterDocumentIds.value.length === 0) {
+      return Promise.resolve([] as Content.FighterDocument[]);
+    }
+
+    return client.getAllByType("fighter", {
+      lang: locale.value,
+      filters: [prismic.filter.any("document.id", referencedFighterDocumentIds.value)],
+    });
+  },
+  {
+    watch: [locale, referencedFighterDocumentIds],
+  },
+);
+
+const fighterDocumentsById = computed(
+  () =>
+    new Map(
+      (fighterDocuments.value ?? []).map((fighterDocument) => [fighterDocument.id, fighterDocument]),
+    ),
 );
 
 const getBadgeType = (label: string): BadgeType => {
@@ -52,8 +93,13 @@ const fighters = computed<FighterCard[]>(() =>
         return null;
       }
 
-      const fighter = item.fighter;
-      const fighterData = fighter.data;
+      const fighterDocument = fighterDocumentsById.value.get(item.fighter.id);
+
+      if (!fighterDocument) {
+        return null;
+      }
+
+      const fighterData = fighterDocument.data;
       const divisionField = fighterData?.division;
       const imageField = fighterData?.image;
 
@@ -61,6 +107,17 @@ const fighters = computed<FighterCard[]>(() =>
         isFilled.contentRelationship(divisionField) && divisionField.data?.name
           ? divisionField.data.name
           : "Unknown Division";
+      const disciplines = (fighterData?.disciplines ?? [])
+        .map((disciplineItem) => {
+          const disciplineField = disciplineItem.discipline;
+
+          if (isFilled.contentRelationship(disciplineField) && disciplineField.data?.name) {
+            return disciplineField.data.name;
+          }
+
+          return null;
+        })
+        .filter((discipline): discipline is string => discipline !== null);
 
       const badges = (fighterData?.badges ?? [])
         .map((badge) => {
@@ -80,18 +137,23 @@ const fighters = computed<FighterCard[]>(() =>
       const image =
         isFilled.image(imageField) && imageField.url ? imageField.url : PLACEHOLDER_IMAGE;
       const imageWidth =
-        isFilled.image(imageField) && imageField.dimensions?.width ? imageField.dimensions.width : 800;
+        isFilled.image(imageField) && imageField.dimensions?.width
+          ? imageField.dimensions.width
+          : 800;
       const imageHeight =
-        isFilled.image(imageField) && imageField.dimensions?.height ? imageField.dimensions.height : 1000;
+        isFilled.image(imageField) && imageField.dimensions?.height
+          ? imageField.dimensions.height
+          : 1000;
       const name = fighterData?.name || "Unknown Fighter";
       const nickname = fighterData?.nickname || "";
 
       return {
-        id: fighter.uid || fighter.id,
+        id: fighterDocument.uid || fighterDocument.id,
         name,
         nickname,
         record: fighterData?.record || "—",
         division,
+        disciplines: Array.from(new Set(disciplines)),
         image,
         imageWidth,
         imageHeight,
@@ -110,7 +172,9 @@ const subtitle = computed(
     props.slice.primary.subtitle ||
     "The roster of Tbilisi Fighting Championship. Athletes forged in iron, competing for the crown of the Caucasus.",
 );
-const searchPlaceholder = computed(() => props.slice.primary.search_placeholder || "FIND A FIGHTER...");
+const searchPlaceholder = computed(
+  () => props.slice.primary.search_placeholder || "FIND A FIGHTER...",
+);
 const loadMoreLabel = computed(() => props.slice.primary.load_more_label || "Load More Fighters");
 
 const divisions = computed(() => {
@@ -119,7 +183,16 @@ const divisions = computed(() => {
   return [ALL_DIVISIONS_LABEL, ...uniqueDivisions];
 });
 
+const disciplineTypes = computed(() => {
+  const uniqueDisciplines = Array.from(
+    new Set(fighters.value.flatMap((fighter) => fighter.disciplines)),
+  );
+
+  return [ALL_DISCIPLINES_LABEL, ...uniqueDisciplines];
+});
+
 const selectedDivision = shallowRef(ALL_DIVISIONS_LABEL);
+const selectedDiscipline = shallowRef(ALL_DISCIPLINES_LABEL);
 const searchQuery = shallowRef("");
 const visibleCount = shallowRef(FIGHTERS_BATCH_SIZE);
 
@@ -131,7 +204,13 @@ watch(divisions, (nextDivisions) => {
   }
 });
 
-watch([selectedDivision, normalizedSearchQuery], () => {
+watch(disciplineTypes, (nextDisciplineTypes) => {
+  if (!nextDisciplineTypes.includes(selectedDiscipline.value)) {
+    selectedDiscipline.value = ALL_DISCIPLINES_LABEL;
+  }
+});
+
+watch([selectedDivision, selectedDiscipline, normalizedSearchQuery], () => {
   visibleCount.value = FIGHTERS_BATCH_SIZE;
 });
 
@@ -140,6 +219,10 @@ const filteredFighters = computed(() => {
 
   if (selectedDivision.value !== ALL_DIVISIONS_LABEL) {
     result = result.filter((fighter) => fighter.division === selectedDivision.value);
+  }
+
+  if (selectedDiscipline.value !== ALL_DISCIPLINES_LABEL) {
+    result = result.filter((fighter) => fighter.disciplines.includes(selectedDiscipline.value));
   }
 
   if (normalizedSearchQuery.value) {
@@ -154,7 +237,10 @@ const hasMoreFighters = computed(() => visibleCount.value < filteredFighters.val
 const showLoadMore = computed(() => filteredFighters.value.length > 0 && hasMoreFighters.value);
 
 const loadMore = () => {
-  visibleCount.value = Math.min(visibleCount.value + FIGHTERS_BATCH_SIZE, filteredFighters.value.length);
+  visibleCount.value = Math.min(
+    visibleCount.value + FIGHTERS_BATCH_SIZE,
+    filteredFighters.value.length,
+  );
 };
 </script>
 
@@ -165,9 +251,13 @@ const loadMore = () => {
     :data-slice-variation="slice.variation"
   >
     <section class="px-8 mb-16 max-w-7xl mx-auto">
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-outline-variant pb-12">
+      <div
+        class="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-outline-variant pb-12"
+      >
         <div>
-          <h1 class="text-6xl md:text-8xl font-headline font-black italic tracking-tighter uppercase leading-none mb-4">
+          <h1
+            class="text-6xl md:text-8xl font-headline font-black italic tracking-tighter uppercase leading-none mb-4"
+          >
             {{ title }} <span class="text-primary-container">{{ titleHighlight }}</span>
           </h1>
           <p class="text-secondary font-body max-w-md uppercase tracking-widest text-sm font-light">
@@ -175,31 +265,55 @@ const loadMore = () => {
           </p>
         </div>
         <div class="relative w-full md:w-96">
-          <Icon name="material-symbols:search" class="absolute left-4 top-1/2 -translate-y-1/2 text-outline" />
+          <Icon
+            name="material-symbols:search"
+            class="absolute left-4 top-1/2 -translate-y-1/2 text-outline"
+          />
           <input
             v-model="searchQuery"
             type="text"
             :placeholder="searchPlaceholder"
             class="w-full bg-surface-container-lowest border-b-2 border-outline-variant focus:border-primary px-12 py-4 font-headline italic font-bold tracking-tight outline-none placeholder:text-outline-variant uppercase"
-          >
+          />
         </div>
       </div>
     </section>
 
     <section class="px-8 mb-12 max-w-7xl mx-auto overflow-x-auto">
-      <div class="flex space-x-4 pb-4">
-        <button
-          v-for="division in divisions"
-          :key="division"
-          type="button"
-          class="px-8 py-3 font-headline font-black italic tracking-tighter uppercase whitespace-nowrap transition-colors"
-          :class="selectedDivision === division
-            ? 'bg-primary-container text-white'
-            : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high'"
-          @click="selectedDivision = division"
-        >
-          {{ division }}
-        </button>
+      <div class="flex flex-col gap-4 pb-4">
+        <div class="flex w-max space-x-4">
+          <button
+            v-for="division in divisions"
+            :key="division"
+            type="button"
+            class="px-8 py-3 font-headline font-black italic tracking-tighter uppercase whitespace-nowrap transition-colors"
+            :class="
+              selectedDivision === division
+                ? 'bg-primary-container text-white'
+                : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high'
+            "
+            @click="selectedDivision = division"
+          >
+            {{ division }}
+          </button>
+        </div>
+
+        <div class="flex w-max space-x-4">
+          <button
+            v-for="disciplineType in disciplineTypes"
+            :key="disciplineType"
+            type="button"
+            class="px-8 py-3 font-headline font-black italic tracking-tighter uppercase whitespace-nowrap transition-colors"
+            :class="
+              selectedDiscipline === disciplineType
+                ? 'bg-primary-container text-white'
+                : 'bg-surface-container-low text-on-surface hover:bg-surface-container-high'
+            "
+            @click="selectedDiscipline = disciplineType"
+          >
+            {{ disciplineType }}
+          </button>
+        </div>
       </div>
     </section>
 
@@ -221,9 +335,14 @@ const loadMore = () => {
               :height="fighter.imageHeight"
               class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
               :src="fighter.image"
+            />
+            <div
+              class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-transparent to-transparent opacity-90"
+            />
+            <div
+              v-if="fighter.badges.length > 0"
+              class="absolute top-6 left-6 flex flex-col items-start gap-2"
             >
-            <div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest via-transparent to-transparent opacity-90" />
-            <div v-if="fighter.badges.length > 0" class="absolute top-6 left-6 flex flex-col items-start gap-2">
               <template v-for="badge in fighter.badges" :key="badge.label">
                 <span
                   v-if="badge.type === 'champion'"
@@ -240,20 +359,35 @@ const loadMore = () => {
               </template>
             </div>
             <div class="absolute bottom-6 left-6 right-6">
-              <p v-if="fighter.nickname" class="text-primary font-headline italic font-black text-xl mb-1 uppercase tracking-tight">
+              <p
+                v-if="fighter.nickname"
+                class="text-primary font-headline italic font-black text-xl mb-1 uppercase tracking-tight"
+              >
                 "{{ fighter.nicknameDisplay }}"
               </p>
-              <h3 class="text-4xl font-headline font-black italic uppercase leading-none tracking-tighter mb-4">
+              <h3
+                class="text-4xl font-headline font-black italic uppercase leading-none tracking-tighter mb-4"
+              >
                 {{ fighter.name }}
               </h3>
               <div class="flex justify-between items-center border-t border-white/10 pt-4">
                 <div>
                   <p class="text-[10px] text-primary uppercase tracking-widest font-bold">RECORD</p>
-                  <p class="text-2xl font-headline font-black italic text-on-surface tracking-tighter">{{ fighter.record }}</p>
+                  <p
+                    class="text-2xl font-headline font-black italic text-on-surface tracking-tighter"
+                  >
+                    {{ fighter.record }}
+                  </p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[10px] text-primary uppercase tracking-widest font-bold">DIVISION</p>
-                  <p class="text-lg font-headline font-black italic text-secondary tracking-tighter uppercase">{{ fighter.division }}</p>
+                  <p class="text-[10px] text-primary uppercase tracking-widest font-bold">
+                    DIVISION
+                  </p>
+                  <p
+                    class="text-lg font-headline font-black italic text-secondary tracking-tighter uppercase"
+                  >
+                    {{ fighter.division }}
+                  </p>
                 </div>
               </div>
             </div>
@@ -261,14 +395,24 @@ const loadMore = () => {
         </NuxtLink>
       </div>
 
-      <p v-if="filteredFighters.length === 0" class="mt-16 text-center text-on-surface-variant uppercase tracking-widest text-sm">
+      <p
+        v-if="filteredFighters.length === 0"
+        class="mt-16 text-center text-on-surface-variant uppercase tracking-widest text-sm"
+      >
         No fighters match your current filters.
       </p>
 
       <div v-if="showLoadMore" class="mt-20 flex justify-center">
-        <button type="button" class="group flex items-center gap-4 bg-surface-container-high border border-outline-variant px-12 py-6 font-headline font-black italic tracking-tighter uppercase hover:bg-primary-container hover:text-white transition-all duration-300" @click="loadMore">
+        <button
+          type="button"
+          class="group flex items-center gap-4 bg-surface-container-high border border-outline-variant px-12 py-6 font-headline font-black italic tracking-tighter uppercase hover:bg-primary-container hover:text-white transition-all duration-300"
+          @click="loadMore"
+        >
           {{ loadMoreLabel }}
-          <Icon name="material-symbols:keyboard-double-arrow-right" class="group-hover:translate-x-2 transition-transform" />
+          <Icon
+            name="material-symbols:keyboard-double-arrow-right"
+            class="group-hover:translate-x-2 transition-transform"
+          />
         </button>
       </div>
     </section>

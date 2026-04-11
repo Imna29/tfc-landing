@@ -96,6 +96,33 @@ interface CtaDocumentData {
 export type CtaDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<CtaDocumentData>, "cta", Lang>;
 
 /**
+ * Content for Discipline documents
+ */
+interface DisciplineDocumentData {
+	/**
+	 * name field in *Discipline*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: discipline.name
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	name: prismic.KeyTextField;
+}
+
+/**
+ * Discipline document from Prismic
+ *
+ * - **API ID**: `discipline`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type DisciplineDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<DisciplineDocumentData>, "discipline", Lang>;
+
+/**
  * Content for Division documents
  */
 interface DivisionDocumentData {
@@ -121,6 +148,21 @@ interface DivisionDocumentData {
  * @typeParam Lang - Language API ID of the document.
  */
 export type DivisionDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<DivisionDocumentData>, "division", Lang>;
+
+/**
+ * Item in *Fighter → disciplines*
+ */
+export interface FighterDocumentDataDisciplinesItem {
+	/**
+	 * discipline field in *Fighter → disciplines*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.disciplines[].discipline
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	discipline: ContentRelationshipFieldWithData<[{"id":"discipline","fields":["name"]}]>;
+}
 
 /**
  * Item in *Fighter → badges*
@@ -195,6 +237,17 @@ interface FighterDocumentData {
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
 	division: ContentRelationshipFieldWithData<[{"id":"division","fields":["name"]}]>;
+	
+	/**
+	 * disciplines field in *Fighter*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.disciplines[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	disciplines: prismic.GroupField<Simplify<FighterDocumentDataDisciplinesItem>>;
 	
 	/**
 	 * badges field in *Fighter*
@@ -465,7 +518,7 @@ interface PictureDocumentData {}
  */
 export type PictureDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<PictureDocumentData>, "picture", Lang>;
 
-export type AllDocumentTypes = CtaDocument | DivisionDocument | FighterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument;
+export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -1155,7 +1208,7 @@ export interface FightersSectionSliceDefaultPrimaryFightersItem {
 	 * - **API ID Path**: fighters_section.default.primary.fighters[].fighter
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","image",{"id":"division","customtypes":[{"id":"division","fields":["name"]}]},{"id":"badges","fields":["label"]}]}]>;
+	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","image",{"id":"division","customtypes":[{"id":"division","fields":["name"]}]},{"id":"badges","fields":["label"]},{"id":"disciplines","fields":[{"id":"discipline","customtypes":[{"id":"discipline","fields":["name"]}]}]}]}]>;
 }
 
 /**
@@ -2632,10 +2685,13 @@ declare module "@prismicio/client" {
 		export type {
 			CtaDocument,
 			CtaDocumentData,
+			DisciplineDocument,
+			DisciplineDocumentData,
 			DivisionDocument,
 			DivisionDocumentData,
 			FighterDocument,
 			FighterDocumentData,
+			FighterDocumentDataDisciplinesItem,
 			FighterDocumentDataBadgesItem,
 			HomePageDocument,
 			HomePageDocumentData,

@@ -59,7 +59,7 @@ const closeMobileMenu = () => {
               to="/about"
               class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
             >
-              About
+              About Us
             </NuxtLink>
           </nav>
 

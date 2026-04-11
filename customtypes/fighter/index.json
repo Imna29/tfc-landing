@@ -53,6 +53,31 @@
           "repeat": false
         }
       },
+      "disciplines": {
+        "type": "Group",
+        "config": {
+          "label": "disciplines",
+          "repeat": true,
+          "fields": {
+            "discipline": {
+              "type": "Link",
+              "config": {
+                "label": "discipline",
+                "select": "document",
+                "customtypes": [
+                  {
+                    "id": "discipline",
+                    "fields": [
+                      "name"
+                    ]
+                  }
+                ],
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
       "badges": {
         "type": "Group",
         "config": {

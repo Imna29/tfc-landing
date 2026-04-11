@@ -69,9 +69,9 @@ const bodyParagraphs = computed(() => {
           loading="lazy"
           decoding="async"
           fetchpriority="low"
-          class="relative z-10 w-full grayscale contrast-125"
+          class="relative z-10 w-full grayscale-0"
           :src="slice.primary.image.url"
-        >
+        />
       </div>
     </div>
   </section>

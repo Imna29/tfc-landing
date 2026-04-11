@@ -50,13 +50,13 @@
           "type": "Group",
           "config": {
             "label": "fighters",
+            "repeat": true,
             "fields": {
               "fighter": {
                 "type": "Link",
                 "config": {
                   "label": "fighter",
                   "select": "document",
-                  "repeat": false,
                   "customtypes": [
                     {
                       "id": "fighter",
@@ -81,14 +81,30 @@
                           "fields": [
                             "label"
                           ]
+                        },
+                        {
+                          "id": "disciplines",
+                          "fields": [
+                            {
+                              "id": "discipline",
+                              "customtypes": [
+                                {
+                                  "id": "discipline",
+                                  "fields": [
+                                    "name"
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
                         }
                       ]
                     }
-                  ]
+                  ],
+                  "repeat": false
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }
