@@ -2,15 +2,14 @@
   "id": "featured_fighters",
   "type": "SharedSlice",
   "name": "FeaturedFighters",
-  "description": "FeaturedFighters",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title": {
           "type": "Text",
@@ -30,6 +29,7 @@
           "type": "Group",
           "config": {
             "label": "Fighters",
+            "repeat": true,
             "fields": {
               "name": {
                 "type": "Text",
@@ -81,11 +81,11 @@
                   "thumbnails": []
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }
     }
-  ]
+  ],
+  "description": "FeaturedFighters"
 }

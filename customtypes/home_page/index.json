@@ -1,5 +1,7 @@
 {
   "id": "home_page",
+  "label": "Home page",
+  "repeatable": false,
   "json": {
     "Main": {
       "slices": {
@@ -81,8 +83,6 @@
       }
     }
   },
-  "label": "Home page",
-  "repeatable": false,
   "status": true,
   "format": "page"
 }

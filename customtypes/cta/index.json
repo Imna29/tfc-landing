@@ -1,5 +1,7 @@
 {
   "id": "cta",
+  "label": "cta",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -39,8 +41,6 @@
       }
     }
   },
-  "label": "cta",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

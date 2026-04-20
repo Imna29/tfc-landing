@@ -2,15 +2,14 @@
   "id": "sponsor_logos",
   "type": "SharedSlice",
   "name": "SponsorLogos",
-  "description": "SponsorLogos",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title": {
           "type": "Text",
@@ -23,6 +22,7 @@
           "type": "Group",
           "config": {
             "label": "sponsors",
+            "repeat": true,
             "fields": {
               "logo": {
                 "type": "Image",
@@ -43,11 +43,11 @@
                   "repeat": false
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }
     }
-  ]
+  ],
+  "description": "SponsorLogos"
 }

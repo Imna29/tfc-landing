@@ -2,15 +2,14 @@
   "id": "latest_news",
   "type": "SharedSlice",
   "name": "LatestNews",
-  "description": "LatestNews",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title": {
           "type": "Text",
@@ -34,6 +33,7 @@
           "type": "Group",
           "config": {
             "label": "articles",
+            "repeat": true,
             "fields": {
               "title": {
                 "type": "Text",
@@ -75,11 +75,11 @@
                   "repeat": false
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }
     }
-  ]
+  ],
+  "description": "LatestNews"
 }

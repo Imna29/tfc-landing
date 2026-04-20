@@ -2,15 +2,14 @@
   "id": "venue_information",
   "type": "SharedSlice",
   "name": "VenueInformation",
-  "description": "VenueInformation",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title_line_1": {
           "type": "Text",
@@ -44,6 +43,7 @@
           "type": "Group",
           "config": {
             "label": "transport info",
+            "repeat": true,
             "fields": {
               "icon": {
                 "type": "Text",
@@ -59,8 +59,7 @@
                   "placeholder": ""
                 }
               }
-            },
-            "repeat": true
+            }
           }
         },
         "directions_button_label": {
@@ -97,5 +96,6 @@
         }
       }
     }
-  ]
+  ],
+  "description": "VenueInformation"
 }

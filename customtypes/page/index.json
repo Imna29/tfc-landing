@@ -1,5 +1,7 @@
 {
   "id": "page",
+  "label": "page",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -108,8 +110,6 @@
       }
     }
   },
-  "label": "page",
-  "repeatable": true,
   "status": true,
   "format": "page"
 }

@@ -180,6 +180,96 @@ export interface FighterDocumentDataBadgesItem {
 }
 
 /**
+ * Item in *Fighter → recent battles*
+ */
+export interface FighterDocumentDataRecentBattlesItem {
+	/**
+	 * result field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].result
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	result: prismic.KeyTextField;
+	
+	/**
+	 * date field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].date
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	date: prismic.KeyTextField;
+	
+	/**
+	 * opponent field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].opponent
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	opponent: prismic.KeyTextField;
+	
+	/**
+	 * event field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].event
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	event: prismic.KeyTextField;
+	
+	/**
+	 * method field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].method
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	method: prismic.KeyTextField;
+	
+	/**
+	 * round field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].round
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	round: prismic.KeyTextField;
+	
+	/**
+	 * youtube link field in *Fighter → recent battles*
+	 *
+	 * - **Field Type**: Embed
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[].youtube_link
+	 * - **Documentation**: https://prismic.io/docs/fields/embed
+	 */
+	youtube_link: prismic.EmbedField
+}
+
+/**
+ * Item in *Fighter → combat archive*
+ */
+export interface FighterDocumentDataCombatArchiveItem {
+	/**
+	 * image field in *Fighter → combat archive*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.combat_archive[].image
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	image: prismic.ImageField<never>;
+}
+
+/**
  * Content for Fighter documents
  */
 interface FighterDocumentData {
@@ -259,6 +349,127 @@ interface FighterDocumentData {
 	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
 	 */
 	badges: prismic.GroupField<Simplify<FighterDocumentDataBadgesItem>>;
+	
+	/**
+	 * height field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.height
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	height: prismic.KeyTextField;
+	
+	/**
+	 * reach field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.reach
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	reach: prismic.KeyTextField;
+	
+	/**
+	 * age field in *Fighter*
+	 *
+	 * - **Field Type**: Number
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.age
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/number
+	 */
+	age: prismic.NumberField;
+	
+	/**
+	 * gym field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.gym
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	gym: prismic.KeyTextField;
+	
+	/**
+	 * from field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.from
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	from: prismic.KeyTextField;
+	
+	/**
+	 * history field in *Fighter*
+	 *
+	 * - **Field Type**: Rich Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.history
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/rich-text
+	 */
+	history: prismic.RichTextField;
+	
+	/**
+	 * recent battles field in *Fighter*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.recent_battles[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	recent_battles: prismic.GroupField<Simplify<FighterDocumentDataRecentBattlesItem>>;
+	
+	/**
+	 * instagram link field in *Fighter*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.instagram_link
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	instagram_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+	
+	/**
+	 * tapology link field in *Fighter*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.tapology_link
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	tapology_link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+	
+	/**
+	 * combat archive field in *Fighter*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.combat_archive[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	combat_archive: prismic.GroupField<Simplify<FighterDocumentDataCombatArchiveItem>>;
+	
+	/**
+	 * banner image field in *Fighter*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.banner_image
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	banner_image: prismic.ImageField<never>;
 }
 
 /**
@@ -2693,6 +2904,8 @@ declare module "@prismicio/client" {
 			FighterDocumentData,
 			FighterDocumentDataDisciplinesItem,
 			FighterDocumentDataBadgesItem,
+			FighterDocumentDataRecentBattlesItem,
+			FighterDocumentDataCombatArchiveItem,
 			HomePageDocument,
 			HomePageDocumentData,
 			HomePageDocumentDataSlicesSlice,

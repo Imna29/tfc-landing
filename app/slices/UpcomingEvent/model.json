@@ -2,15 +2,14 @@
   "id": "upcoming_event",
   "type": "SharedSlice",
   "name": "UpcomingEvent",
-  "description": "UpcomingEvent",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title": {
           "type": "Text",
@@ -64,5 +63,6 @@
         }
       }
     }
-  ]
+  ],
+  "description": "UpcomingEvent"
 }

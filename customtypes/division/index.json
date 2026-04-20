@@ -1,5 +1,7 @@
 {
   "id": "division",
+  "label": "Division",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -17,8 +19,6 @@
       }
     }
   },
-  "label": "Division",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

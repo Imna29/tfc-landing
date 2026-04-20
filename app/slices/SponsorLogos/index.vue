@@ -32,7 +32,7 @@ defineProps(
             loading="lazy"
             decoding="async"
             fetchpriority="low"
-            class="h-12 w-auto object-contain"
+            class="h-16 w-auto object-contain"
           >
         </component>
       </div>

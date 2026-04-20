@@ -22,6 +22,7 @@
           "type": "Group",
           "config": {
             "label": "main",
+            "repeat": true,
             "fields": {
               "name": {
                 "type": "Text",
@@ -45,14 +46,14 @@
                   "thumbnails": []
                 }
               }
-            },
-            "repeat": true
+            }
           }
         },
         "more": {
           "type": "Group",
           "config": {
             "label": "more",
+            "repeat": true,
             "fields": {
               "name": {
                 "type": "Text",
@@ -68,8 +69,7 @@
                   "placeholder": ""
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }

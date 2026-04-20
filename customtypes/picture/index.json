@@ -1,5 +1,7 @@
 {
   "id": "picture",
+  "label": "Picture",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -10,8 +12,6 @@
       }
     }
   },
-  "label": "Picture",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

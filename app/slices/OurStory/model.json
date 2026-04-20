@@ -23,8 +23,8 @@
           "config": {
             "label": "body",
             "placeholder": "",
-            "allowTargetBlank": true,
-            "multi": "paragraph,strong,em,hyperlink"
+            "multi": "paragraph,strong,em,hyperlink",
+            "allowTargetBlank": true
           }
         },
         "image": {
@@ -39,6 +39,7 @@
           "type": "Group",
           "config": {
             "label": "stats",
+            "repeat": true,
             "fields": {
               "value": {
                 "type": "Text",
@@ -54,8 +55,7 @@
                   "placeholder": ""
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }

@@ -2,15 +2,14 @@
   "id": "video_highlights",
   "type": "SharedSlice",
   "name": "VideoHighlights",
-  "description": "VideoHighlights",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "title": {
           "type": "Text",
@@ -30,6 +29,7 @@
           "type": "Group",
           "config": {
             "label": "highlights",
+            "repeat": true,
             "fields": {
               "title": {
                 "type": "Text",
@@ -53,11 +53,11 @@
                   "placeholder": ""
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }
     }
-  ]
+  ],
+  "description": "VideoHighlights"
 }

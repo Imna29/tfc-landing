@@ -1,5 +1,7 @@
 {
   "id": "fighter",
+  "label": "Fighter",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -93,11 +95,158 @@
             }
           }
         }
+      },
+      "height": {
+        "type": "Text",
+        "config": {
+          "label": "height",
+          "placeholder": ""
+        }
+      },
+      "reach": {
+        "type": "Text",
+        "config": {
+          "label": "reach",
+          "placeholder": ""
+        }
+      },
+      "age": {
+        "type": "Number",
+        "config": {
+          "label": "age",
+          "placeholder": ""
+        }
+      },
+      "gym": {
+        "type": "Text",
+        "config": {
+          "label": "gym",
+          "placeholder": ""
+        }
+      },
+      "from": {
+        "type": "Text",
+        "config": {
+          "label": "from",
+          "placeholder": ""
+        }
+      },
+      "history": {
+        "type": "StructuredText",
+        "config": {
+          "label": "history",
+          "placeholder": "",
+          "multi": "paragraph,preformatted,heading2,heading3,heading4,heading5,heading6,strong,em,hyperlink,image,embed,list-item,o-list-item,rtl,heading1",
+          "allowTargetBlank": true
+        }
+      },
+      "recent_battles": {
+        "type": "Group",
+        "config": {
+          "label": "recent battles",
+          "repeat": true,
+          "fields": {
+            "result": {
+              "type": "Text",
+              "config": {
+                "label": "result",
+                "placeholder": ""
+              }
+            },
+            "date": {
+              "type": "Text",
+              "config": {
+                "label": "date",
+                "placeholder": ""
+              }
+            },
+            "opponent": {
+              "type": "Text",
+              "config": {
+                "label": "opponent",
+                "placeholder": ""
+              }
+            },
+            "event": {
+              "type": "Text",
+              "config": {
+                "label": "event",
+                "placeholder": ""
+              }
+            },
+            "method": {
+              "type": "Text",
+              "config": {
+                "label": "method",
+                "placeholder": ""
+              }
+            },
+            "round": {
+              "type": "Text",
+              "config": {
+                "label": "round",
+                "placeholder": ""
+              }
+            },
+            "youtube_link": {
+              "type": "Embed",
+              "config": {
+                "label": "youtube link",
+                "placeholder": ""
+              }
+            }
+          }
+        }
+      },
+      "instagram_link": {
+        "type": "Link",
+        "config": {
+          "label": "instagram link",
+          "placeholder": "",
+          "select": null,
+          "allowTargetBlank": true,
+          "allowText": true,
+          "repeat": false
+        }
+      },
+      "tapology_link": {
+        "type": "Link",
+        "config": {
+          "label": "tapology link",
+          "placeholder": "",
+          "select": null,
+          "allowTargetBlank": true,
+          "allowText": true,
+          "repeat": false
+        }
+      },
+      "combat_archive": {
+        "type": "Group",
+        "config": {
+          "label": "combat archive",
+          "repeat": true,
+          "fields": {
+            "image": {
+              "type": "Image",
+              "config": {
+                "label": "image",
+                "constraint": {},
+                "thumbnails": []
+              }
+            }
+          }
+        }
+      },
+      "banner_image": {
+        "type": "Image",
+        "config": {
+          "label": "banner image",
+          "constraint": {},
+          "thumbnails": []
+        }
       }
     }
   },
-  "label": "Fighter",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

@@ -15,6 +15,7 @@
           "type": "Group",
           "config": {
             "label": "items",
+            "repeat": true,
             "fields": {
               "title": {
                 "type": "Text",
@@ -37,8 +38,7 @@
                   "placeholder": ""
                 }
               }
-            },
-            "repeat": true
+            }
           }
         }
       }

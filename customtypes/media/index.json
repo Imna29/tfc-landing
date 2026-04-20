@@ -1,5 +1,7 @@
 {
   "id": "media",
+  "label": "Media",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -64,8 +66,6 @@
       }
     }
   },
-  "label": "Media",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

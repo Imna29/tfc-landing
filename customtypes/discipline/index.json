@@ -1,5 +1,7 @@
 {
   "id": "discipline",
+  "label": "Discipline",
+  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
@@ -17,8 +19,6 @@
       }
     }
   },
-  "label": "Discipline",
-  "repeatable": true,
   "status": true,
   "format": "custom"
 }

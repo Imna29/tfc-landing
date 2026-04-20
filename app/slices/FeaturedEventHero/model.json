@@ -2,15 +2,14 @@
   "id": "featured_event_hero",
   "type": "SharedSlice",
   "name": "FeaturedEventHero",
-  "description": "FeaturedEventHero",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "badge": {
           "type": "Text",
@@ -52,6 +51,7 @@
           "type": "Group",
           "config": {
             "label": "cta",
+            "repeat": true,
             "fields": {
               "label": {
                 "type": "Text",
@@ -75,8 +75,7 @@
                   ]
                 }
               }
-            },
-            "repeat": true
+            }
           }
         },
         "location": {
@@ -88,5 +87,6 @@
         }
       }
     }
-  ]
+  ],
+  "description": "FeaturedEventHero"
 }

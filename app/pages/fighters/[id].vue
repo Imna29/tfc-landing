@@ -1,6 +1,10 @@
 <script setup lang="ts">
-const route = useRoute();
-const fighterId = route.params.id;
+import { isFilled } from "@prismicio/client";
+import { asText } from "@prismicio/client/richtext";
+import type { Content } from "@prismicio/client";
+
+const PLACEHOLDER_IMAGE = "/fighter-placeholder.svg";
+const FALLBACK_STAT_VALUE = "\u2014";
 
 interface Fight {
   result: string;
@@ -9,6 +13,12 @@ interface Fight {
   event: string;
   method: string;
   round: string;
+  youtubeHtml: string | null;
+}
+
+interface FighterSpec {
+  label: string;
+  value: string;
 }
 
 interface FighterProfile {
@@ -16,103 +26,223 @@ interface FighterProfile {
   name: string;
   nickname: string;
   record: string;
-  rank: string;
   division: string;
   image: string;
-  stats: {
-    strikingAccuracy: string;
-    takedownAccuracy: string;
-    takedownDefense: string;
-  };
-  physical: {
-    height: string;
-    reach: string;
-    age: string;
-    legReach: string;
-  };
-  bio: string[];
+  specs: FighterSpec[];
+  bio: [string, string];
   fights: Fight[];
-  gallery: { src: string; alt: string; large?: boolean }[];
+  gallery: { src: string; alt: string }[];
+  links: {
+    instagram: string | null;
+    tapology: string | null;
+  };
 }
 
-const fighter: FighterProfile = {
-  id: "ilya-topuria",
-  name: "Ilya Topuria",
-  nickname: "The Giant",
-  record: "15 - 0 - 0",
-  rank: "#1 C",
-  division: "LIGHTWEIGHT DIVISION",
-  image:
-    "https://lh3.googleusercontent.com/aida-public/AB6AXuCyUiZFh-LtOBKHHOT6dqPyhfivbTjrPtVusTpwSTR1kQZB12sntkQ0wfMhXN6xuj1mysmoEMtAj7VYV41rFoJgu2jqkE01Knfm9qJr2McQR2XLum94D977KAeymiFheFGu08tgKd5tJgoTQ0Nlh0yczkhcSa3dz8GfrC6VdBZeHYSkiQvGY-jEXvEiHqvwrATdlECptHLhSSheDM7QVq1RoMX4lHZmS2uhO7RWZOogL97y4ZIKAyHlicl7_4RY2v6am_lwrokmtpw",
-  stats: {
-    strikingAccuracy: "52%",
-    takedownAccuracy: "68%",
-    takedownDefense: "92%",
+const route = useRoute();
+const { client } = usePrismic();
+const { locale } = useI18n();
+
+const fighterIdParam = route.params.id;
+const fighterId = Array.isArray(fighterIdParam)
+  ? (fighterIdParam[0] ?? "")
+  : typeof fighterIdParam === "string"
+    ? fighterIdParam
+    : "";
+
+const { data: fighterDocument } = await useAsyncData(
+  `${locale.value}/fighter/${fighterId}`,
+  async () => {
+    if (!fighterId) {
+      return null;
+    }
+
+    try {
+      return await client.getByUID("fighter", fighterId, {
+        lang: locale.value,
+      });
+    } catch (error) {
+      if ((error as { status?: number }).status === 404) {
+        return null;
+      }
+
+      throw error;
+    }
   },
-  physical: {
-    height: "5' 8\" (173 cm)",
-    reach: "69.0 in",
-    age: "27",
-    legReach: "38.0 in",
-  },
-  bio: [
-    "Born in the rugged landscapes of Georgia, Ilya carries the ancient spirit of the Caucasian warriors into the modern octagon. His journey from wrestling mats in Tbilisi to the pinnacle of global combat sports is a testament to unyielding grit.",
-    "Known for surgical precision in his striking and a wrestling base that smothers the elite, Topuria has decimated the lightweight division. Off the canvas, he is a cultural icon, representing the fusion of traditional Georgian values with elite professional athleticism.",
-  ],
-  fights: [
-    {
-      result: "WIN",
-      date: "FEB 2024",
-      opponent: "Volkanovski",
-      event: "TFC 298 — Main Event",
-      method: "KO / TKO",
-      round: "ROUND 2, 3:32",
-    },
-    {
-      result: "WIN",
-      date: "JUN 2023",
-      opponent: "Josh Emmett",
-      event: "TFC Fight Night",
-      method: "U-DECISION",
-      round: "5 ROUNDS, 5:00",
-    },
-    {
-      result: "WIN",
-      date: "DEC 2022",
-      opponent: "Bryce Mitchell",
-      event: "TFC 282",
-      method: "SUBMISSION",
-      round: "ROUND 2, 3:10",
-    },
-  ],
-  gallery: [
-    {
-      src: "https://lh3.googleusercontent.com/aida-public/AB6AXuBCwxhvTHi0nO3f84iNy70PrZYX3PaLcV1ZqQUZjLAUZ4YecB3mVToGFSwlp4RBpWboJipzcDCRtl_Q87SyonjiQTHar-zs0VLg_pFST-D_iUW3AQ2c2EN8_j8GsGqFNzoQezx3enochW0xBwLbphU0N24E1o3l2vlLXnjUSgXy9_EFWy2c1gPdLOCxwwS1kMR9-ZK8d5fO_keLmiUHIWTxgIlMjQdP4yZRCYC7uln0gVnsmrwXA1VzxCAYUALDzqmQITYW_yI0d_0",
-      alt: "Training Shot",
-    },
-    {
-      src: "https://lh3.googleusercontent.com/aida-public/AB6AXuCiMDVbhJrPkNT39UcpVAJ8PwXjW5wVXYQZJzE7m94KAPjnWh4UjwdWSbombNAMGgbaPdcpYXqy6MNTH_Gdpl3FZVVCGfOw8eP1LDDtpxz4c2TrCn-PyyLbC2l5BG5ASv2M9Or2hxw3Ub203SsJLmlG90m9elhXsPIx7uylBjdfrzWHkf304_1wlCqAmNYJAYaujDbgaJyzlPST1O_n41T9JQfuhKWFfVvCNQocncsbdoOm-ByuqlNWilM9-DA45R11t0P65N2CJhA",
-      alt: "Octagon Action",
-      large: true,
-    },
-    {
-      src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDtu5hVYgIwiQOlgnpRSF-UAwTfXGXrm1R0_9Y9LCqYsM0Jr_c6eQuHogmYShqI5cKhkBGhiardwEgOyxEp7nPAMmIRkPCmqjaereAdKjgXocZkp39eFzizUWBM9YpGnW30NB_lrgXgqfGRBBaFFhbdpPfeu_eC9yKH51Btpw1OXCxABuHUT2la9y8ke7ymHTkFAZd419BVsubZOpmxGKWtHWOTiBotNGl_j82LmbZUjiX0hinlRJX_BvE3Ype3RjaW3H-1kCZSy8c",
-      alt: "Pre-fight Focus",
-    },
-    {
-      src: "https://lh3.googleusercontent.com/aida-public/AB6AXuDlEYROrF-5stM3h7kuGz5UIGRZ3zDwzyEoX6K6UO9kTKNZAxg6YihEEe_prVkIyBrAyAg2GLBB_B70QpmbqdkAgN9aGa6Bl2PjeKUioOIzxSA89y-0Zd5wDNtwjyKtq9IqAiQHvTHgsN0-jM-B04IPy9O2jMQAxRMT2MufcRmmYDW0XzhkHDRPQOy1nbr637S-PaEJ7KwWOmHajXhY_xwc-HyWz2iMhGM9JhqpwW97qSjQyrdnQ7HoFtOSVyfhECakY0c1zrpDuk4",
-      alt: "Crowd Reaction",
-    },
-    {
-      src: "https://lh3.googleusercontent.com/aida-public/AB6AXuACxAN5i5FfZo3LzXtaYVpfgiTNgLuoN49u-N8KOrhbZtz_UzEStPqcu3uA5cnHMU6YZcMqohQXX3kebjs_li42S_FUZSWLecYhxdjye85hjNMKa9PcWjSDsGc5NIivdcASGSUv-wtYpgSxBZ58T0PfKEmvlu7ZEB2DC6yLZK9_FCwFezo1l9sawuBtQoiE5CVp1wHgOHArbkaS6A8DWm9BuEj6dbngYXgk4rYVCr_G8u7QL4TWo4BHRmKKYqC_tQlK43DiqC6NxlQ",
-      alt: "Fighter Portrait",
-    },
-  ],
+);
+
+if (!fighterDocument.value) {
+  throw createError({
+    statusCode: 404,
+    statusMessage: "Fighter not found",
+    fatal: true,
+  });
+}
+
+const getLinkUrl = (linkField: unknown): string | null => {
+  if (!linkField || typeof linkField !== "object") {
+    return null;
+  }
+
+  const normalizedLinkField = linkField as {
+    url?: unknown;
+    text?: unknown;
+  };
+
+  const url = normalizedLinkField.url;
+  const text = normalizedLinkField.text;
+
+  if (typeof url === "string" && url.trim()) {
+    return url.trim();
+  }
+
+  if (typeof text === "string" && text.trim()) {
+    return text.trim();
+  }
+
+  return null;
 };
 
-useHead({
-  title: `${fighter.name} | Tbilisi Fighting Championship`,
+const getDivisionName = (divisionField: Content.FighterDocument["data"]["division"]): string => {
+  if (isFilled.contentRelationship(divisionField) && divisionField.data?.name) {
+    return divisionField.data.name;
+  }
+
+  return "UNKNOWN DIVISION";
+};
+
+const getHistoryParagraphs = (historyField: Content.FighterDocument["data"]["history"]): string[] => {
+  const blocks = historyField
+    .map((block) => {
+      if (!("text" in block) || typeof block.text !== "string") {
+        return "";
+      }
+
+      return block.text.trim();
+    })
+    .filter((paragraph): paragraph is string => paragraph.length > 0);
+
+  if (blocks.length > 0) {
+    return blocks;
+  }
+
+  const fallbackText = asText(historyField).trim();
+
+  return fallbackText ? [fallbackText] : [];
+};
+
+const getCombatArchive = (
+  archiveField: Content.FighterDocument["data"]["combat_archive"] | undefined | null,
+  name: string,
+): FighterProfile["gallery"] => {
+  if (!archiveField) {
+    return [];
+  }
+
+  const archiveItems: FighterProfile["gallery"] = [];
+
+  archiveField.forEach((item, index) => {
+    if (!isFilled.image(item.image) || !item.image.url) {
+      return;
+    }
+
+    archiveItems.push({
+      src: item.image.url,
+      alt: `${name} archive image ${index + 1}`,
+    });
+  });
+
+  return archiveItems;
+};
+
+const fighter = computed<FighterProfile>(() => {
+  const currentFighter = fighterDocument.value!;
+  const fighterData = currentFighter.data;
+  const fighterName = fighterData.name?.trim() || "Unknown Fighter";
+  const primaryImage =
+    isFilled.image(fighterData.image) && fighterData.image.url
+      ? fighterData.image.url
+      : PLACEHOLDER_IMAGE;
+  const bannerImage =
+    isFilled.image(fighterData.banner_image) && fighterData.banner_image.url
+      ? fighterData.banner_image.url
+      : primaryImage;
+  const historyParagraphs = getHistoryParagraphs(fighterData.history);
+  const firstBioParagraph = historyParagraphs[0] ?? "";
+  const secondBioParagraph = historyParagraphs.slice(1).join(" ");
+  const combatArchive = getCombatArchive(fighterData.combat_archive, fighterName);
+
+  const specs: FighterSpec[] = [
+    { label: "Height", value: fighterData.height?.trim() },
+    { label: "Reach", value: fighterData.reach?.trim() },
+    {
+      label: "Age",
+      value: fighterData.age !== null && fighterData.age !== undefined ? `${fighterData.age}` : undefined,
+    },
+    { label: "Gym", value: fighterData.gym?.trim() },
+    { label: "From", value: fighterData.from?.trim() },
+  ].filter((spec): spec is FighterSpec => Boolean(spec.value));
+
+  return {
+    id: currentFighter.uid || currentFighter.id,
+    name: fighterName,
+    nickname: fighterData.nickname?.trim() || "",
+    record: fighterData.record?.trim() || FALLBACK_STAT_VALUE,
+    division: getDivisionName(fighterData.division),
+    image: bannerImage,
+    specs,
+    bio: [firstBioParagraph, secondBioParagraph],
+    fights: (fighterData.recent_battles ?? []).map((fight) => ({
+      result: fight.result?.trim() || FALLBACK_STAT_VALUE,
+      date: fight.date?.trim() || FALLBACK_STAT_VALUE,
+      opponent: fight.opponent?.trim() || FALLBACK_STAT_VALUE,
+      event: fight.event?.trim() || FALLBACK_STAT_VALUE,
+      method: fight.method?.trim() || FALLBACK_STAT_VALUE,
+      round: fight.round?.trim() || FALLBACK_STAT_VALUE,
+      youtubeHtml: fight.youtube_link?.html ?? null,
+    })),
+    gallery: combatArchive,
+    links: {
+      instagram: getLinkUrl(fighterData.instagram_link),
+      tapology: getLinkUrl(fighterData.tapology_link),
+    },
+  };
 });
+
+const fighterNameParts = computed(() => {
+  const nameParts = fighter.value.name
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (nameParts.length === 0) {
+    return {
+      firstName: "",
+      lastName: "",
+    };
+  }
+
+  return {
+    firstName: nameParts[0]!.toUpperCase(),
+    lastName: nameParts.slice(1).join(" ").toUpperCase(),
+  };
+});
+
+useHead({
+  title: computed(() => `${fighter.value.name} | Tbilisi Fighting Championship`),
+});
+
+const selectedVideo = ref<{ title: string; html: string } | null>(null);
+const isOpen = shallowRef(false);
+
+const openVideoModal = (video: { title: string; html: string }) => {
+  selectedVideo.value = video;
+  isOpen.value = true;
+};
+
+const closeVideoModal = () => {
+  selectedVideo.value = null;
+  isOpen.value = false;
+};
 </script>
 
 <template>
@@ -138,10 +268,10 @@ useHead({
           <h1
             class="text-7xl md:text-9xl font-headline font-black italic tracking-tighter leading-none text-white"
           >
-            {{ fighter.name.split(" ")[0]!.toUpperCase() }} <br />
-            <span class="text-primary-container">"{{ fighter.nickname.toUpperCase() }}"</span>
-            <br />
-            {{ fighter.name.split(" ")[1]?.toUpperCase() || "" }}
+            {{ fighterNameParts.firstName }} <br />
+            <span v-if="fighter.nickname" class="text-primary-container">"{{ fighter.nickname.toUpperCase() }}"</span>
+            <br v-if="fighter.nickname" />
+            {{ fighterNameParts.lastName }}
           </h1>
           <div class="flex items-baseline gap-6 mt-8">
             <div class="flex flex-col">
@@ -150,15 +280,6 @@ useHead({
               >
               <span class="text-4xl font-headline font-black italic italic">{{
                 fighter.record
-              }}</span>
-            </div>
-            <div class="h-12 w-[2px] bg-primary-container rotate-12" />
-            <div class="flex flex-col">
-              <span class="text-secondary-fixed-dim text-xs font-bold uppercase tracking-widest"
-                >RANK</span
-              >
-              <span class="text-4xl font-headline font-black italic italic">{{
-                fighter.rank
               }}</span>
             </div>
           </div>
@@ -174,32 +295,18 @@ useHead({
       <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
         <div class="md:col-span-4 bg-surface-container-low p-8 border-l-4 border-primary-container">
           <h3 class="font-headline font-black italic text-2xl mb-8 uppercase tracking-tighter">
-            Physical Specs
+            Fighter Specs
           </h3>
           <div class="space-y-6">
-            <div class="flex justify-between items-end border-b border-outline-variant/20 pb-2">
-              <span class="text-secondary-fixed-dim uppercase text-sm font-bold tracking-widest"
-                >Height</span
-              >
-              <span class="text-xl font-headline font-bold">{{ fighter.physical.height }}</span>
-            </div>
-            <div class="flex justify-between items-end border-b border-outline-variant/20 pb-2">
-              <span class="text-secondary-fixed-dim uppercase text-sm font-bold tracking-widest"
-                >Reach</span
-              >
-              <span class="text-xl font-headline font-bold">{{ fighter.physical.reach }}</span>
-            </div>
-            <div class="flex justify-between items-end border-b border-outline-variant/20 pb-2">
-              <span class="text-secondary-fixed-dim uppercase text-sm font-bold tracking-widest"
-                >Age</span
-              >
-              <span class="text-xl font-headline font-bold">{{ fighter.physical.age }}</span>
-            </div>
-            <div class="flex justify-between items-end border-b border-outline-variant/20 pb-2">
-              <span class="text-secondary-fixed-dim uppercase text-sm font-bold tracking-widest"
-                >Leg Reach</span
-              >
-              <span class="text-xl font-headline font-bold">{{ fighter.physical.legReach }}</span>
+            <div
+              v-for="spec in fighter.specs"
+              :key="spec.label"
+              class="flex justify-between items-end border-b border-outline-variant/20 pb-2"
+            >
+              <span class="text-secondary-fixed-dim uppercase text-sm font-bold tracking-widest">{{
+                spec.label
+              }}</span>
+              <span class="text-xl font-headline font-bold">{{ spec.value }}</span>
             </div>
           </div>
         </div>
@@ -222,7 +329,11 @@ useHead({
           <div class="flex gap-4 mt-10">
             <a
               class="w-12 h-12 flex items-center justify-center bg-surface-container-high hover:bg-primary-container transition-colors group"
-              href="#"
+              :href="fighter.links.instagram || '#'"
+              :aria-disabled="!fighter.links.instagram"
+              :tabindex="fighter.links.instagram ? 0 : -1"
+              :target="fighter.links.instagram ? '_blank' : undefined"
+              :rel="fighter.links.instagram ? 'noopener noreferrer' : undefined"
             >
               <Icon
                 name="material-symbols:share"
@@ -231,43 +342,14 @@ useHead({
             </a>
             <a
               class="w-12 h-12 flex items-center justify-center bg-surface-container-high hover:bg-primary-container transition-colors group"
-              href="#"
+              :href="fighter.links.tapology || '#'"
+              :aria-disabled="!fighter.links.tapology"
+              :tabindex="fighter.links.tapology ? 0 : -1"
+              :target="fighter.links.tapology ? '_blank' : undefined"
+              :rel="fighter.links.tapology ? 'noopener noreferrer' : undefined"
             >
               <Icon name="material-symbols:video-library" class="text-white" />
             </a>
-          </div>
-        </div>
-
-        <div class="md:col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div
-            class="bg-surface-container p-8 flex flex-col items-center justify-center text-center"
-          >
-            <span class="text-primary-container font-headline font-black text-5xl mb-2">{{
-              fighter.stats.strikingAccuracy
-            }}</span>
-            <span class="text-secondary-fixed-dim text-xs font-bold uppercase tracking-[0.2em]"
-              >Striking Accuracy</span
-            >
-          </div>
-          <div
-            class="bg-surface-container p-8 flex flex-col items-center justify-center text-center"
-          >
-            <span class="text-primary-container font-headline font-black text-5xl mb-2">{{
-              fighter.stats.takedownAccuracy
-            }}</span>
-            <span class="text-secondary-fixed-dim text-xs font-bold uppercase tracking-[0.2em]"
-              >Takedown Accuracy</span
-            >
-          </div>
-          <div
-            class="bg-surface-container p-8 flex flex-col items-center justify-center text-center"
-          >
-            <span class="text-primary-container font-headline font-black text-5xl mb-2">{{
-              fighter.stats.takedownDefense
-            }}</span>
-            <span class="text-secondary-fixed-dim text-xs font-bold uppercase tracking-[0.2em]"
-              >Takedown Defense</span
-            >
           </div>
         </div>
       </div>
@@ -280,7 +362,6 @@ useHead({
             Recent Battles
           </h2>
           <div class="h-[2px] flex-1 bg-outline-variant/20 mx-8" />
-          <span class="text-primary font-headline font-bold">ALL VICTORIES</span>
         </div>
 
         <div class="space-y-4">
@@ -313,7 +394,11 @@ useHead({
                 <span class="block font-bold text-primary italic">{{ fight.method }}</span>
                 <span class="text-xs text-secondary-fixed-dim uppercase">{{ fight.round }}</span>
               </div>
-              <button class="bg-white/5 p-3 group-hover:bg-primary-container transition-colors">
+              <button
+                v-if="fight.youtubeHtml"
+                class="bg-white/5 p-3 group-hover:bg-primary-container transition-colors"
+                @click="openVideoModal({ title: `${fight.opponent} vs ${fighter.name}`, html: fight.youtubeHtml! })"
+              >
                 <Icon
                   name="material-symbols:play-arrow"
                   class="text-white"
@@ -326,47 +411,28 @@ useHead({
       </div>
     </section>
 
-    <section class="py-24 px-8 max-w-7xl mx-auto">
+    <section v-if="fighter.gallery.length > 0" class="py-24 px-8 max-w-7xl mx-auto">
       <h3 class="font-headline font-black italic text-4xl mb-12 uppercase tracking-tighter">
         Combat Archive
       </h3>
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <template v-for="(image, index) in fighter.gallery" :key="image.alt">
+        <div
+          v-for="image in fighter.gallery"
+          :key="image.alt"
+          class="aspect-square bg-surface-container-high relative group overflow-hidden"
+        >
+          <img
+            :alt="image.alt"
+            loading="lazy"
+            decoding="async"
+            fetchpriority="low"
+            class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
+            :src="image.src"
+          />
           <div
-            v-if="image.large"
-            class="aspect-square bg-surface-container-high relative group overflow-hidden md:row-span-2 md:col-span-2"
-          >
-            <img
-              :alt="image.alt"
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
-              class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
-              :src="image.src"
-            />
-            <div
-              class="absolute inset-0 bg-primary-container/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-            >
-              <Icon name="material-symbols:fullscreen" class="text-6xl text-white" />
-            </div>
-          </div>
-          <div
-            v-else
-            class="aspect-square bg-surface-container-high relative group overflow-hidden"
-          >
-            <img
-              :alt="image.alt"
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
-              class="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
-              :src="image.src"
-            />
-            <div
-              class="absolute inset-0 bg-primary-container/20 opacity-0 group-hover:opacity-100 transition-opacity"
-            />
-          </div>
-        </template>
+            class="absolute inset-0 bg-primary-container/20 opacity-0 group-hover:opacity-100 transition-opacity"
+          />
+        </div>
       </div>
     </section>
 
@@ -401,6 +467,24 @@ useHead({
         </div>
       </div>
     </section>
+
+    <Teleport to="body">
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+        @click="closeVideoModal"
+      >
+        <div class="relative w-[90vw] max-w-5xl" @click.stop>
+          <button
+            class="absolute -top-10 right-0 text-white hover:text-primary transition-colors"
+            @click="closeVideoModal"
+          >
+            <Icon name="material-symbols:close" class="text-3xl" />
+          </button>
+          <div v-if="selectedVideo?.html" class="youtube-video" v-html="selectedVideo.html" />
+        </div>
+      </div>
+    </Teleport>
   </main>
 </template>
 
@@ -412,5 +496,19 @@ useHead({
 }
 .slanted-mask {
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+}
+</style>
+
+<style>
+.youtube-video {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.youtube-video > iframe {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 9;
 }
 </style>

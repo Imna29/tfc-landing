@@ -2,15 +2,14 @@
   "id": "newsletter",
   "type": "SharedSlice",
   "name": "Newsletter",
-  "description": "Newsletter",
   "variations": [
     {
       "id": "default",
       "name": "Default",
-      "docURL": "...",
-      "version": "initial",
       "description": "Default",
       "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
       "primary": {
         "headline_1": {
           "type": "Text",
@@ -63,5 +62,6 @@
         }
       }
     }
-  ]
+  ],
+  "description": "Newsletter"
 }
