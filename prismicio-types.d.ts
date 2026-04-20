@@ -470,6 +470,17 @@ interface FighterDocumentData {
 	 * - **Documentation**: https://prismic.io/docs/fields/image
 	 */
 	banner_image: prismic.ImageField<never>;
+	
+	/**
+	 * fighting out of field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.fighting_out_of
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	fighting_out_of: prismic.KeyTextField;
 }
 
 /**

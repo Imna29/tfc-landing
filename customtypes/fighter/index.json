@@ -244,6 +244,13 @@
           "constraint": {},
           "thumbnails": []
         }
+      },
+      "fighting_out_of": {
+        "type": "Text",
+        "config": {
+          "label": "fighting out of",
+          "placeholder": ""
+        }
       }
     }
   },

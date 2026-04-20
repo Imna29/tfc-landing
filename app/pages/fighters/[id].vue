@@ -158,6 +158,7 @@ const fighter = computed<FighterProfile>(() => {
           : undefined,
     },
     { label: "Gym", value: fighterData.gym?.trim() },
+    { label: "FIGHTING OUT OF", value: fighterData.fighting_out_of?.trim() },
     { label: "NATIONALITY", value: fighterData.from?.trim() },
   ].filter((spec): spec is FighterSpec => Boolean(spec.value));
 
@@ -479,16 +480,12 @@ const closeVideoModal = () => {
 .slanted-mask {
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
 }
-.warrior-path-rich-text :deep(p:first-child) {
+.warrior-path-rich-text :deep(p) {
   font-size: 1.125rem;
   line-height: 1.625;
-  color: rgb(var(--md-sys-color-on-surface-variant));
+  color: #ffb3ac;
   margin-bottom: 1.5rem;
   font-style: italic;
-}
-.warrior-path-rich-text :deep(p) {
-  color: rgb(var(--md-sys-color-on-surface-variant));
-  line-height: 1.625;
 }
 </style>
 
