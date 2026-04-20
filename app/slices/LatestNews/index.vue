@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import { isFilled } from "@prismicio/client";
 import { asDate } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
@@ -6,10 +7,71 @@ import type { Content } from "@prismicio/client";
 defineProps(
   getSliceComponentProps<Content.LatestNewsSlice>(["slice", "index", "slices", "context"]),
 );
+
+const sectionRef = ref<HTMLElement | null>(null);
+const inViewMap = ref<Record<number, boolean>>({});
+const isMobileViewport = ref(false);
+
+let mobileViewportQuery: MediaQueryList | null = null;
+let observer: IntersectionObserver | null = null;
+
+const initializeMobileObserver = () => {
+  const shouldObserve = mobileViewportQuery?.matches ?? false;
+  isMobileViewport.value = shouldObserve;
+
+  observer?.disconnect();
+  observer = null;
+  inViewMap.value = {};
+
+  if (!shouldObserve) {
+    return;
+  }
+
+  const newsCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-article-index]");
+  if (!newsCards?.length) {
+    return;
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const index = Number((entry.target as HTMLElement).dataset.articleIndex);
+        if (Number.isNaN(index)) {
+          return;
+        }
+
+        inViewMap.value[index] = entry.isIntersecting;
+      });
+    },
+    {
+      threshold: 0.45,
+    },
+  );
+
+  newsCards.forEach((card) => observer?.observe(card));
+};
+
+const handleViewportChange = () => {
+  initializeMobileObserver();
+};
+
+onMounted(async () => {
+  mobileViewportQuery = window.matchMedia("(max-width: 767px)");
+  mobileViewportQuery.addEventListener("change", handleViewportChange);
+
+  await nextTick();
+  initializeMobileObserver();
+});
+
+onUnmounted(() => {
+  mobileViewportQuery?.removeEventListener("change", handleViewportChange);
+  observer?.disconnect();
+});
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="py-24 px-6 md:px-20 container mx-auto"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
@@ -23,6 +85,7 @@ defineProps(
         v-for="(article, index) in slice.primary.articles"
         :key="index"
         class="flex flex-col"
+        :data-article-index="index"
       >
         <div class="bg-surface-container-highest mb-6 overflow-hidden">
           <img
@@ -31,7 +94,12 @@ defineProps(
             loading="lazy"
             decoding="async"
             fetchpriority="low"
-            class="w-full h-48 object-cover grayscale hover:grayscale-0 transition-all"
+            :class="[
+              'w-full h-48 object-cover transition-all',
+              isMobileViewport && inViewMap[index]
+                ? 'grayscale-0'
+                : 'grayscale hover:grayscale-0',
+            ]"
             :src="article.image.url"
           >
         </div>

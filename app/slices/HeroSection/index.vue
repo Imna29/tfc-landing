@@ -26,7 +26,7 @@ const formattedEventDate = computed(() => {
 
 <template>
   <section
-    class="relative min-h-[921px] flex items-center overflow-hidden"
+    class="relative min-h-[921px] flex items-start md:items-center overflow-hidden pt-28 md:pt-0"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >

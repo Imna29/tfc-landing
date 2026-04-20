@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
-import { computed } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps(
   getSliceComponentProps<Content.TheArchitectsSlice>(["slice", "index", "slices", "context"]),
@@ -21,6 +21,66 @@ const leaders = computed(() => {
     };
   });
 });
+
+const sectionRef = ref<HTMLElement | null>(null);
+const inViewMap = ref<Record<string, boolean>>({});
+const isMobileViewport = ref(false);
+
+let mobileViewportQuery: MediaQueryList | null = null;
+let observer: IntersectionObserver | null = null;
+
+const initializeMobileObserver = () => {
+  const shouldObserve = mobileViewportQuery?.matches ?? false;
+  isMobileViewport.value = shouldObserve;
+
+  observer?.disconnect();
+  observer = null;
+  inViewMap.value = {};
+
+  if (!shouldObserve) {
+    return;
+  }
+
+  const leaderCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-leader-id]");
+  if (!leaderCards?.length) {
+    return;
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const leaderId = (entry.target as HTMLElement).dataset.leaderId;
+        if (!leaderId) {
+          return;
+        }
+
+        inViewMap.value[leaderId] = entry.isIntersecting;
+      });
+    },
+    {
+      threshold: 0.45,
+    },
+  );
+
+  leaderCards.forEach((card) => observer?.observe(card));
+};
+
+const handleViewportChange = () => {
+  initializeMobileObserver();
+};
+
+onMounted(async () => {
+  mobileViewportQuery = window.matchMedia("(max-width: 767px)");
+  mobileViewportQuery.addEventListener("change", handleViewportChange);
+
+  await nextTick();
+  initializeMobileObserver();
+});
+
+onUnmounted(() => {
+  mobileViewportQuery?.removeEventListener("change", handleViewportChange);
+  observer?.disconnect();
+});
 </script>
 
 <template>
@@ -36,11 +96,12 @@ const leaders = computed(() => {
         {{ slice.primary.title }}
       </h2>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div ref="sectionRef" class="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div
           v-for="leader in leaders"
           :key="leader.id"
           class="space-y-6 text-center md:text-left"
+          :data-leader-id="leader.id"
         >
           <div
             class="aspect-[3/4] bg-surface-container-highest overflow-hidden relative transition-all duration-500"
@@ -48,7 +109,10 @@ const leaders = computed(() => {
             <img
               v-if="isFilled.image(leader.image)"
               :alt="leader.image.alt || leader.name || 'Leader'"
-              class="w-full h-full object-cover"
+              :class="[
+                'w-full h-full object-cover transition-all duration-500',
+                isMobileViewport ? (inViewMap[leader.id] ? 'grayscale-0' : 'grayscale') : '',
+              ]"
               loading="lazy"
               decoding="async"
               fetchpriority="low"

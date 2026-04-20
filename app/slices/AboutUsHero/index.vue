@@ -9,7 +9,7 @@ defineProps(
 
 <template>
   <section
-    class="relative h-[819px] flex items-end overflow-hidden"
+    class="relative h-auto md:h-[819px] flex items-start md:items-end overflow-hidden pt-28 md:pt-0"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
@@ -22,20 +22,22 @@ defineProps(
         fetchpriority="high"
         class="w-full h-full object-cover hero-image"
         :src="slice.primary.image.url"
-      >
+      />
       <div class="absolute inset-0 hero-gradient" />
     </div>
 
-    <div class="relative z-10 px-8 pb-16 max-w-7xl mx-auto w-full">
+    <div class="relative z-10 px-6 md:px-8 pb-12 md:pb-16 max-w-7xl mx-auto w-full">
       <h1
-        class="font-headline text-7xl md:text-9xl font-black italic uppercase leading-none tracking-tighter text-white"
+        class="font-headline text-5xl sm:text-6xl md:text-9xl font-black italic uppercase leading-none tracking-tighter text-white"
       >
-        {{ slice.primary.title }}<br>
-        OF <span class="text-primary-container">{{ slice.primary.title_highlight }}</span>
+        {{ slice.primary.title }}<br />
+        <span class="text-primary-container">{{ slice.primary.title_highlight }}</span>
       </h1>
-      <div class="mt-8 flex items-center space-x-4">
-        <div class="h-1 w-24 bg-primary-container" />
-        <p class="font-headline text-xl uppercase tracking-widest italic text-secondary">
+      <div class="mt-6 md:mt-8 flex items-center space-x-3 md:space-x-4">
+        <div class="h-1 w-16 sm:w-20 md:w-24 bg-primary-container" />
+        <p
+          class="font-headline text-base sm:text-lg md:text-xl uppercase tracking-wide md:tracking-widest italic text-secondary"
+        >
           {{ slice.primary.subtitle }}
         </p>
       </div>

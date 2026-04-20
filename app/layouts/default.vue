@@ -10,7 +10,7 @@ const mobileNavLinks = [
   { to: "/events", label: "Events" },
   { to: "/fighters", label: "Fighters" },
   { to: "/media", label: "Media" },
-  { to: "/about", label: "About" },
+  { to: "/about", label: "About Us" },
 ];
 
 const closeMobileMenu = () => {
@@ -138,6 +138,13 @@ const footer = computed(() => {
             @click="closeMobileMenu"
           >
             {{ link.label }}
+          </NuxtLink>
+          <NuxtLink
+            to="/contact"
+            class="block bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95 text-center"
+            @click="closeMobileMenu"
+          >
+            Contact
           </NuxtLink>
         </nav>
       </div>

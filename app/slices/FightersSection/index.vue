@@ -30,12 +30,59 @@ const ALL_DIVISIONS_LABEL = "All Divisions";
 const ALL_DISCIPLINES_LABEL = "All Disciplines";
 const FIGHTERS_BATCH_SIZE = 9;
 
+const fighterCardsSectionRef = ref<HTMLElement | null>(null);
+const inViewMap = ref<Record<string, boolean>>({});
+const isMobileViewport = ref(false);
+
+let mobileViewportQuery: MediaQueryList | null = null;
+let observer: IntersectionObserver | null = null;
+
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
 );
 
 const { client } = usePrismic();
 const { locale } = useI18n();
+
+const initializeMobileObserver = () => {
+  const shouldObserve = mobileViewportQuery?.matches ?? false;
+  isMobileViewport.value = shouldObserve;
+
+  observer?.disconnect();
+  observer = null;
+  inViewMap.value = {};
+
+  if (!shouldObserve) {
+    return;
+  }
+
+  const fighterCards = fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
+  if (!fighterCards?.length) {
+    return;
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const fighterId = (entry.target as HTMLElement).dataset.fighterId;
+        if (!fighterId) {
+          return;
+        }
+
+        inViewMap.value[fighterId] = entry.isIntersecting;
+      });
+    },
+    {
+      threshold: 0.45,
+    },
+  );
+
+  fighterCards.forEach((card) => observer?.observe(card));
+};
+
+const handleViewportChange = () => {
+  initializeMobileObserver();
+};
 
 const referencedFighterDocumentIds = computed(() =>
   Array.from(
@@ -236,6 +283,31 @@ const visibleFighters = computed(() => filteredFighters.value.slice(0, visibleCo
 const hasMoreFighters = computed(() => visibleCount.value < filteredFighters.value.length);
 const showLoadMore = computed(() => filteredFighters.value.length > 0 && hasMoreFighters.value);
 
+watch(
+  () => visibleFighters.value.map((fighter) => fighter.id).join(","),
+  async () => {
+    if (!isMobileViewport.value) {
+      return;
+    }
+
+    await nextTick();
+    initializeMobileObserver();
+  },
+);
+
+onMounted(async () => {
+  mobileViewportQuery = window.matchMedia("(max-width: 767px)");
+  mobileViewportQuery.addEventListener("change", handleViewportChange);
+
+  await nextTick();
+  initializeMobileObserver();
+});
+
+onUnmounted(() => {
+  mobileViewportQuery?.removeEventListener("change", handleViewportChange);
+  observer?.disconnect();
+});
+
 const loadMore = () => {
   visibleCount.value = Math.min(
     visibleCount.value + FIGHTERS_BATCH_SIZE,
@@ -317,13 +389,14 @@ const loadMore = () => {
       </div>
     </section>
 
-    <section class="px-8 max-w-7xl mx-auto">
+    <section ref="fighterCardsSectionRef" class="px-8 max-w-7xl mx-auto">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
         <NuxtLink
           v-for="fighter in visibleFighters"
           :key="fighter.id"
           :to="`/fighters/${fighter.id}`"
           class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-transform duration-500"
+          :data-fighter-id="fighter.id"
         >
           <div class="h-[500px] relative">
             <img
@@ -333,7 +406,12 @@ const loadMore = () => {
               fetchpriority="low"
               :width="fighter.imageWidth"
               :height="fighter.imageHeight"
-              class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
+              :class="[
+                'w-full h-full object-cover transition-all duration-700',
+                isMobileViewport && inViewMap[fighter.id]
+                  ? 'grayscale-0'
+                  : 'grayscale group-hover:grayscale-0',
+              ]"
               :src="fighter.image"
             />
             <div

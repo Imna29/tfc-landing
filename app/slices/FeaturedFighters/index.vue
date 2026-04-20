@@ -1,14 +1,76 @@
 <script setup lang="ts">
+import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 
 defineProps(
   getSliceComponentProps<Content.FeaturedFightersSlice>(["slice", "index", "slices", "context"]),
 );
+
+const sectionRef = ref<HTMLElement | null>(null);
+const inViewMap = ref<Record<number, boolean>>({});
+const isMobileViewport = ref(false);
+
+let mobileViewportQuery: MediaQueryList | null = null;
+let observer: IntersectionObserver | null = null;
+
+const initializeMobileObserver = () => {
+  const shouldObserve = mobileViewportQuery?.matches ?? false;
+  isMobileViewport.value = shouldObserve;
+
+  observer?.disconnect();
+  observer = null;
+  inViewMap.value = {};
+
+  if (!shouldObserve) {
+    return;
+  }
+
+  const fighterCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-index]");
+  if (!fighterCards?.length) {
+    return;
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        const index = Number((entry.target as HTMLElement).dataset.fighterIndex);
+        if (Number.isNaN(index)) {
+          return;
+        }
+
+        inViewMap.value[index] = entry.isIntersecting;
+      });
+    },
+    {
+      threshold: 0.45,
+    },
+  );
+
+  fighterCards.forEach((card) => observer?.observe(card));
+};
+
+const handleViewportChange = () => {
+  initializeMobileObserver();
+};
+
+onMounted(async () => {
+  mobileViewportQuery = window.matchMedia("(max-width: 767px)");
+  mobileViewportQuery.addEventListener("change", handleViewportChange);
+
+  await nextTick();
+  initializeMobileObserver();
+});
+
+onUnmounted(() => {
+  mobileViewportQuery?.removeEventListener("change", handleViewportChange);
+  observer?.disconnect();
+});
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="py-24 px-6 md:px-20 container mx-auto"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
@@ -26,6 +88,7 @@ defineProps(
         :key="index"
         class="group relative bg-surface-container-low overflow-hidden"
         :class="{ 'mt-8 md:mt-0': index === 0 || index === 2 }"
+        :data-fighter-index="index"
       >
         <div class="aspect-[3/4] overflow-hidden clip-slanted">
           <img
@@ -34,7 +97,12 @@ defineProps(
             loading="lazy"
             decoding="async"
             fetchpriority="low"
-            class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100"
+            :class="[
+              'w-full h-full object-cover transition-all duration-500',
+              isMobileViewport && inViewMap[index]
+                ? 'grayscale-0 scale-100'
+                : 'grayscale group-hover:grayscale-0 scale-105 group-hover:scale-100',
+            ]"
             :src="fighter.fighter_image.url"
           >
         </div>

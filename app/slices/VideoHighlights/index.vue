@@ -45,7 +45,7 @@ const closeModal = () => {
       >
         <div
           v-if="slice.primary.videos[0]"
-          class="md:col-span-3 aspect-video relative group overflow-hidden border border-outline-variant/20 cursor-pointer"
+          class="group border border-outline-variant/5 bg-surface-container-low cursor-pointer md:col-span-3 md:border-outline-variant/20 md:bg-transparent"
           @click="
             openModal({
               title: slice.primary.videos[0].title || '',
@@ -53,41 +53,51 @@ const closeModal = () => {
             })
           "
         >
-          <img
-            v-if="
-              isFilled.image(slice.primary.videos[0].thumbnail) ||
-              slice.primary.videos[0].youtube_url?.thumbnail_url
-            "
-            :alt="slice.primary.videos[0].title || 'Video'"
-            loading="lazy"
-            decoding="async"
-            fetchpriority="low"
-            class="w-full h-full object-cover"
-            :src="
-              isFilled.image(slice.primary.videos[0].thumbnail)
-                ? slice.primary.videos[0].thumbnail.url!
-                : slice.primary.videos[0].youtube_url?.thumbnail_url!
-            "
-          />
-          <div
-            class="absolute inset-0 bg-background/30 flex items-center justify-center group-hover:bg-background/10 transition-colors"
-          >
-            <button
-              class="w-24 h-24 bg-primary-container text-white flex items-center justify-center skew-x-[-12deg] hover:scale-110 transition-transform"
+          <div class="relative aspect-video overflow-hidden">
+            <img
+              v-if="
+                isFilled.image(slice.primary.videos[0].thumbnail) ||
+                slice.primary.videos[0].youtube_url?.thumbnail_url
+              "
+              :alt="slice.primary.videos[0].title || 'Video'"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+              class="w-full h-full object-cover opacity-60 transition-opacity group-hover:opacity-100 md:opacity-100 md:transition-none"
+              :src="
+                isFilled.image(slice.primary.videos[0].thumbnail)
+                  ? slice.primary.videos[0].thumbnail.url!
+                  : slice.primary.videos[0].youtube_url?.thumbnail_url!
+              "
+            />
+            <div class="absolute inset-0 flex items-center justify-center md:hidden">
+              <Icon name="material-symbols:play-circle" class="text-4xl text-white" />
+            </div>
+            <div
+              class="absolute inset-0 hidden items-center justify-center bg-background/30 transition-colors group-hover:bg-background/10 md:flex"
             >
-              <Icon
-                name="material-symbols:play-arrow"
-                class="skew-x-[12deg] text-5xl"
-                style="font-variation-settings: &quot;FILL&quot; 1"
-              />
-            </button>
+              <button
+                class="w-24 h-24 bg-primary-container text-white flex items-center justify-center skew-x-[-12deg] hover:scale-110 transition-transform"
+              >
+                <Icon
+                  name="material-symbols:play-arrow"
+                  class="skew-x-[12deg] text-5xl"
+                  style="font-variation-settings: &quot;FILL&quot; 1"
+                />
+              </button>
+            </div>
+            <div
+              class="absolute bottom-0 left-0 hidden p-8 bg-gradient-to-t from-background to-transparent w-full md:block"
+            >
+              <h3 class="font-headline text-3xl font-black italic uppercase">
+                {{ slice.primary.videos[0].title }}
+              </h3>
+            </div>
           </div>
-          <div
-            class="absolute bottom-0 left-0 p-8 bg-gradient-to-t from-background to-transparent w-full"
-          >
-            <h3 class="font-headline text-3xl font-black italic uppercase">
+          <div class="p-4 md:hidden">
+            <p class="font-bold text-sm uppercase text-on-surface-variant">
               {{ slice.primary.videos[0].title }}
-            </h3>
+            </p>
           </div>
         </div>
 
