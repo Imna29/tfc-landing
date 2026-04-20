@@ -246,7 +246,7 @@ const closeVideoModal = () => {
 </script>
 
 <template>
-  <main class="pt-20">
+  <main>
     <section class="relative min-h-[870px] flex items-center overflow-hidden">
       <div class="absolute inset-0 z-0">
         <img
