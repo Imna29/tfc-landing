@@ -1,0 +1,141 @@
+{
+  "id": "footer",
+  "label": "Footer",
+  "repeatable": false,
+  "json": {
+    "Main": {
+      "logo": {
+        "type": "Image",
+        "config": {
+          "label": "logo",
+          "constraint": {},
+          "thumbnails": []
+        }
+      },
+      "about_text": {
+        "type": "Text",
+        "config": {
+          "label": "about text",
+          "placeholder": ""
+        }
+      },
+      "social_links": {
+        "type": "Group",
+        "config": {
+          "label": "social links",
+          "repeat": true,
+          "fields": {
+            "icon": {
+              "type": "Text",
+              "config": {
+                "label": "icon",
+                "placeholder": ""
+              }
+            },
+            "link": {
+              "type": "Link",
+              "config": {
+                "label": "link",
+                "placeholder": "",
+                "select": null,
+                "allowTargetBlank": true,
+                "allowText": false,
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
+      "navigation_heading": {
+        "type": "Text",
+        "config": {
+          "label": "navigation heading",
+          "placeholder": ""
+        }
+      },
+      "navigation_links": {
+        "type": "Group",
+        "config": {
+          "label": "navigation links",
+          "repeat": true,
+          "fields": {
+            "link": {
+              "type": "Link",
+              "config": {
+                "label": "link",
+                "placeholder": "",
+                "select": null,
+                "allowTargetBlank": true,
+                "allowText": true,
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
+      "legal_heading": {
+        "type": "Text",
+        "config": {
+          "label": "legal heading",
+          "placeholder": ""
+        }
+      },
+      "legal_links": {
+        "type": "Group",
+        "config": {
+          "label": "legal links",
+          "repeat": true,
+          "fields": {
+            "link": {
+              "type": "Link",
+              "config": {
+                "label": "link",
+                "placeholder": "",
+                "select": null,
+                "allowTargetBlank": true,
+                "allowText": true,
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
+      "contact": {
+        "type": "Text",
+        "config": {
+          "label": "contact",
+          "placeholder": ""
+        }
+      },
+      "contact_links": {
+        "type": "Group",
+        "config": {
+          "label": "contact links",
+          "repeat": true,
+          "fields": {
+            "link": {
+              "type": "Link",
+              "config": {
+                "label": "link",
+                "placeholder": "",
+                "select": null,
+                "allowTargetBlank": true,
+                "allowText": true,
+                "repeat": false
+              }
+            }
+          }
+        }
+      },
+      "email": {
+        "type": "Text",
+        "config": {
+          "label": "email",
+          "placeholder": ""
+        }
+      }
+    }
+  },
+  "status": true,
+  "format": "custom"
+}

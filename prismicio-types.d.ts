@@ -307,6 +307,17 @@ interface FighterDocumentData {
 	record: prismic.KeyTextField;
 	
 	/**
+	 * age field in *Fighter*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: fighter.age
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	age: prismic.KeyTextField;
+	
+	/**
 	 * image field in *Fighter*
 	 *
 	 * - **Field Type**: Image
@@ -371,17 +382,6 @@ interface FighterDocumentData {
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	reach: prismic.KeyTextField;
-	
-	/**
-	 * age field in *Fighter*
-	 *
-	 * - **Field Type**: Number
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: fighter.age
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/fields/number
-	 */
-	age: prismic.NumberField;
 	
 	/**
 	 * gym field in *Fighter*
@@ -482,6 +482,202 @@ interface FighterDocumentData {
  * @typeParam Lang - Language API ID of the document.
  */
 export type FighterDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<FighterDocumentData>, "fighter", Lang>;
+
+/**
+ * Item in *Footer → social links*
+ */
+export interface FooterDocumentDataSocialLinksItem {
+	/**
+	 * icon field in *Footer → social links*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.social_links[].icon
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	icon: prismic.KeyTextField;
+	
+	/**
+	 * link field in *Footer → social links*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.social_links[].link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Item in *Footer → navigation links*
+ */
+export interface FooterDocumentDataNavigationLinksItem {
+	/**
+	 * link field in *Footer → navigation links*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.navigation_links[].link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Item in *Footer → legal links*
+ */
+export interface FooterDocumentDataLegalLinksItem {
+	/**
+	 * link field in *Footer → legal links*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.legal_links[].link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Item in *Footer → contact links*
+ */
+export interface FooterDocumentDataContactLinksItem {
+	/**
+	 * link field in *Footer → contact links*
+	 *
+	 * - **Field Type**: Link
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.contact_links[].link
+	 * - **Documentation**: https://prismic.io/docs/fields/link
+	 */
+	link: prismic.LinkField<string, string, unknown, prismic.FieldState, never>;
+}
+
+/**
+ * Content for Footer documents
+ */
+interface FooterDocumentData {
+	/**
+	 * logo field in *Footer*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.logo
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	logo: prismic.ImageField<never>;
+	
+	/**
+	 * about text field in *Footer*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.about_text
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	about_text: prismic.KeyTextField;
+	
+	/**
+	 * social links field in *Footer*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.social_links[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	social_links: prismic.GroupField<Simplify<FooterDocumentDataSocialLinksItem>>;
+	
+	/**
+	 * navigation heading field in *Footer*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.navigation_heading
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	navigation_heading: prismic.KeyTextField;
+	
+	/**
+	 * navigation links field in *Footer*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.navigation_links[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	navigation_links: prismic.GroupField<Simplify<FooterDocumentDataNavigationLinksItem>>;
+	
+	/**
+	 * legal heading field in *Footer*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.legal_heading
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	legal_heading: prismic.KeyTextField;
+	
+	/**
+	 * legal links field in *Footer*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.legal_links[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	legal_links: prismic.GroupField<Simplify<FooterDocumentDataLegalLinksItem>>;
+	
+	/**
+	 * contact field in *Footer*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.contact
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	contact: prismic.KeyTextField;
+	
+	/**
+	 * contact links field in *Footer*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.contact_links[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	contact_links: prismic.GroupField<Simplify<FooterDocumentDataContactLinksItem>>;
+	
+	/**
+	 * email field in *Footer*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: footer.email
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	email: prismic.KeyTextField;
+}
+
+/**
+ * Footer document from Prismic
+ *
+ * - **API ID**: `footer`
+ * - **Repeatable**: `false`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type FooterDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<FooterDocumentData>, "footer", Lang>;
 
 type HomePageDocumentDataSlicesSlice = HeroSectionSlice | UpcomingEventSlice | FeaturedFightersSlice | VideoHighlightsSlice | LatestNewsSlice | NewsletterSlice | SponsorLogosSlice | EventArchiveTableSlice | FeaturedEventHeroSlice | FeaturedVideoSlice | FightersSectionSlice | ImageGallerySlice | UpcomingEventsGridSlice | VenueInformationSlice
 
@@ -729,7 +925,7 @@ interface PictureDocumentData {}
  */
 export type PictureDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<PictureDocumentData>, "picture", Lang>;
 
-export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument;
+export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -2906,6 +3102,12 @@ declare module "@prismicio/client" {
 			FighterDocumentDataBadgesItem,
 			FighterDocumentDataRecentBattlesItem,
 			FighterDocumentDataCombatArchiveItem,
+			FooterDocument,
+			FooterDocumentData,
+			FooterDocumentDataSocialLinksItem,
+			FooterDocumentDataNavigationLinksItem,
+			FooterDocumentDataLegalLinksItem,
+			FooterDocumentDataContactLinksItem,
 			HomePageDocument,
 			HomePageDocumentData,
 			HomePageDocumentDataSlicesSlice,

@@ -8,7 +8,6 @@ const props = defineProps(
 );
 
 const leaders = computed(() => {
-  const offsets = [0, 12, 24];
   return props.slice.primary.main.map((leader, index) => {
     const matchingExtra = props.slice.primary.more.find((item) => item.name === leader.name);
     const fallbackExtra = props.slice.primary.more[index];
@@ -19,7 +18,6 @@ const leaders = computed(() => {
       role: leader.position,
       title: matchingExtra?.position || fallbackExtra?.position || "",
       image: leader.image,
-      offset: offsets[index] ?? 0,
     };
   });
 });
@@ -43,10 +41,9 @@ const leaders = computed(() => {
           v-for="leader in leaders"
           :key="leader.id"
           class="space-y-6 text-center md:text-left"
-          :style="{ transform: `translateY(${leader.offset}px)` }"
         >
           <div
-            class="aspect-[3/4] bg-surface-container-highest overflow-hidden relative grayscale hover:grayscale-0 transition-all duration-500"
+            class="aspect-[3/4] bg-surface-container-highest overflow-hidden relative transition-all duration-500"
           >
             <img
               v-if="isFilled.image(leader.image)"

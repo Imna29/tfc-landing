@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { isFilled } from "@prismicio/client";
-import { asText } from "@prismicio/client/richtext";
 import type { Content } from "@prismicio/client";
 
 const PLACEHOLDER_IMAGE = "/fighter-placeholder.svg";
@@ -29,7 +28,7 @@ interface FighterProfile {
   division: string;
   image: string;
   specs: FighterSpec[];
-  bio: [string, string];
+  history: Content.FighterDocument["data"]["history"];
   fights: Fight[];
   gallery: { src: string; alt: string }[];
   links: {
@@ -110,26 +109,6 @@ const getDivisionName = (divisionField: Content.FighterDocument["data"]["divisio
   return "UNKNOWN DIVISION";
 };
 
-const getHistoryParagraphs = (historyField: Content.FighterDocument["data"]["history"]): string[] => {
-  const blocks = historyField
-    .map((block) => {
-      if (!("text" in block) || typeof block.text !== "string") {
-        return "";
-      }
-
-      return block.text.trim();
-    })
-    .filter((paragraph): paragraph is string => paragraph.length > 0);
-
-  if (blocks.length > 0) {
-    return blocks;
-  }
-
-  const fallbackText = asText(historyField).trim();
-
-  return fallbackText ? [fallbackText] : [];
-};
-
 const getCombatArchive = (
   archiveField: Content.FighterDocument["data"]["combat_archive"] | undefined | null,
   name: string,
@@ -166,9 +145,6 @@ const fighter = computed<FighterProfile>(() => {
     isFilled.image(fighterData.banner_image) && fighterData.banner_image.url
       ? fighterData.banner_image.url
       : primaryImage;
-  const historyParagraphs = getHistoryParagraphs(fighterData.history);
-  const firstBioParagraph = historyParagraphs[0] ?? "";
-  const secondBioParagraph = historyParagraphs.slice(1).join(" ");
   const combatArchive = getCombatArchive(fighterData.combat_archive, fighterName);
 
   const specs: FighterSpec[] = [
@@ -176,10 +152,13 @@ const fighter = computed<FighterProfile>(() => {
     { label: "Reach", value: fighterData.reach?.trim() },
     {
       label: "Age",
-      value: fighterData.age !== null && fighterData.age !== undefined ? `${fighterData.age}` : undefined,
+      value:
+        fighterData.age !== null && fighterData.age !== undefined
+          ? `${fighterData.age}`
+          : undefined,
     },
     { label: "Gym", value: fighterData.gym?.trim() },
-    { label: "From", value: fighterData.from?.trim() },
+    { label: "NATIONALITY", value: fighterData.from?.trim() },
   ].filter((spec): spec is FighterSpec => Boolean(spec.value));
 
   return {
@@ -190,7 +169,7 @@ const fighter = computed<FighterProfile>(() => {
     division: getDivisionName(fighterData.division),
     image: bannerImage,
     specs,
-    bio: [firstBioParagraph, secondBioParagraph],
+    history: fighterData.history,
     fights: (fighterData.recent_battles ?? []).map((fight) => ({
       result: fight.result?.trim() || FALLBACK_STAT_VALUE,
       date: fight.date?.trim() || FALLBACK_STAT_VALUE,
@@ -254,7 +233,7 @@ const closeVideoModal = () => {
           loading="eager"
           decoding="async"
           fetchpriority="high"
-          class="w-full h-full object-cover object-center grayscale contrast-125"
+          class="w-full h-full object-cover object-center grayscale"
           :src="fighter.image"
         />
         <div class="absolute inset-0 hero-gradient" />
@@ -269,7 +248,9 @@ const closeVideoModal = () => {
             class="text-7xl md:text-9xl font-headline font-black italic tracking-tighter leading-none text-white"
           >
             {{ fighterNameParts.firstName }} <br />
-            <span v-if="fighter.nickname" class="text-primary-container">"{{ fighter.nickname.toUpperCase() }}"</span>
+            <span v-if="fighter.nickname" class="text-primary-container"
+              >"{{ fighter.nickname.toUpperCase() }}"</span
+            >
             <br v-if="fighter.nickname" />
             {{ fighterNameParts.lastName }}
           </h1>
@@ -318,13 +299,8 @@ const closeVideoModal = () => {
           <h3 class="font-headline font-black italic text-2xl mb-6 uppercase tracking-tighter">
             The Warrior's Path
           </h3>
-          <div class="max-w-2xl">
-            <p class="text-lg leading-relaxed text-on-surface-variant mb-6 italic">
-              {{ fighter.bio[0] }}
-            </p>
-            <p class="text-on-surface-variant leading-relaxed">
-              {{ fighter.bio[1] }}
-            </p>
+          <div class="max-w-2xl warrior-path-rich-text">
+            <PrismicRichText :field="fighter.history" />
           </div>
           <div class="flex gap-4 mt-10">
             <a
@@ -345,7 +321,11 @@ const closeVideoModal = () => {
               :target="fighter.links.tapology ? '_blank' : undefined"
               :rel="fighter.links.tapology ? 'noopener noreferrer' : undefined"
             >
-              <img src="/tapology.jpg" alt="Tapology" class="h-auto w-auto max-h-10 rounded-full object-cover" />
+              <img
+                src="/tapology.jpg"
+                alt="Tapology"
+                class="h-auto w-auto max-h-10 rounded-full object-cover"
+              />
             </a>
           </div>
         </div>
@@ -394,7 +374,12 @@ const closeVideoModal = () => {
               <button
                 v-if="fight.youtubeHtml"
                 class="cursor-pointer bg-white/5 p-3 group-hover:bg-primary-container transition-colors"
-                @click="openVideoModal({ title: `${fight.opponent} vs ${fighter.name}`, html: fight.youtubeHtml! })"
+                @click="
+                  openVideoModal({
+                    title: `${fight.opponent} vs ${fighter.name}`,
+                    html: fight.youtubeHtml!,
+                  })
+                "
               >
                 <Icon
                   name="material-symbols:smart-display"
@@ -488,11 +473,22 @@ const closeVideoModal = () => {
 <style scoped>
 .hero-gradient {
   background:
-    linear-gradient(to right, #131313 20%, transparent 60%),
-    linear-gradient(to top, #131313 10%, transparent 40%);
+    linear-gradient(to right, rgba(19, 19, 19, 0.7) 20%, transparent 60%),
+    linear-gradient(to top, rgba(19, 19, 19, 0.6) 10%, transparent 40%);
 }
 .slanted-mask {
   clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+}
+.warrior-path-rich-text :deep(p:first-child) {
+  font-size: 1.125rem;
+  line-height: 1.625;
+  color: rgb(var(--md-sys-color-on-surface-variant));
+  margin-bottom: 1.5rem;
+  font-style: italic;
+}
+.warrior-path-rich-text :deep(p) {
+  color: rgb(var(--md-sys-color-on-surface-variant));
+  line-height: 1.625;
 }
 </style>
 

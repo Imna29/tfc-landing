@@ -31,6 +31,13 @@
           "placeholder": ""
         }
       },
+      "age": {
+        "type": "Text",
+        "config": {
+          "label": "age",
+          "placeholder": ""
+        }
+      },
       "image": {
         "type": "Image",
         "config": {
@@ -107,13 +114,6 @@
         "type": "Text",
         "config": {
           "label": "reach",
-          "placeholder": ""
-        }
-      },
-      "age": {
-        "type": "Number",
-        "config": {
-          "label": "age",
           "placeholder": ""
         }
       },
