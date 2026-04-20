@@ -328,27 +328,24 @@ const closeVideoModal = () => {
           </div>
           <div class="flex gap-4 mt-10">
             <a
-              class="w-12 h-12 flex items-center justify-center bg-surface-container-high hover:bg-primary-container transition-colors group"
+              class="inline-block hover:opacity-80 transition-opacity"
               :href="fighter.links.instagram || '#'"
               :aria-disabled="!fighter.links.instagram"
               :tabindex="fighter.links.instagram ? 0 : -1"
               :target="fighter.links.instagram ? '_blank' : undefined"
               :rel="fighter.links.instagram ? 'noopener noreferrer' : undefined"
             >
-              <Icon
-                name="material-symbols:share"
-                class="text-white group-hover:scale-110 transition-transform"
-              />
+              <img src="/Instagram_icon.png" alt="Instagram" class="h-auto w-auto max-h-10" />
             </a>
             <a
-              class="w-12 h-12 flex items-center justify-center bg-surface-container-high hover:bg-primary-container transition-colors group"
+              class="inline-block hover:opacity-80 transition-opacity"
               :href="fighter.links.tapology || '#'"
               :aria-disabled="!fighter.links.tapology"
               :tabindex="fighter.links.tapology ? 0 : -1"
               :target="fighter.links.tapology ? '_blank' : undefined"
               :rel="fighter.links.tapology ? 'noopener noreferrer' : undefined"
             >
-              <Icon name="material-symbols:video-library" class="text-white" />
+              <img src="/tapology.jpg" alt="Tapology" class="h-auto w-auto max-h-10 rounded-full object-cover" />
             </a>
           </div>
         </div>
@@ -396,12 +393,12 @@ const closeVideoModal = () => {
               </div>
               <button
                 v-if="fight.youtubeHtml"
-                class="bg-white/5 p-3 group-hover:bg-primary-container transition-colors"
+                class="cursor-pointer bg-white/5 p-3 group-hover:bg-primary-container transition-colors"
                 @click="openVideoModal({ title: `${fight.opponent} vs ${fighter.name}`, html: fight.youtubeHtml! })"
               >
                 <Icon
-                  name="material-symbols:play-arrow"
-                  class="text-white"
+                  name="material-symbols:smart-display"
+                  class="text-white text-2xl"
                   style="font-variation-settings: &quot;FILL&quot; 1"
                 />
               </button>
