@@ -42,42 +42,84 @@ const selectedMediaTypeId = computed(() =>
   activeFilterId.value === "all" ? null : activeFilterId.value,
 );
 
-const mediaFilters = computed(() => {
-  if (!selectedMediaTypeId.value) {
-    return [];
-  }
+const referencedMediaDocumentIds = computed(() =>
+  Array.from(
+    new Set(
+      props.slice.primary.content.flatMap((item) =>
+        isFilled.contentRelationship(item.media) ? [item.media.id] : [],
+      ),
+    ),
+  ),
+);
 
-  return [prismic.filter.at("my.media.media_type", selectedMediaTypeId.value)];
-});
+const { data: mediaDocuments, pending: mediaPending } = await useAsyncData(
+  () =>
+    `media-archive-items-${props.index}-${locale.value}-${referencedMediaDocumentIds.value.join(",") || "none"}`,
+  () => {
+    if (referencedMediaDocumentIds.value.length === 0) {
+      return Promise.resolve([] as Content.MediaDocument[]);
+    }
 
-const { data: mediaResponse, pending: mediaPending } = await useAsyncData(
-  () =>
-    `media-archive-items-${props.index}-${locale.value}-${selectedMediaTypeId.value ?? "all"}-${currentPage.value}`,
-  () =>
-    client.getByType("media", {
+    return client.getAllByType("media", {
       lang: locale.value,
-      page: currentPage.value,
-      pageSize,
-      filters: mediaFilters.value,
-      orderings: [{ field: "document.last_publication_date", direction: "desc" }],
-    }),
+      filters: [prismic.filter.any("document.id", referencedMediaDocumentIds.value)],
+      fetchLinks: ["media_type.name"],
+    });
+  },
   {
-    watch: [locale, selectedMediaTypeId, currentPage],
+    watch: [locale, referencedMediaDocumentIds],
   },
 );
 
-const mediaItems = computed(() => mediaResponse.value?.results ?? []);
+const mediaDocumentsById = computed(
+  () =>
+    new Map(
+      (mediaDocuments.value ?? []).map((mediaDocument) => [mediaDocument.id, mediaDocument]),
+    ),
+);
+
+const orderedMediaItems = computed(() =>
+  props.slice.primary.content
+    .map((item) => {
+      if (!isFilled.contentRelationship(item.media)) {
+        return null;
+      }
+
+      const mediaDocument = mediaDocumentsById.value.get(item.media.id);
+
+      if (!mediaDocument) {
+        return null;
+      }
+
+      return mediaDocument;
+    })
+    .filter((mediaDocument): mediaDocument is Content.MediaDocument => mediaDocument !== null),
+);
+
+const filteredMediaItems = computed(() => {
+  if (!selectedMediaTypeId.value) {
+    return orderedMediaItems.value;
+  }
+
+  return orderedMediaItems.value.filter(
+    (item) => item.data.media_type.id === selectedMediaTypeId.value,
+  );
+});
+
+const totalPages = computed(() => Math.ceil(filteredMediaItems.value.length / pageSize));
+
+const paginatedMediaItems = computed(() => {
+  const start = (currentPage.value - 1) * pageSize;
+  return filteredMediaItems.value.slice(start, start + pageSize);
+});
+
+const mediaItems = computed(() => paginatedMediaItems.value);
 const featuredMedia = computed(() => mediaItems.value[0]);
 const wideMedia = computed(() => mediaItems.value[1]);
 const smallMediaItems = computed(() => mediaItems.value.slice(2, 4));
-const totalPages = computed(() => mediaResponse.value?.total_pages ?? 0);
 
 const canGoPrevious = computed(() => currentPage.value > 1);
-const canGoNext = computed(() => {
-  const page = mediaResponse.value?.page ?? 1;
-  const pages = mediaResponse.value?.total_pages ?? 1;
-  return page < pages;
-});
+const canGoNext = computed(() => currentPage.value < totalPages.value);
 
 const titleText = computed(() => props.slice.primary.title || "BATTLE");
 const titleHighlightText = computed(() => props.slice.primary.title_highlight || "ARCHIVES");
@@ -109,8 +151,7 @@ const hasImage = (item: Content.MediaDocument) => Boolean(getImageUrl(item));
 const getTypeLabel = (item: Content.MediaDocument) =>
   item.data.media_type.data?.name?.toUpperCase() || "MEDIA";
 
-const getPrimaryBadge = (item: Content.MediaDocument) =>
-  item.data.badges[0]?.name || getTypeLabel(item);
+const getPrimaryBadge = (item: Content.MediaDocument) => item.data.badges[0]?.name || null;
 
 const openVideo = (item: Content.MediaDocument) => {
   const html = item.data.youtube_link?.html;
@@ -215,6 +256,7 @@ watch(locale, () => {
           class="absolute bottom-0 left-0 p-8 w-full bg-gradient-to-t from-black to-transparent"
         >
           <span
+            v-if="getPrimaryBadge(featuredMedia)"
             class="bg-primary text-white text-[10px] font-black italic px-3 py-1 uppercase tracking-widest mb-4 inline-block"
             >{{ getPrimaryBadge(featuredMedia) }}</span
           >
@@ -253,6 +295,10 @@ watch(locale, () => {
           <h3 class="font-headline font-black italic text-xl uppercase text-white">
             {{ wideMedia.data.title }}
           </h3>
+          <p class="text-on-surface-variant text-sm flex items-center gap-2">
+            <Icon name="material-symbols:schedule" class="text-sm" />
+            {{ getTypeLabel(wideMedia) }}
+          </p>
         </div>
       </article>
 
@@ -279,6 +325,10 @@ watch(locale, () => {
           <h3 class="font-headline font-black italic text-sm uppercase text-white">
             {{ item.data.title }}
           </h3>
+          <p class="text-on-surface-variant text-xs flex items-center gap-1 mt-1">
+            <Icon name="material-symbols:schedule" class="text-xs" />
+            {{ getTypeLabel(item) }}
+          </p>
         </div>
       </article>
     </div>

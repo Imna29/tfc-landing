@@ -31,6 +31,26 @@
             "label": "description",
             "placeholder": ""
           }
+        },
+        "content": {
+          "type": "Group",
+          "config": {
+            "label": "content",
+            "repeat": true,
+            "fields": {
+              "media": {
+                "type": "Link",
+                "config": {
+                  "label": "media",
+                  "select": "document",
+                  "customtypes": [
+                    "media"
+                  ],
+                  "repeat": false
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -2067,6 +2067,21 @@ type LatestNewsSliceVariation = LatestNewsSliceDefault
 export type LatestNewsSlice = prismic.SharedSlice<"latest_news", LatestNewsSliceVariation>;
 
 /**
+ * Item in *MediaArchive → Default → Primary → content*
+ */
+export interface MediaArchiveSliceDefaultPrimaryContentItem {
+	/**
+	 * media field in *MediaArchive → Default → Primary → content*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: media_archive.default.primary.content[].media
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	media: prismic.ContentRelationshipField<"media">;
+}
+
+/**
  * Primary content in *MediaArchive → Default → Primary*
  */
 export interface MediaArchiveSliceDefaultPrimary {
@@ -2099,6 +2114,16 @@ export interface MediaArchiveSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	description: prismic.KeyTextField;
+	
+	/**
+	 * content field in *MediaArchive → Default → Primary*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: media_archive.default.primary.content[]
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	content: prismic.GroupField<Simplify<MediaArchiveSliceDefaultPrimaryContentItem>>;
 }
 
 /**
@@ -3186,6 +3211,7 @@ declare module "@prismicio/client" {
 			LatestNewsSliceVariation,
 			LatestNewsSliceDefault,
 			MediaArchiveSlice,
+			MediaArchiveSliceDefaultPrimaryContentItem,
 			MediaArchiveSliceDefaultPrimary,
 			MediaArchiveSliceVariation,
 			MediaArchiveSliceDefault,
