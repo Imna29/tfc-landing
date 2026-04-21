@@ -232,13 +232,7 @@ const footer = computed(() => {
               class="space-y-4 text-sm font-bold uppercase tracking-widest text-on-surface-variant"
             >
               <li v-for="(legalLink, index) in footer.legalLinks" :key="index">
-                <PrismicLink
-                  :field="legalLink.link"
-                  class="hover:text-primary transition-colors"
-                  :target="legalLink.link.target"
-                >
-                  {{ legalLink.link.text }}
-                </PrismicLink>
+                <PrismicLink :field="legalLink.link" class="hover:text-primary transition-colors" />
               </li>
             </ul>
           </div>
@@ -258,10 +252,7 @@ const footer = computed(() => {
                 <PrismicLink
                   :field="contactLink.link"
                   class="hover:text-primary transition-colors"
-                  :target="contactLink.link.target"
-                >
-                  {{ contactLink.link.text }}
-                </PrismicLink>
+                />
               </li>
             </ul>
             <p v-if="footer.email" class="text-sm font-black text-primary">E: {{ footer.email }}</p>

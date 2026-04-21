@@ -936,7 +936,127 @@ interface PictureDocumentData {}
  */
 export type PictureDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<PictureDocumentData>, "picture", Lang>;
 
-export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument;
+type PrivacyPolicyDocumentDataSlicesSlice = PrivacyPolicySlice
+
+/**
+ * Content for Privacy Policy documents
+ */
+interface PrivacyPolicyDocumentData {
+	/**
+	 * Slice Zone field in *Privacy Policy*
+	 *
+	 * - **Field Type**: Slice Zone
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: privacy_policy.slices[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/slices
+	 */
+	slices: prismic.SliceZone<PrivacyPolicyDocumentDataSlicesSlice>;/**
+	 * Meta Title field in *Privacy Policy*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: A title of the page used for social media and search engines
+	 * - **API ID Path**: privacy_policy.meta_title
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	meta_title: prismic.KeyTextField;
+	
+	/**
+	 * Meta Description field in *Privacy Policy*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: A brief summary of the page
+	 * - **API ID Path**: privacy_policy.meta_description
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	meta_description: prismic.KeyTextField;
+	
+	/**
+	 * Meta Image field in *Privacy Policy*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: privacy_policy.meta_image
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	meta_image: prismic.ImageField<never>;
+}
+
+/**
+ * Privacy Policy document from Prismic
+ *
+ * - **API ID**: `privacy_policy`
+ * - **Repeatable**: `false`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type PrivacyPolicyDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<PrivacyPolicyDocumentData>, "privacy_policy", Lang>;
+
+type TermsOfServiceDocumentDataSlicesSlice = TermsOfServiceSlice
+
+/**
+ * Content for Terms Of Service documents
+ */
+interface TermsOfServiceDocumentData {
+	/**
+	 * Slice Zone field in *Terms Of Service*
+	 *
+	 * - **Field Type**: Slice Zone
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: terms_of_service.slices[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/slices
+	 */
+	slices: prismic.SliceZone<TermsOfServiceDocumentDataSlicesSlice>;/**
+	 * Meta Title field in *Terms Of Service*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: A title of the page used for social media and search engines
+	 * - **API ID Path**: terms_of_service.meta_title
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	meta_title: prismic.KeyTextField;
+	
+	/**
+	 * Meta Description field in *Terms Of Service*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: A brief summary of the page
+	 * - **API ID Path**: terms_of_service.meta_description
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	meta_description: prismic.KeyTextField;
+	
+	/**
+	 * Meta Image field in *Terms Of Service*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: terms_of_service.meta_image
+	 * - **Tab**: SEO & Metadata
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	meta_image: prismic.ImageField<never>;
+}
+
+/**
+ * Terms Of Service document from Prismic
+ *
+ * - **API ID**: `terms_of_service`
+ * - **Repeatable**: `false`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type TermsOfServiceDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<TermsOfServiceDocumentData>, "terms_of_service", Lang>;
+
+export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | TermsOfServiceDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -2414,6 +2534,44 @@ type OurStorySliceVariation = OurStorySliceDefault
 export type OurStorySlice = prismic.SharedSlice<"our_story", OurStorySliceVariation>;
 
 /**
+ * Primary content in *PrivacyPolicy → Default → Primary*
+ */
+export interface PrivacyPolicySliceDefaultPrimary {
+	/**
+	 * content field in *PrivacyPolicy → Default → Primary*
+	 *
+	 * - **Field Type**: Rich Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: privacy_policy.default.primary.content
+	 * - **Documentation**: https://prismic.io/docs/fields/rich-text
+	 */
+	content: prismic.RichTextField;
+}
+
+/**
+ * Default variation for PrivacyPolicy Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type PrivacyPolicySliceDefault = prismic.SharedSliceVariation<"default", Simplify<PrivacyPolicySliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *PrivacyPolicy*
+ */
+type PrivacyPolicySliceVariation = PrivacyPolicySliceDefault
+
+/**
+ * PrivacyPolicy Shared Slice
+ *
+ * - **API ID**: `privacy_policy`
+ * - **Description**: PrivacyPolicy
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type PrivacyPolicySlice = prismic.SharedSlice<"privacy_policy", PrivacyPolicySliceVariation>;
+
+/**
  * Item in *SponsorLogos → Default → Primary → sponsors*
  */
 export interface SponsorLogosSliceDefaultPrimarySponsorsItem {
@@ -2485,6 +2643,44 @@ type SponsorLogosSliceVariation = SponsorLogosSliceDefault
  * - **Documentation**: https://prismic.io/docs/slices
  */
 export type SponsorLogosSlice = prismic.SharedSlice<"sponsor_logos", SponsorLogosSliceVariation>;
+
+/**
+ * Primary content in *TermsOfService → Default → Primary*
+ */
+export interface TermsOfServiceSliceDefaultPrimary {
+	/**
+	 * content field in *TermsOfService → Default → Primary*
+	 *
+	 * - **Field Type**: Rich Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: terms_of_service.default.primary.content
+	 * - **Documentation**: https://prismic.io/docs/fields/rich-text
+	 */
+	content: prismic.RichTextField;
+}
+
+/**
+ * Default variation for TermsOfService Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type TermsOfServiceSliceDefault = prismic.SharedSliceVariation<"default", Simplify<TermsOfServiceSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *TermsOfService*
+ */
+type TermsOfServiceSliceVariation = TermsOfServiceSliceDefault
+
+/**
+ * TermsOfService Shared Slice
+ *
+ * - **API ID**: `terms_of_service`
+ * - **Description**: TermsOfService
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type TermsOfServiceSlice = prismic.SharedSlice<"terms_of_service", TermsOfServiceSliceVariation>;
 
 /**
  * Item in *TheArchitects → Default → Primary → main*
@@ -3157,6 +3353,12 @@ declare module "@prismicio/client" {
 			PageDocumentDataSlicesSlice,
 			PictureDocument,
 			PictureDocumentData,
+			PrivacyPolicyDocument,
+			PrivacyPolicyDocumentData,
+			PrivacyPolicyDocumentDataSlicesSlice,
+			TermsOfServiceDocument,
+			TermsOfServiceDocumentData,
+			TermsOfServiceDocumentDataSlicesSlice,
 			AllDocumentTypes,
 			AboutUsCtaSlice,
 			AboutUsCtaSliceDefaultPrimary,
@@ -3229,11 +3431,19 @@ declare module "@prismicio/client" {
 			OurStorySliceDefaultPrimary,
 			OurStorySliceVariation,
 			OurStorySliceDefault,
+			PrivacyPolicySlice,
+			PrivacyPolicySliceDefaultPrimary,
+			PrivacyPolicySliceVariation,
+			PrivacyPolicySliceDefault,
 			SponsorLogosSlice,
 			SponsorLogosSliceDefaultPrimarySponsorsItem,
 			SponsorLogosSliceDefaultPrimary,
 			SponsorLogosSliceVariation,
 			SponsorLogosSliceDefault,
+			TermsOfServiceSlice,
+			TermsOfServiceSliceDefaultPrimary,
+			TermsOfServiceSliceVariation,
+			TermsOfServiceSliceDefault,
 			TheArchitectsSlice,
 			TheArchitectsSliceDefaultPrimaryMainItem,
 			TheArchitectsSliceDefaultPrimaryMoreItem,

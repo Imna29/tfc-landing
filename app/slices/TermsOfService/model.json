@@ -1,0 +1,27 @@
+{
+  "id": "terms_of_service",
+  "type": "SharedSlice",
+  "name": "TermsOfService",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "content": {
+          "type": "StructuredText",
+          "config": {
+            "label": "content",
+            "placeholder": "",
+            "multi": "paragraph,preformatted,heading1,heading2,heading3,heading4,heading5,heading6,strong,em,hyperlink,image,embed,list-item,o-list-item,rtl",
+            "allowTargetBlank": true
+          }
+        }
+      }
+    }
+  ],
+  "description": "TermsOfService"
+}

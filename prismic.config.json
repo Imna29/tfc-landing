@@ -8,6 +8,14 @@
     {
       "type": "page",
       "path": "/:uid"
+    },
+    {
+      "type": "privacy_policy",
+      "path": "/privacy-policy"
+    },
+    {
+      "type": "terms_of_service",
+      "path": "/terms-of-service"
     }
   ]
 }
