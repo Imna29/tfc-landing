@@ -32,10 +32,13 @@ const FIGHTERS_BATCH_SIZE = 9;
 
 const fighterCardsSectionRef = ref<HTMLElement | null>(null);
 const inViewMap = ref<Record<string, boolean>>({});
+const animatedMap = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
+const isMounted = ref(false);
 
 let mobileViewportQuery: MediaQueryList | null = null;
 let observer: IntersectionObserver | null = null;
+let animationObserver: IntersectionObserver | null = null;
 
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
@@ -82,6 +85,50 @@ const initializeMobileObserver = () => {
 
 const handleViewportChange = () => {
   initializeMobileObserver();
+};
+
+const initializeAnimationObserver = () => {
+  animationObserver?.disconnect();
+  animationObserver = null;
+
+  const fighterCards = fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
+  if (!fighterCards?.length) {
+    return;
+  }
+
+  fighterCards.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
+    const fighterId = card.dataset.fighterId;
+    if (isInViewport && fighterId) {
+      animatedMap.value[fighterId] = true;
+    }
+  });
+
+  animationObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const fighterId = (entry.target as HTMLElement).dataset.fighterId;
+          if (fighterId) {
+            animatedMap.value[fighterId] = true;
+          }
+          animationObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    {
+      threshold: 0,
+      rootMargin: "0px 0px -60px 0px",
+    },
+  );
+
+  fighterCards.forEach((card) => {
+    const fighterId = card.dataset.fighterId;
+    if (fighterId && !animatedMap.value[fighterId]) {
+      animationObserver?.observe(card);
+    }
+  });
 };
 
 const referencedFighterDocumentIds = computed(() =>
@@ -259,6 +306,7 @@ watch(disciplineTypes, (nextDisciplineTypes) => {
 
 watch([selectedDivision, selectedDiscipline, normalizedSearchQuery], () => {
   visibleCount.value = FIGHTERS_BATCH_SIZE;
+  animatedMap.value = {};
 });
 
 const filteredFighters = computed(() => {
@@ -286,11 +334,13 @@ const showLoadMore = computed(() => filteredFighters.value.length > 0 && hasMore
 watch(
   () => visibleFighters.value.map((fighter) => fighter.id).join(","),
   async () => {
+    await nextTick();
+    initializeAnimationObserver();
+
     if (!isMobileViewport.value) {
       return;
     }
 
-    await nextTick();
     initializeMobileObserver();
   },
 );
@@ -301,11 +351,14 @@ onMounted(async () => {
 
   await nextTick();
   initializeMobileObserver();
+  initializeAnimationObserver();
+  isMounted.value = true;
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
   observer?.disconnect();
+  animationObserver?.disconnect();
 });
 
 const loadMore = () => {
@@ -390,12 +443,20 @@ const loadMore = () => {
     </section>
 
     <section ref="fighterCardsSectionRef" class="px-8 max-w-7xl mx-auto">
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-12 overflow-hidden">
         <NuxtLink
-          v-for="fighter in visibleFighters"
+          v-for="(fighter, index) in visibleFighters"
           :key="fighter.id"
           :to="`/fighters/${fighter.id}`"
-          class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-transform duration-500"
+          class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-all duration-700 ease-out"
+          :class="[
+            !isMounted || animatedMap[fighter.id]
+              ? 'opacity-100 translate-x-0 translate-y-0'
+              : isMobileViewport
+                ? (index % 2 === 0 ? 'opacity-0 -translate-x-16' : 'opacity-0 translate-x-16')
+                : 'opacity-0 translate-y-16',
+          ]"
+          :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-fighter-id="fighter.id"
         >
           <div class="h-[500px] relative">
