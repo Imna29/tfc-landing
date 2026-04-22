@@ -271,10 +271,22 @@ const searchPlaceholder = computed(
 );
 const loadMoreLabel = computed(() => props.slice.primary.load_more_label || "Load More Fighters");
 
+const divisionOrder = ["BANTAMWEIGHT", "FEATHERWEIGHT", "LIGHTWEIGHT", "WELTERWEIGHT", "HEAVYWEIGHT"];
+
 const divisions = computed(() => {
   const uniqueDivisions = Array.from(new Set(fighters.value.map((fighter) => fighter.division)));
 
-  return [ALL_DIVISIONS_LABEL, ...uniqueDivisions];
+  const sortedDivisions = uniqueDivisions.sort((a, b) => {
+    const indexA = divisionOrder.indexOf(a);
+    const indexB = divisionOrder.indexOf(b);
+
+    if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+    if (indexA !== -1) return -1;
+    if (indexB !== -1) return 1;
+    return a.localeCompare(b);
+  });
+
+  return [ALL_DIVISIONS_LABEL, ...sortedDivisions];
 });
 
 const disciplineTypes = computed(() => {
