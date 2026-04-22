@@ -9,6 +9,7 @@ interface InquiryCard {
   title: string;
   description: string;
   email: string;
+  links?: { label: string; url: string }[];
 }
 
 const inquiryCards: InquiryCard[] = [
@@ -18,7 +19,7 @@ const inquiryCards: InquiryCard[] = [
     title: "Sponsorships",
     description:
       "Partner with Georgia's fastest growing combat sports brand. Targeted exposure and premium activations.",
-    email: "partners@tfc.ge",
+    email: "contact@tfcgeo.com",
   },
   {
     id: "fighter",
@@ -27,6 +28,16 @@ const inquiryCards: InquiryCard[] = [
     description:
       "Ready to step into the cage? Send your record, highlights, and bio to our matchmaking team.",
     email: "matchmaking@tfc.ge",
+    links: [
+      {
+        label: "SIGN UP (MMA)",
+        url: "https://docs.google.com/forms/d/e/1FAIpQLSerFqgHNaMjnuWks-H08Uqc83nAYXtdpl8In6OV2AE4mIrfOQ/viewform?pli=1",
+      },
+      {
+        label: "SIGN UP (CageBox)",
+        url: "https://docs.google.com/forms/d/1qxObamc1uQWOx4e-roU6uZjC_h2Kezy2jmI-3GPPcV0/viewform?utm_source=ig&utm_medium=social&utm_content=link_in_bio",
+      },
+    ],
   },
   {
     id: "media",
@@ -34,7 +45,7 @@ const inquiryCards: InquiryCard[] = [
     title: "Media & Press",
     description:
       "Apply for fight night credentials or request interview access with our world-class roster.",
-    email: "press@tfc.ge",
+    email: "contact@tfcgeo.com",
   },
 ];
 
@@ -91,7 +102,7 @@ const handleSubmit = () => {
               <input
                 v-model="formData.fullName"
                 type="text"
-                placeholder="GIO GIORGI"
+                placeholder="John Doe"
                 class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors placeholder:text-surface-variant"
               />
             </div>
@@ -102,7 +113,7 @@ const handleSubmit = () => {
               <input
                 v-model="formData.email"
                 type="email"
-                placeholder="FIGHTER@TFC.GE"
+                placeholder="example@gmail.com"
                 class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors placeholder:text-surface-variant"
               />
             </div>
@@ -171,115 +182,23 @@ const handleSubmit = () => {
                 class="text-primary font-bold group-hover:text-white uppercase text-xs tracking-widest"
                 >{{ card.email }}</span
               >
+              <div v-if="card.links" class="mt-3 flex flex-col gap-2">
+                <a
+                  v-for="link in card.links"
+                  :key="link.label"
+                  :href="link.url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-primary font-bold group-hover:text-white uppercase text-xs tracking-widest hover:underline"
+                >
+                  {{ link.label }}
+                </a>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <section class="mt-24">
-      <div
-        class="grid grid-cols-1 lg:grid-cols-2 gap-0 overflow-hidden bg-surface-container-lowest"
-      >
-        <div class="p-12 md:p-20 flex flex-col justify-center border-l-8 border-primary">
-          <h2
-            class="text-4xl md:text-5xl font-headline font-black italic uppercase mb-8 leading-tight"
-          >
-            THE TFC <br /><span class="text-primary">HEADQUARTERS</span>
-          </h2>
-          <div class="space-y-6">
-            <div class="flex items-start space-x-4">
-              <Icon name="material-symbols:location-on" class="text-primary" />
-              <div>
-                <h4 class="font-headline font-bold uppercase tracking-wider text-white">Address</h4>
-                <p class="text-secondary italic">
-                  8 Shota Rustaveli Avenue, <br />Tbilisi 0108, Georgia
-                </p>
-              </div>
-            </div>
-            <div class="flex items-start space-x-4">
-              <Icon name="material-symbols:schedule" class="text-primary" />
-              <div>
-                <h4 class="font-headline font-bold uppercase tracking-wider text-white">
-                  Office Hours
-                </h4>
-                <p class="text-secondary italic">Monday — Friday<br />10:00 AM — 19:00 PM GET</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="relative h-[400px] lg:h-auto bg-surface-container-low group">
-          <img
-            alt="Tbilisi Cityscape Map Background"
-            loading="lazy"
-            decoding="async"
-            fetchpriority="low"
-            class="w-full h-full object-cover opacity-50 grayscale contrast-125 group-hover:scale-105 transition-transform duration-1000"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqJ7DE0m_ZzJDmJ3Ny21kIKqB6IW5w82yNm1KjNW3UgbYqo5u7QS3wbZQH23_2TwPaQd0QvxoNv9ftKtq4Ng0mHviLz0nW1DEsPlgBVoxsxcMgj8YA_EpPuGJuqPoGTtwzTdhroGHT7IhkwQ5Jr6FquM_cQyvfHZi8zV-M3HPDNKu5Ic0KYT6cpcEIzRrggdFQuhkNLlhz4XYgSLDJIzhmEjGqnPrALzDknQyAhjaP2U_YkxzVWpYqxSYzmPoDoQDNLeVaGzBOyxk"
-          />
-          <div class="absolute inset-0 flex items-center justify-center">
-            <div class="relative">
-              <div class="absolute -inset-4 bg-primary/20 animate-ping rounded-full" />
-              <div
-                class="w-6 h-6 bg-primary border-4 border-white shadow-[0_0_20px_#D32F2F] rotate-45"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="mt-24 grid grid-cols-1 md:grid-cols-3 gap-8">
-      <div
-        class="bg-surface-container-low p-8 text-center border-b-4 border-transparent hover:border-primary transition-all duration-300"
-      >
-        <h4 class="font-headline font-black italic uppercase text-lg mb-4">Newsletter</h4>
-        <p class="text-secondary text-sm mb-6">
-          Get early access to tickets and exclusive fighter interviews.
-        </p>
-        <button
-          class="w-full py-3 bg-white text-black font-headline font-bold uppercase hover:bg-primary hover:text-white transition-colors"
-        >
-          SUBSCRIBE
-        </button>
-      </div>
-
-      <div
-        class="bg-surface-container-low p-8 text-center border-b-4 border-transparent hover:border-primary transition-all duration-300"
-      >
-        <h4 class="font-headline font-black italic uppercase text-lg mb-4">Social Hub</h4>
-        <p class="text-secondary text-sm mb-6">
-          Join 500k+ fans watching the action live on our social channels.
-        </p>
-        <div class="flex justify-center space-x-4">
-          <Icon
-            name="material-symbols:play-circle"
-            class="cursor-pointer hover:text-primary transition-colors text-2xl"
-          />
-          <Icon
-            name="material-symbols:photo-camera"
-            class="cursor-pointer hover:text-primary transition-colors text-2xl"
-          />
-          <Icon
-            name="material-symbols:forum"
-            class="cursor-pointer hover:text-primary transition-colors text-2xl"
-          />
-        </div>
-      </div>
-
-      <div
-        class="bg-surface-container-low p-8 text-center border-b-4 border-transparent hover:border-primary transition-all duration-300"
-      >
-        <h4 class="font-headline font-black italic uppercase text-lg mb-4">Ambassadors</h4>
-        <p class="text-secondary text-sm mb-6">
-          Apply to represent TFC in your city and earn exclusive perks.
-        </p>
-        <button
-          class="w-full py-3 border border-outline-variant text-white font-headline font-bold uppercase hover:bg-white hover:text-black transition-all"
-        >
-          JOIN THE CREW
-        </button>
-      </div>
-    </section>
   </main>
 </template>
