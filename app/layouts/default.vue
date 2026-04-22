@@ -92,7 +92,8 @@ const footer = computed(() => {
           </nav>
 
           <div class="flex items-center gap-6">
-            <select
+            <!-- Locale selector temporarily hidden -->
+            <!-- <select
               :value="locale"
               @change="setLocale(($event?.target as HTMLSelectElement)?.value as 'en-us' | 'ka')"
               class="bg-transparent text-xl cursor-pointer border border-outline-variant/30 px-2 py-1 hover:border-primary transition-colors"
@@ -105,7 +106,7 @@ const footer = computed(() => {
               >
                 {{ loc.code === "en-us" ? "🇺🇸" : "🇬🇪" }}
               </option>
-            </select>
+            </select> -->
             <NuxtLink
               to="/contact"
               class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
