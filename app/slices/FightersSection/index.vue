@@ -277,8 +277,8 @@ const divisions = computed(() => {
   const uniqueDivisions = Array.from(new Set(fighters.value.map((fighter) => fighter.division)));
 
   const sortedDivisions = uniqueDivisions.sort((a, b) => {
-    const indexA = divisionOrder.indexOf(a);
-    const indexB = divisionOrder.indexOf(b);
+    const indexA = divisionOrder.findIndex((d) => d.toLowerCase() === a.toLowerCase());
+    const indexB = divisionOrder.findIndex((d) => d.toLowerCase() === b.toLowerCase());
 
     if (indexA !== -1 && indexB !== -1) return indexA - indexB;
     if (indexA !== -1) return -1;
