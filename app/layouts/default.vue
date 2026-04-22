@@ -266,12 +266,12 @@ const footer = computed(() => {
           <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
             © {{ new Date().getFullYear() }} TBILISI FIGHTING CHAMPIONSHIP. ALL RIGHTS RESERVED.
           </p>
-          <div class="flex">
-            <span class="text-[10px] font-black uppercase italic tracking-widest">POWERED BY</span>
+          <div class="flex gap-1">
+            <span class="text-[12px] font-black uppercase italic tracking-widest">POWERED BY</span>
             <a
               href="https://imna.digital"
               target="_blank"
-              class="text-[10px] font-black uppercase italic tracking-widest text-primary-container"
+              class="text-[12px] font-black uppercase italic tracking-widest text-primary-container"
               >IMNA DIGITAL</a
             >
           </div>
