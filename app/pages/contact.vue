@@ -27,7 +27,7 @@ const inquiryCards: InquiryCard[] = [
     title: "Fighter Application",
     description:
       "Ready to step into the cage? Send your record, highlights, and bio to our matchmaking team.",
-    email: "matchmaking@tfc.ge",
+    email: "",
     links: [
       {
         label: "SIGN UP (MMA)",
@@ -179,6 +179,7 @@ const handleSubmit = () => {
             <p class="text-secondary group-hover:text-white/80 text-sm">{{ card.description }}</p>
             <div class="mt-4 pt-4 border-t border-outline-variant/10 group-hover:border-white/20">
               <span
+                v-if="card.email"
                 class="text-primary font-bold group-hover:text-white uppercase text-xs tracking-widest"
                 >{{ card.email }}</span
               >
