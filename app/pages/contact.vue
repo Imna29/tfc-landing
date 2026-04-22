@@ -75,7 +75,7 @@ const handleSubmit = () => {
       <h1
         class="text-6xl md:text-8xl font-headline font-black italic uppercase tracking-tighter leading-none mb-6"
       >
-        ENTER THE <span class="text-primary">ARENA</span>
+        ENTER THE <span class="text-primary">CAGE</span>
       </h1>
       <p class="max-w-2xl text-lg text-secondary leading-relaxed">
         Connect with the Tbilisi Fighting Championship team. Whether you're an elite fighter ready
@@ -200,6 +200,5 @@ const handleSubmit = () => {
         </div>
       </div>
     </div>
-
   </main>
 </template>
