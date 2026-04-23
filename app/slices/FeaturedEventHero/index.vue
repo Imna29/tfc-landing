@@ -44,9 +44,10 @@ defineProps(
         <span class="text-primary">{{ slice.primary.subtitle }}</span>
       </h1>
       <div class="flex flex-wrap items-center gap-12 mt-4">
-        <div v-if="slice.primary.date">
+        <div v-if="slice.primary.date || slice.primary.tba">
           <p class="text-secondary uppercase text-xs tracking-[0.2em] mb-1">DATE & TIME</p>
-          <p class="font-headline font-bold text-2xl uppercase">{{ asDate(slice.primary.date)?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase() }} / {{ asDate(slice.primary.date)?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }}</p>
+          <p v-if="slice.primary.tba" class="font-headline font-bold text-2xl uppercase">TBA</p>
+          <p v-else class="font-headline font-bold text-2xl uppercase">{{ asDate(slice.primary.date)?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase() }} / {{ asDate(slice.primary.date)?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }}</p>
         </div>
         <div v-if="slice.primary.location">
           <p class="text-secondary uppercase text-xs tracking-[0.2em] mb-1">LOCATION</p>

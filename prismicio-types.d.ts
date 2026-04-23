@@ -1498,6 +1498,17 @@ export interface FeaturedEventHeroSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	location: prismic.KeyTextField;
+	
+	/**
+	 * tba field in *FeaturedEventHero → Default → Primary*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **Default Value**: false
+	 * - **API ID Path**: featured_event_hero.default.primary.tba
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	tba: prismic.BooleanField;
 }
 
 /**
@@ -1965,6 +1976,17 @@ export interface HeroSectionSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
 	 */
 	cta: prismic.GroupField<Simplify<HeroSectionSliceDefaultPrimaryCtaItem>>;
+	
+	/**
+	 * tba field in *HeroSection → Default → Primary*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **Default Value**: false
+	 * - **API ID Path**: hero_section.default.primary.tba
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	tba: prismic.BooleanField;
 }
 
 /**
@@ -2873,6 +2895,17 @@ export interface UpcomingEventSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	background_watermark: prismic.KeyTextField;
+	
+	/**
+	 * tba field in *UpcomingEvent → Default → Primary*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **Default Value**: false
+	 * - **API ID Path**: upcoming_event.default.primary.tba
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	tba: prismic.BooleanField;
 }
 
 /**
@@ -3046,6 +3079,17 @@ export interface UpcomingEventsGridSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
 	 */
 	events: prismic.GroupField<Simplify<UpcomingEventsGridSliceDefaultPrimaryEventsItem>>;
+	
+	/**
+	 * tba field in *UpcomingEventsGrid → Default → Primary*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **Default Value**: false
+	 * - **API ID Path**: upcoming_events_grid.default.primary.tba
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	tba: prismic.BooleanField;
 }
 
 /**

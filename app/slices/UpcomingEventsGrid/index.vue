@@ -59,7 +59,10 @@ const getTags = (tagsString: string | null | undefined) => {
           <div class="flex-1 flex flex-col justify-between">
             <div>
               <div class="flex justify-between items-start mb-4">
-                <span class="text-primary font-headline font-black italic text-xl">
+                <span v-if="slice.primary.tba" class="text-primary font-headline font-black italic text-xl">
+                  TBA
+                </span>
+                <span v-else class="text-primary font-headline font-black italic text-xl">
                   {{ asDate(event.date)?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase() }}
                 </span>
                 <Icon name="material-symbols:location-on" class="text-secondary text-xl" />

@@ -84,6 +84,15 @@
             "label": "location",
             "placeholder": ""
           }
+        },
+        "tba": {
+          "type": "Boolean",
+          "config": {
+            "label": "tba",
+            "default_value": false,
+            "placeholder_true": "true",
+            "placeholder_false": "false"
+          }
         }
       }
     }

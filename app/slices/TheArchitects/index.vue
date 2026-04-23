@@ -24,10 +24,13 @@ const leaders = computed(() => {
 
 const sectionRef = ref<HTMLElement | null>(null);
 const inViewMap = ref<Record<string, boolean>>({});
+const animatedMap = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
+const isMounted = ref(false);
 
 let mobileViewportQuery: MediaQueryList | null = null;
 let observer: IntersectionObserver | null = null;
+let animationObserver: IntersectionObserver | null = null;
 
 const initializeMobileObserver = () => {
   const shouldObserve = mobileViewportQuery?.matches ?? false;
@@ -69,17 +72,64 @@ const handleViewportChange = () => {
   initializeMobileObserver();
 };
 
+const initializeAnimationObserver = () => {
+  animationObserver?.disconnect();
+  animationObserver = null;
+
+  const leaderCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-leader-id]");
+  if (!leaderCards?.length) {
+    return;
+  }
+
+  leaderCards.forEach((card) => {
+    const rect = card.getBoundingClientRect();
+    const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
+    const leaderId = card.dataset.leaderId;
+    if (isInViewport && leaderId) {
+      animatedMap.value[leaderId] = true;
+    }
+  });
+
+  animationObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const leaderId = (entry.target as HTMLElement).dataset.leaderId;
+          if (leaderId) {
+            animatedMap.value[leaderId] = true;
+          }
+          animationObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    {
+      threshold: 0,
+      rootMargin: "0px 0px -60px 0px",
+    },
+  );
+
+  leaderCards.forEach((card) => {
+    const leaderId = card.dataset.leaderId;
+    if (leaderId && !animatedMap.value[leaderId]) {
+      animationObserver?.observe(card);
+    }
+  });
+};
+
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
   mobileViewportQuery.addEventListener("change", handleViewportChange);
 
   await nextTick();
   initializeMobileObserver();
+  initializeAnimationObserver();
+  isMounted.value = true;
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
   observer?.disconnect();
+  animationObserver?.disconnect();
 });
 </script>
 
@@ -98,9 +148,17 @@ onUnmounted(() => {
 
       <div ref="sectionRef" class="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div
-          v-for="leader in leaders"
+          v-for="(leader, index) in leaders"
           :key="leader.id"
-          class="space-y-6 text-center md:text-left"
+          class="group space-y-6 text-center md:text-left hover:scale-[1.02] transition-all duration-700 ease-out"
+          :class="[
+            !isMounted || animatedMap[leader.id]
+              ? 'opacity-100 translate-x-0 translate-y-0'
+              : isMobileViewport
+                ? (index % 2 === 0 ? 'opacity-0 -translate-x-16' : 'opacity-0 translate-x-16')
+                : 'opacity-0 translate-y-16',
+          ]"
+          :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-leader-id="leader.id"
         >
           <div

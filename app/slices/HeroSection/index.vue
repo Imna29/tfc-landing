@@ -87,10 +87,11 @@ const formattedEventDate = computed(() => {
       </div>
     </div>
 
-    <div class="absolute bottom-10 right-20 hidden lg:block">
+    <div v-if="formattedEventDate || slice.primary.tba || slice.primary.event_location" class="absolute bottom-10 right-20 hidden lg:block">
       <div class="flex flex-col items-end gap-2 text-primary font-headline italic font-bold">
-        <span class="text-6xl">{{ formattedEventDate }}</span>
-        <span class="text-xl tracking-widest">{{ slice.primary.event_location }}</span>
+        <span v-if="slice.primary.tba" class="text-6xl">TBA</span>
+        <span v-else-if="formattedEventDate" class="text-6xl">{{ formattedEventDate }}</span>
+        <span v-if="slice.primary.event_location" class="text-xl tracking-widest">{{ slice.primary.event_location }}</span>
       </div>
     </div>
   </section>

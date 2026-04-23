@@ -35,7 +35,7 @@ const updateCountdown = (targetDate: Date) => {
 
 onMounted(() => {
   const targetDate = asDate(props.slice.primary.event_date)
-  if (targetDate) {
+  if (targetDate && !props.slice.primary.tba) {
     updateCountdown(targetDate)
     interval = setInterval(() => updateCountdown(targetDate), 1000)
   }
@@ -65,7 +65,8 @@ onUnmounted(() => {
           <div class="space-y-4">
             <div class="flex items-center gap-4 border-b border-outline-variant/15 pb-4">
               <Icon name="material-symbols:calendar-today" class="text-primary text-xl" />
-              <p class="text-lg font-bold uppercase">{{ asDate(slice.primary.event_date)?.toLocaleDateString() }}</p>
+              <p v-if="slice.primary.tba" class="text-lg font-bold uppercase">TBA</p>
+              <p v-else class="text-lg font-bold uppercase">{{ asDate(slice.primary.event_date)?.toLocaleDateString() }}</p>
             </div>
             <div class="flex items-center gap-4 border-b border-outline-variant/15 pb-4">
               <Icon name="material-symbols:location-on" class="text-primary text-xl" />
@@ -73,7 +74,7 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="flex gap-4 mt-12">
+          <div v-if="!slice.primary.tba" class="flex gap-4 mt-12">
             <div class="flex-1 bg-surface-container-highest p-4 text-center">
               <p class="text-4xl font-black font-headline text-white">{{ days.toString().padStart(2, '0') }}</p>
               <p class="text-xs uppercase text-primary font-bold">Days</p>
