@@ -246,7 +246,7 @@ const closeVideoModal = () => {
             fighter.division
           }}</span>
           <h1
-            class="text-7xl md:text-9xl font-headline font-black italic tracking-tighter leading-none text-white"
+            class="text-[10vw] sm:text-6xl md:text-7xl lg:text-9xl font-headline font-black italic tracking-tighter leading-none text-white break-words"
           >
             {{ fighterNameParts.firstName }} <br />
             <span v-if="fighter.nickname" class="text-primary-container"
@@ -345,12 +345,12 @@ const closeVideoModal = () => {
         <div class="space-y-4">
           <div
             v-for="fight in fighter.fights"
-            :key="fight.opponent"
-            class="group flex flex-col md:flex-row items-center bg-surface-container-low hover:bg-surface-container-high transition-all p-6 relative overflow-hidden"
+            :key="fight.opponent + fight.date"
+            class="group flex flex-col md:flex-row items-start md:items-center bg-surface-container-low hover:bg-surface-container-high transition-all p-6 relative overflow-hidden gap-4 md:gap-0"
           >
             <div class="absolute left-0 top-0 bottom-0 w-2 bg-primary-container" />
-            <div class="flex-1 flex items-center gap-8 mb-4 md:mb-0">
-              <div class="text-center">
+            <div class="flex-1 flex items-start md:items-center gap-4 md:gap-8 min-w-0">
+              <div class="text-center shrink-0">
                 <span class="block text-2xl font-headline font-black italic">{{
                   fight.result
                 }}</span>
@@ -358,23 +358,24 @@ const closeVideoModal = () => {
                   fight.date
                 }}</span>
               </div>
-              <div>
-                <h4 class="text-2xl font-headline font-black italic uppercase">
+              <div class="min-w-0">
+                <h4 class="text-xl md:text-2xl font-headline font-black italic uppercase break-words">
                   {{ fight.opponent }}
                 </h4>
-                <p class="text-sm text-on-surface-variant uppercase tracking-widest">
+                <p class="text-sm text-on-surface-variant uppercase tracking-widest break-words">
                   {{ fight.event }}
                 </p>
               </div>
             </div>
-            <div class="flex items-center gap-12">
-              <div class="text-right">
-                <span class="block font-bold text-primary italic">{{ fight.method }}</span>
+            <div class="flex items-center gap-4 md:gap-12 w-full md:w-auto justify-between md:justify-start pl-[calc(1rem+2px)] md:pl-0">
+              <div class="text-left md:text-right min-w-0">
+                <span class="block font-bold text-primary italic break-words">{{ fight.method }}</span>
                 <span class="text-xs text-secondary-fixed-dim uppercase">{{ fight.round }}</span>
               </div>
               <button
                 v-if="fight.youtubeHtml"
-                class="cursor-pointer bg-white/5 p-3 group-hover:bg-primary-container transition-colors"
+                class="cursor-pointer bg-primary-container/20 hover:bg-primary-container p-3 rounded transition-colors shrink-0"
+                :aria-label="`Watch fight video: ${fight.opponent} vs ${fighter.name}`"
                 @click="
                   openVideoModal({
                     title: `${fight.opponent} vs ${fighter.name}`,
