@@ -143,7 +143,7 @@ const handleSubmit = async () => {
                 type="text"
                 name="name"
                 required
-                placeholder="John Doe"
+                placeholder="First and Last name"
                 class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors placeholder:text-surface-variant"
               />
             </div>
