@@ -58,8 +58,47 @@ const formData = reactive({
   message: "",
 });
 
-const handleSubmit = () => {
-  console.log("Form submitted:", formData);
+const isSubmitting = ref(false);
+const submitStatus = ref<"idle" | "success" | "error">("idle");
+const statusMessage = ref("");
+
+const handleSubmit = async () => {
+  isSubmitting.value = true;
+  submitStatus.value = "idle";
+  statusMessage.value = "";
+
+  const formPayload = new FormData();
+  formPayload.append("access_key", "3365ad90-abe9-4dc1-917b-a07c3f70ff5b");
+  formPayload.append("name", formData.fullName);
+  formPayload.append("email", formData.email);
+  formPayload.append("inquiry_type", formData.inquiryType);
+  formPayload.append("message", formData.message);
+
+  try {
+    const response = await fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      body: formPayload,
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      submitStatus.value = "success";
+      statusMessage.value = "Success! Your message has been sent.";
+      formData.fullName = "";
+      formData.email = "";
+      formData.inquiryType = "";
+      formData.message = "";
+    } else {
+      submitStatus.value = "error";
+      statusMessage.value = data.message || "Something went wrong. Please try again.";
+    }
+  } catch {
+    submitStatus.value = "error";
+    statusMessage.value = "Something went wrong. Please try again.";
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 </script>
 
@@ -102,6 +141,8 @@ const handleSubmit = () => {
               <input
                 v-model="formData.fullName"
                 type="text"
+                name="name"
+                required
                 placeholder="John Doe"
                 class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors placeholder:text-surface-variant"
               />
@@ -113,6 +154,8 @@ const handleSubmit = () => {
               <input
                 v-model="formData.email"
                 type="email"
+                name="email"
+                required
                 placeholder="example@gmail.com"
                 class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors placeholder:text-surface-variant"
               />
@@ -125,6 +168,8 @@ const handleSubmit = () => {
             >
             <select
               v-model="formData.inquiryType"
+              name="inquiry_type"
+              required
               class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors appearance-none"
             >
               <option v-for="type in inquiryTypes" :key="type" class="bg-surface-container-highest">
@@ -139,7 +184,9 @@ const handleSubmit = () => {
             >
             <textarea
               v-model="formData.message"
+              name="message"
               rows="5"
+              required
               placeholder="STATE YOUR PURPOSE..."
               class="w-full bg-transparent border-0 border-b-2 border-outline-variant/30 focus:border-primary focus:ring-0 text-on-surface py-3 transition-colors resize-none placeholder:text-surface-variant"
             />
@@ -147,10 +194,19 @@ const handleSubmit = () => {
 
           <button
             type="submit"
-            class="w-full py-5 bg-primary-container text-white font-headline font-black italic uppercase tracking-tighter text-xl hover:bg-on-primary-fixed-variant transition-all duration-300"
+            :disabled="isSubmitting"
+            class="w-full py-5 bg-primary-container text-white font-headline font-black italic uppercase tracking-tighter text-xl hover:bg-on-primary-fixed-variant transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            SEND MESSAGE
+            {{ isSubmitting ? "SENDING..." : "SEND MESSAGE" }}
           </button>
+
+          <p
+            v-if="submitStatus !== 'idle'"
+            class="text-center font-bold uppercase tracking-widest text-sm"
+            :class="submitStatus === 'success' ? 'text-green-500' : 'text-red-500'"
+          >
+            {{ statusMessage }}
+          </p>
         </form>
       </section>
 
