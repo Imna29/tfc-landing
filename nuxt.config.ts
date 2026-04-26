@@ -30,4 +30,28 @@ export default defineNuxtConfig({
     ],
     defaultLocale: "en-us",
   },
+
+  routeRules: {
+    // Static pages — prerendered at build time for fastest loads
+    "/": { prerender: true },
+    "/ka": { prerender: true },
+    "/contact": { prerender: true },
+    "/ka/contact": { prerender: true },
+    "/terms-of-service": { prerender: true },
+    "/ka/terms-of-service": { prerender: true },
+    "/privacy-policy": { prerender: true },
+    "/ka/privacy-policy": { prerender: true },
+
+    // Slice simulator is a dev tool — keep it client-side only
+    "/slice-simulator": { ssr: false },
+    "/ka/slice-simulator": { ssr: false },
+
+    // Fighter profiles — cache for 1 hour and revalidate in background
+    "/fighters/**": { swr: 3600 },
+    "/ka/fighters/**": { swr: 3600 },
+
+    // Catch-all for dynamic CMS pages — cache for 1 hour and revalidate in background
+    "/**": { swr: 3600 },
+    "/ka/**": { swr: 3600 },
+  },
 });
