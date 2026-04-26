@@ -419,38 +419,6 @@ const closeVideoModal = () => {
       </div>
     </section>
 
-    <section class="bg-primary-container py-20 px-8 text-center relative overflow-hidden">
-      <div class="absolute inset-0 opacity-10 pointer-events-none">
-        <div class="grid grid-cols-6 h-full w-full">
-          <div class="border-r border-on-primary" />
-          <div class="border-r border-on-primary" />
-          <div class="border-r border-on-primary" />
-          <div class="border-r border-on-primary" />
-          <div class="border-r border-on-primary" />
-          <div class="border-r border-on-primary" />
-        </div>
-      </div>
-      <div class="relative z-10 max-w-3xl mx-auto">
-        <h2
-          class="text-5xl md:text-7xl font-headline font-black italic uppercase tracking-tighter mb-8 leading-tight"
-        >
-          Witness the Next Title Defense
-        </h2>
-        <div class="flex flex-col md:flex-row gap-4 justify-center">
-          <button
-            class="bg-on-primary-container text-primary-container font-headline font-black italic px-12 py-4 uppercase text-xl hover:scale-105 transition-transform"
-          >
-            Get Tickets Now
-          </button>
-          <button
-            class="border-2 border-on-primary-container text-on-primary-container font-headline font-black italic px-12 py-4 uppercase text-xl hover:bg-on-primary-container/10 transition-colors"
-          >
-            Fight Schedule
-          </button>
-        </div>
-      </div>
-    </section>
-
     <Teleport to="body">
       <div
         v-if="isOpen"
