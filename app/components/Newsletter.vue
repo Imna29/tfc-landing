@@ -4,6 +4,7 @@ const email = defineModel<string>({ default: '' })
 const handleSubmit = () => {
   if (email.value) {
     console.log('Newsletter signup:', email.value)
+    email.value = ''
   }
 }
 </script>

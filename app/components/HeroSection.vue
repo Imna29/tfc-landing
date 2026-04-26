@@ -17,8 +17,8 @@
 
     <div class="container mx-auto px-6 md:px-20 relative z-20">
       <div class="max-w-4xl">
-        <div class="inline-block bg-primary-container text-white px-4 py-1 mb-6 font-bold uppercase tracking-tighter skew-x-[-12deg]">
-          <span class="block skew-x-[12deg]">Live from Tbilisi Arena</span>
+        <div class="inline-block bg-primary-container text-white px-4 py-1 mb-6 font-bold uppercase tracking-tighter">
+          <span class="block">Live from Tbilisi Arena</span>
         </div>
         <h1 class="font-headline text-6xl md:text-9xl font-black italic uppercase leading-[0.9] tracking-tighter mb-8 text-white">
           Where<br>Warriors<br><span class="text-primary-container">Rise</span>
