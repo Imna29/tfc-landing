@@ -1,13 +1,65 @@
 <script setup lang="ts">
 import type { Content } from "@prismicio/client";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 
 defineProps(
   getSliceComponentProps<Content.MissionValuesGridSlice>(["slice", "index", "slices", "context"]),
 );
+
+const sectionRef = ref<HTMLElement | null>(null);
+const itemStates = ref<Record<number, boolean>>({});
+let itemObserver: IntersectionObserver | null = null;
+
+onMounted(async () => {
+  await nextTick();
+  if (!sectionRef.value) return;
+
+  const items = sectionRef.value.querySelectorAll<HTMLElement>("[data-grid-item]");
+  items.forEach((item, index) => {
+    const rect = item.getBoundingClientRect();
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
+    if (isAboveFold) {
+      setTimeout(() => {
+        itemStates.value[index] = true;
+      }, index * 100);
+    }
+  });
+
+  itemObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          const idx = Number(el.dataset.gridItem);
+          const index = Array.from(items).indexOf(el);
+          if (!Number.isNaN(idx)) {
+            setTimeout(() => {
+              itemStates.value[idx] = true;
+            }, index * 100);
+          }
+          itemObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+  );
+
+  items.forEach((item) => {
+    const idx = Number(item.dataset.gridItem);
+    if (Number.isNaN(idx) || !itemStates.value[idx]) {
+      itemObserver?.observe(item);
+    }
+  });
+});
+
+onUnmounted(() => {
+  itemObserver?.disconnect();
+});
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="py-24 px-8 bg-surface-container-lowest"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
@@ -15,7 +67,9 @@ defineProps(
     <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
       <div
         v-if="slice.primary.items[0]"
-        class="md:col-span-2 bg-surface-container-low p-12 relative overflow-hidden group"
+        data-grid-item="0"
+        class="md:col-span-2 bg-surface-container-low p-12 relative overflow-hidden group mma-fade-up"
+        :class="{ 'mma-active': itemStates[0] }"
       >
         <div
           class="absolute top-0 right-0 w-32 h-32 bg-primary-container/10 skew-box translate-x-10 -translate-y-10"
@@ -30,7 +84,10 @@ defineProps(
 
       <div
         v-if="slice.primary.items[1]"
-        class="bg-primary-container p-12 flex flex-col justify-end"
+        data-grid-item="1"
+        class="bg-primary-container p-12 flex flex-col justify-end mma-fade-up"
+        :class="{ 'mma-active': itemStates[1] }"
+        :style="{ transitionDelay: '100ms' }"
       >
         <Icon :name="slice.primary.items[1].icon || 'material-symbols:bolt'" class="text-6xl mb-6" />
         <h3 class="font-headline text-3xl font-black italic uppercase">
@@ -41,7 +98,13 @@ defineProps(
         </p>
       </div>
 
-      <div v-if="slice.primary.items[2]" class="bg-surface-container-highest p-12">
+      <div
+        v-if="slice.primary.items[2]"
+        data-grid-item="2"
+        class="bg-surface-container-highest p-12 mma-fade-up"
+        :class="{ 'mma-active': itemStates[2] }"
+        :style="{ transitionDelay: '200ms' }"
+      >
         <h3 class="font-headline text-3xl font-black italic uppercase mb-4">
           {{ slice.primary.items[2].title }}
         </h3>
@@ -52,7 +115,10 @@ defineProps(
 
       <div
         v-if="slice.primary.items[3]"
-        class="md:col-span-2 bg-surface-container-low p-12 relative overflow-hidden"
+        data-grid-item="3"
+        class="md:col-span-2 bg-surface-container-low p-12 relative overflow-hidden mma-fade-up"
+        :class="{ 'mma-active': itemStates[3] }"
+        :style="{ transitionDelay: '300ms' }"
       >
         <div class="flex items-center gap-8">
           <div class="flex-1">

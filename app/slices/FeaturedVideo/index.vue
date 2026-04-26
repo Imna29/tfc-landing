@@ -9,12 +9,12 @@ const props = defineProps(
 const selectedVideo = ref<{ title: string; html: string } | null>(null);
 const isOpen = ref(false);
 
-const imageUrl = computed(() => {
-  if (isFilled.image(props.slice.primary.thumbnail)) {
-    return props.slice.primary.thumbnail.url;
+const videoUrl = computed(() => {
+  if (isFilled.linkToMedia(props.slice.primary.video)) {
+    return props.slice.primary.video.url;
   }
 
-  return props.slice.primary.youtube_link?.thumbnail_url ?? "";
+  return null;
 });
 
 const headlineOne = computed(() => props.slice.primary.headline_1 || "TOP 10");
@@ -49,15 +49,16 @@ const closeModal = () => {
     :data-slice-variation="slice.variation"
   >
     <div class="absolute inset-0 z-0">
-      <img
-        v-if="imageUrl"
-        alt="MMA Action"
-        loading="lazy"
-        decoding="async"
-        fetchpriority="low"
+      <video
+        v-if="videoUrl"
+        autoplay
+        loop
+        muted
+        playsinline
         class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-1000"
-        :src="imageUrl"
       >
+        <source :src="videoUrl" type="video/mp4">
+      </video>
       <div v-else class="w-full h-full bg-surface-container-low" />
       <div
         class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"
@@ -65,22 +66,7 @@ const closeModal = () => {
     </div>
 
     <div class="relative z-10 text-center px-4 max-w-5xl">
-      <div class="mb-6 flex justify-center">
-        <button
-          class="group relative flex items-center justify-center w-24 h-24 bg-primary-container hover:bg-primary transition-colors duration-500 rounded-full"
-          type="button"
-          @click="openModal"
-        >
-          <Icon
-            name="material-symbols:play-arrow"
-            class="text-white text-5xl translate-x-1"
-            style="font-variation-settings: &quot;FILL&quot; 1"
-          />
-          <div
-            class="absolute inset-0 rounded-full border-2 border-primary-container animate-ping opacity-20"
-          />
-        </button>
-      </div>
+
       <h1
         class="font-headline font-black italic text-6xl md:text-8xl lg:text-9xl uppercase tracking-tighter leading-none text-white drop-shadow-2xl"
       >
