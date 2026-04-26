@@ -94,7 +94,7 @@ const getTags = (tagsString: string | null | undefined) => {
               <PrismicLink
                 v-if="isFilled.link(event.stream_button_link)"
                 :field="event.stream_button_link"
-                class="flex-1 py-3 border border-outline-variant text-on-surface-variant font-headline font-black italic uppercase tracking-tighter hover:bg-white/5 transition-colors text-center"
+                class="flex-1 py-3 bg-primary-container text-white font-headline font-black italic uppercase tracking-tighter hover:bg-primary hover:text-white transition-colors flex items-center justify-center"
               >
                 {{ event.stream_button_text }}
               </PrismicLink>

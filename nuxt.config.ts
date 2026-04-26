@@ -14,7 +14,7 @@ export default defineNuxtConfig({
     },
   },
 
-  modules: ["@nuxt/icon", "@nuxtjs/prismic", "@nuxtjs/i18n"],
+  modules: ["@nuxt/icon", "@nuxtjs/prismic", "@nuxtjs/i18n", "motion-v/nuxt"],
 
   prismic: {
     endpoint: prismicConfig.repositoryName,
@@ -25,9 +25,9 @@ export default defineNuxtConfig({
   },
   i18n: {
     locales: [
-      { code: 'en-us', name: 'English' },
-      { code: 'ka', name: 'Georgian' }
+      { code: "en-us", name: "English" },
+      { code: "ka", name: "Georgian" },
     ],
-    defaultLocale: 'en-us',
+    defaultLocale: "en-us",
   },
 });

@@ -80,6 +80,28 @@
                   "constraint": {},
                   "thumbnails": []
                 }
+              },
+              "fighter": {
+                "type": "Link",
+                "config": {
+                  "label": "",
+                  "select": "document",
+                  "customtypes": [
+                    {
+                      "id": "fighter",
+                      "fields": [
+                        "name",
+                        "nickname",
+                        "record",
+                        "age",
+                        "image",
+                        "from",
+                        "height"
+                      ]
+                    }
+                  ],
+                  "repeat": false
+                }
               }
             }
           }

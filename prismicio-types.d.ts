@@ -1607,6 +1607,16 @@ export interface FeaturedFightersSliceDefaultPrimaryFightersItem {
 	 * - **Documentation**: https://prismic.io/docs/fields/image
 	 */
 	fighter_image: prismic.ImageField<never>;
+	
+	/**
+	 * fighter field in *FeaturedFighters → Default → Primary → Fighters*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_fighters.default.primary.fighters[].fighter
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","age","image","from","height"]}]>;
 }
 
 /**
@@ -1720,6 +1730,16 @@ export interface FeaturedVideoSliceDefaultPrimary {
 	 * - **Documentation**: https://prismic.io/docs/fields/image
 	 */
 	thumbnail: prismic.ImageField<never>;
+	
+	/**
+	 * video field in *FeaturedVideo → Default → Primary*
+	 *
+	 * - **Field Type**: Link to Media
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: featured_video.default.primary.video
+	 * - **Documentation**: https://prismic.io/docs/fields/link-to-media
+	 */
+	video: prismic.LinkToMediaField<prismic.FieldState, never>;
 }
 
 /**

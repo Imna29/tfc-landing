@@ -46,6 +46,16 @@
             "constraint": {},
             "thumbnails": []
           }
+        },
+        "video": {
+          "type": "Link",
+          "config": {
+            "label": "video",
+            "placeholder": "",
+            "select": "media",
+            "allowText": true,
+            "repeat": false
+          }
         }
       }
     }
