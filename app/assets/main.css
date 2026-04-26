@@ -144,3 +144,148 @@
     opacity: 0.05;
   }
 }
+
+@layer utilities {
+  /* MMA-style entrance animations */
+  .mma-fade-up {
+    opacity: 0;
+    transform: translateY(40px);
+    transition:
+      opacity 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+      transform 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-fade-up.mma-active {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .mma-fade-left {
+    opacity: 0;
+    transform: translateX(-60px) skewX(-2deg);
+    transition:
+      opacity 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+      transform 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-fade-left.mma-active {
+    opacity: 1;
+    transform: translateX(0) skewX(0);
+  }
+
+  .mma-fade-right {
+    opacity: 0;
+    transform: translateX(60px) skewX(2deg);
+    transition:
+      opacity 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+      transform 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-fade-right.mma-active {
+    opacity: 1;
+    transform: translateX(0) skewX(0);
+  }
+
+  .mma-scale-in {
+    opacity: 0;
+    transform: scale(0.92);
+    transition:
+      opacity 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+      transform 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-scale-in.mma-active {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .mma-clip-reveal {
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.7s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-clip-reveal.mma-active {
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Digit bounce for countdown */
+  .digit-bounce {
+    animation: digitBounce 0.25s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  }
+
+  @keyframes digitBounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+
+  /* Ken Burns for hero background */
+  .mma-ken-burns {
+    animation: kenBurns 20s ease-out forwards;
+  }
+  @keyframes kenBurns {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.08); }
+  }
+
+  /* Pulse for play buttons */
+  .mma-play-pulse {
+    animation: playPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes playPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.05); }
+  }
+
+  /* Stagger delays */
+  .mma-delay-1 { transition-delay: 0.08s; }
+  .mma-delay-2 { transition-delay: 0.16s; }
+  .mma-delay-3 { transition-delay: 0.24s; }
+  .mma-delay-4 { transition-delay: 0.32s; }
+  .mma-delay-5 { transition-delay: 0.40s; }
+  .mma-delay-6 { transition-delay: 0.48s; }
+
+  /* Modal transitions */
+  .mma-modal-enter-active,
+  .mma-modal-leave-active {
+    transition: opacity 0.3s ease;
+  }
+  .mma-modal-enter-from,
+  .mma-modal-leave-to {
+    opacity: 0;
+  }
+  .mma-modal-content-enter-active,
+  .mma-modal-content-leave-active {
+    transition:
+      opacity 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97),
+      transform 0.35s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+  .mma-modal-content-enter-from,
+  .mma-modal-content-leave-to {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .mma-fade-up,
+    .mma-fade-left,
+    .mma-fade-right,
+    .mma-scale-in,
+    .mma-clip-reveal {
+      transition: none;
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+    .mma-ken-burns {
+      animation: none;
+    }
+    .mma-play-pulse {
+      animation: none;
+    }
+    .mma-delay-1,
+    .mma-delay-2,
+    .mma-delay-3,
+    .mma-delay-4,
+    .mma-delay-5,
+    .mma-delay-6 {
+      transition-delay: 0s;
+    }
+  }
+}

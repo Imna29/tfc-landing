@@ -2,6 +2,7 @@
 import * as prismic from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
+import { nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 type BadgeType = "champion" | "undefeated" | "contender";
 
@@ -31,14 +32,12 @@ const ALL_DISCIPLINES_LABEL = "All Disciplines";
 const FIGHTERS_BATCH_SIZE = 9;
 
 const fighterCardsSectionRef = ref<HTMLElement | null>(null);
-const inViewMap = ref<Record<string, boolean>>({});
-const animatedMap = ref<Record<string, boolean>>({});
+const cardStates = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
 const isMounted = ref(false);
 
 let mobileViewportQuery: MediaQueryList | null = null;
-let observer: IntersectionObserver | null = null;
-let animationObserver: IntersectionObserver | null = null;
+let cardObserver: IntersectionObserver | null = null;
 
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
@@ -47,88 +46,57 @@ const props = defineProps(
 const { client } = usePrismic();
 const { locale } = useI18n();
 
-const initializeMobileObserver = () => {
-  const shouldObserve = mobileViewportQuery?.matches ?? false;
-  isMobileViewport.value = shouldObserve;
-
-  observer?.disconnect();
-  observer = null;
-  inViewMap.value = {};
-
-  if (!shouldObserve) {
-    return;
-  }
+const initializeCardObserver = () => {
+  cardObserver?.disconnect();
+  cardObserver = null;
 
   const fighterCards = fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
-  if (!fighterCards?.length) {
-    return;
-  }
+  if (!fighterCards?.length) return;
 
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const fighterId = (entry.target as HTMLElement).dataset.fighterId;
-        if (!fighterId) {
-          return;
-        }
+  fighterCards.forEach((card, index) => {
+    const id = card.dataset.fighterId;
+    if (!id) return;
 
-        inViewMap.value[fighterId] = entry.isIntersecting;
-      });
-    },
-    {
-      threshold: 0.45,
-    },
-  );
-
-  fighterCards.forEach((card) => observer?.observe(card));
-};
-
-const handleViewportChange = () => {
-  initializeMobileObserver();
-};
-
-const initializeAnimationObserver = () => {
-  animationObserver?.disconnect();
-  animationObserver = null;
-
-  const fighterCards = fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
-  if (!fighterCards?.length) {
-    return;
-  }
-
-  fighterCards.forEach((card) => {
     const rect = card.getBoundingClientRect();
-    const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
-    const fighterId = card.dataset.fighterId;
-    if (isInViewport && fighterId) {
-      animatedMap.value[fighterId] = true;
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
+
+    if (isAboveFold) {
+      setTimeout(() => {
+        cardStates.value[id] = true;
+      }, index * 80);
     }
   });
 
-  animationObserver = new IntersectionObserver(
+  cardObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          const fighterId = (entry.target as HTMLElement).dataset.fighterId;
-          if (fighterId) {
-            animatedMap.value[fighterId] = true;
+          const el = entry.target as HTMLElement;
+          const id = el.dataset.fighterId;
+          const index = Array.from(fighterCards).indexOf(el);
+
+          if (id) {
+            setTimeout(() => {
+              cardStates.value[id] = true;
+            }, index * 80);
           }
-          animationObserver?.unobserve(entry.target);
+          cardObserver?.unobserve(entry.target);
         }
       });
     },
-    {
-      threshold: 0,
-      rootMargin: "0px 0px -60px 0px",
-    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
   );
 
   fighterCards.forEach((card) => {
-    const fighterId = card.dataset.fighterId;
-    if (fighterId && !animatedMap.value[fighterId]) {
-      animationObserver?.observe(card);
+    const id = card.dataset.fighterId;
+    if (!id || !cardStates.value[id]) {
+      cardObserver?.observe(card);
     }
   });
+};
+
+const handleViewportChange = () => {
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false;
 };
 
 const referencedFighterDocumentIds = computed(() =>
@@ -318,7 +286,7 @@ watch(disciplineTypes, (nextDisciplineTypes) => {
 
 watch([selectedDivision, selectedDiscipline, normalizedSearchQuery], () => {
   visibleCount.value = FIGHTERS_BATCH_SIZE;
-  animatedMap.value = {};
+  cardStates.value = {};
 });
 
 const filteredFighters = computed(() => {
@@ -347,30 +315,23 @@ watch(
   () => visibleFighters.value.map((fighter) => fighter.id).join(","),
   async () => {
     await nextTick();
-    initializeAnimationObserver();
-
-    if (!isMobileViewport.value) {
-      return;
-    }
-
-    initializeMobileObserver();
+    initializeCardObserver();
   },
 );
 
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
   mobileViewportQuery.addEventListener("change", handleViewportChange);
+  isMobileViewport.value = mobileViewportQuery.matches;
 
   await nextTick();
-  initializeMobileObserver();
-  initializeAnimationObserver();
+  initializeCardObserver();
   isMounted.value = true;
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
-  observer?.disconnect();
-  animationObserver?.disconnect();
+  cardObserver?.disconnect();
 });
 
 const loadMore = () => {
@@ -389,7 +350,9 @@ const loadMore = () => {
   >
     <section class="px-8 mb-16 max-w-7xl mx-auto">
       <div
-        class="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-outline-variant pb-12"
+        data-section-header
+        class="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-outline-variant pb-12 mma-fade-up"
+        :class="{ 'mma-active': isMounted }"
       >
         <div>
           <h1
@@ -460,14 +423,8 @@ const loadMore = () => {
           v-for="(fighter, index) in visibleFighters"
           :key="fighter.id"
           :to="`/fighters/${fighter.id}`"
-          class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-all duration-700 ease-out"
-          :class="[
-            !isMounted || animatedMap[fighter.id]
-              ? 'opacity-100 translate-x-0 translate-y-0'
-              : isMobileViewport
-                ? (index % 2 === 0 ? 'opacity-0 -translate-x-16' : 'opacity-0 translate-x-16')
-                : 'opacity-0 translate-y-16',
-          ]"
+          class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-all duration-700 ease-out mma-fade-up"
+          :class="{ 'mma-active': cardStates[fighter.id] }"
           :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-fighter-id="fighter.id"
         >
@@ -481,7 +438,7 @@ const loadMore = () => {
               :height="fighter.imageHeight"
               :class="[
                 'w-full h-full object-cover transition-all duration-700',
-                isMobileViewport && inViewMap[fighter.id]
+                isMobileViewport && cardStates[fighter.id]
                   ? 'grayscale-0'
                   : 'grayscale group-hover:grayscale-0',
               ]"

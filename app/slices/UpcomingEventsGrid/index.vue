@@ -2,8 +2,9 @@
 import { isFilled } from "@prismicio/client";
 import { asDate } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 
-defineProps(
+const props = defineProps(
   getSliceComponentProps<Content.UpcomingEventsGridSlice>(["slice", "index", "slices", "context"]),
 );
 
@@ -11,17 +12,88 @@ const getTags = (tagsString: string | null | undefined) => {
   if (!tagsString) return [];
   return tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
 };
+
+const sectionRef = ref<HTMLElement | null>(null);
+const isHeaderInView = ref(false);
+const cardStates = ref<Record<number, boolean>>({});
+let headerObserver: IntersectionObserver | null = null;
+let cardObserver: IntersectionObserver | null = null;
+
+onMounted(async () => {
+  await nextTick();
+  if (!sectionRef.value) return;
+
+  headerObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          isHeaderInView.value = true;
+          headerObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1 }
+  );
+  const header = sectionRef.value.querySelector("[data-section-header]");
+  if (header) headerObserver.observe(header);
+
+  const cards = sectionRef.value.querySelectorAll<HTMLElement>("[data-event-index]");
+  cards.forEach((card, index) => {
+    const rect = card.getBoundingClientRect();
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
+    if (isAboveFold) {
+      setTimeout(() => {
+        cardStates.value[index] = true;
+      }, index * 120);
+    }
+  });
+
+  cardObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          const idx = Number(el.dataset.eventIndex);
+          const index = Array.from(cards).indexOf(el);
+          if (!Number.isNaN(idx)) {
+            setTimeout(() => {
+              cardStates.value[idx] = true;
+            }, index * 120);
+          }
+          cardObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+  );
+
+  cards.forEach((card) => {
+    const idx = Number(card.dataset.eventIndex);
+    if (Number.isNaN(idx) || !cardStates.value[idx]) {
+      cardObserver?.observe(card);
+    }
+  });
+});
+
+onUnmounted(() => {
+  headerObserver?.disconnect();
+  cardObserver?.disconnect();
+});
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="py-24 px-8 bg-surface-dim"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
     <div class="max-w-7xl mx-auto">
-      <div class="flex items-end justify-between mb-16 border-b border-outline-variant pb-8">
-        <div>
+      <div
+        data-section-header
+        class="flex items-end justify-between mb-16 border-b border-outline-variant pb-8"
+      >
+        <div class="mma-fade-up" :class="{ 'mma-active': isHeaderInView }">
           <h2 class="font-headline text-5xl font-black italic uppercase tracking-tighter">
             {{ slice.primary.title }}
           </h2>
@@ -29,7 +101,7 @@ const getTags = (tagsString: string | null | undefined) => {
             {{ slice.primary.subtitle }}
           </p>
         </div>
-        <div class="hidden md:block">
+        <div class="hidden md:block mma-fade-right" :class="{ 'mma-active': isHeaderInView }" :style="{ transitionDelay: '0.15s' }">
           <span class="text-8xl font-black italic opacity-5 font-headline">{{ slice.primary.decorative_text }}</span>
         </div>
       </div>
@@ -38,7 +110,10 @@ const getTags = (tagsString: string | null | undefined) => {
         <article
           v-for="(event, index) in slice.primary.events"
           :key="index"
-          class="group relative bg-surface-container-low p-8 flex flex-col md:flex-row gap-8 hover:bg-surface-container-high transition-colors"
+          :data-event-index="index"
+          class="group relative bg-surface-container-low p-8 flex flex-col md:flex-row gap-8 hover:bg-surface-container-high transition-colors mma-fade-up"
+          :class="{ 'mma-active': cardStates[index] }"
+          :style="{ transitionDelay: `${index * 120}ms` }"
         >
           <div class="w-full md:w-48 h-64 overflow-hidden relative">
             <img

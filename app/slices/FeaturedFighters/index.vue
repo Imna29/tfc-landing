@@ -25,50 +25,65 @@ const { client } = usePrismic();
 const { locale } = useI18n();
 
 const sectionRef = ref<HTMLElement | null>(null);
-const inViewMap = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
+const isInView = ref(false);
+const cardStates = ref<Record<string, boolean>>({});
 
 let mobileViewportQuery: MediaQueryList | null = null;
 let observer: IntersectionObserver | null = null;
+let cardObserver: IntersectionObserver | null = null;
 
-const initializeMobileObserver = () => {
-  const shouldObserve = mobileViewportQuery?.matches ?? false;
-  isMobileViewport.value = shouldObserve;
+const initializeCardObserver = () => {
+  cardObserver?.disconnect();
+  cardObserver = null;
 
-  observer?.disconnect();
-  observer = null;
-  inViewMap.value = {};
+  const cards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
+  if (!cards?.length) return;
 
-  if (!shouldObserve) {
-    return;
-  }
+  cards.forEach((card, index) => {
+    const id = card.dataset.fighterId;
+    if (!id) return;
 
-  const fighterCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
-  if (!fighterCards?.length) {
-    return;
-  }
+    const rect = card.getBoundingClientRect();
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
 
-  observer = new IntersectionObserver(
+    if (isAboveFold) {
+      setTimeout(() => {
+        cardStates.value[id] = true;
+      }, index * 100);
+    }
+  });
+
+  cardObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        const fighterId = (entry.target as HTMLElement).dataset.fighterId;
-        if (!fighterId) {
-          return;
-        }
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          const id = el.dataset.fighterId;
+          const index = Array.from(cards).indexOf(el);
 
-        inViewMap.value[fighterId] = entry.isIntersecting;
+          if (id) {
+            setTimeout(() => {
+              cardStates.value[id] = true;
+            }, index * 100);
+          }
+          cardObserver?.unobserve(entry.target);
+        }
       });
     },
-    {
-      threshold: 0.45,
-    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
   );
 
-  fighterCards.forEach((card) => observer?.observe(card));
+  cards.forEach((card) => {
+    const id = card.dataset.fighterId;
+    if (!id || !cardStates.value[id]) {
+      cardObserver?.observe(card);
+    }
+  });
 };
 
 const handleViewportChange = () => {
-  initializeMobileObserver();
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false;
 };
 
 const referencedFighterDocumentIds = computed(() =>
@@ -142,14 +157,31 @@ const fighters = computed<FighterCard[]>(() =>
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
   mobileViewportQuery.addEventListener("change", handleViewportChange);
+  isMobileViewport.value = mobileViewportQuery.matches;
 
   await nextTick();
-  initializeMobileObserver();
+  initializeCardObserver();
+
+  if (sectionRef.value) {
+    observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            isInView.value = true;
+            observer?.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sectionRef.value);
+  }
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
   observer?.disconnect();
+  cardObserver?.disconnect();
 });
 </script>
 
@@ -161,7 +193,7 @@ onUnmounted(() => {
     :data-slice-variation="slice.variation"
   >
     <div class="flex justify-between items-end mb-16">
-      <div>
+      <div class="mma-fade-up" :class="{ 'mma-active': isInView }">
         <p class="text-primary font-black uppercase tracking-widest mb-2">
           {{ slice.primary.subtitle }}
         </p>
@@ -176,11 +208,18 @@ onUnmounted(() => {
         v-for="(fighter, index) in fighters"
         :key="fighter.id"
         :to="`/fighters/${fighter.id}`"
-        class="group relative bg-surface-container-low overflow-hidden"
+        class="group relative bg-surface-container-low overflow-hidden hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary-container/10 transition-all duration-500"
         :class="{ 'mt-8 md:mt-0': index === 0 || index === 2 }"
         :data-fighter-id="fighter.id"
       >
-        <div class="aspect-[3/4] overflow-hidden clip-slanted">
+        <div
+          class="aspect-[3/4] overflow-hidden clip-slanted"
+          :class="[
+            'mma-fade-up',
+            { 'mma-active': cardStates[fighter.id] }
+          ]"
+          :style="{ transitionDelay: `${index * 100}ms` }"
+        >
           <img
             :alt="fighter.name"
             loading="lazy"
@@ -188,14 +227,21 @@ onUnmounted(() => {
             fetchpriority="low"
             :class="[
               'w-full h-full object-cover transition-all duration-500',
-              isMobileViewport && inViewMap[fighter.id]
+              isMobileViewport && cardStates[fighter.id]
                 ? 'grayscale-0 scale-100'
                 : 'grayscale group-hover:grayscale-0 scale-105 group-hover:scale-100',
             ]"
             :src="fighter.image"
           />
         </div>
-        <div class="p-8">
+        <div
+          class="p-8"
+          :class="[
+            'mma-fade-up',
+            { 'mma-active': cardStates[fighter.id] }
+          ]"
+          :style="{ transitionDelay: `${index * 100 + 80}ms` }"
+        >
           <div class="flex justify-between items-start mb-6">
             <div>
               <h3 class="font-headline text-3xl font-black italic uppercase leading-none">

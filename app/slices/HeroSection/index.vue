@@ -3,7 +3,7 @@ import { asText } from "@prismicio/client/richtext";
 import { asDate } from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
-import { computed } from "vue";
+import { computed, ref, onMounted } from "vue";
 
 const props = defineProps(
   getSliceComponentProps<Content.HeroSectionSlice>(["slice", "index", "slices", "context"]),
@@ -21,6 +21,15 @@ const formattedEventDate = computed(() => {
     month: "long",
     year: "numeric",
   }).toUpperCase();
+});
+
+const isMounted = ref(false);
+
+onMounted(() => {
+  // Small delay to ensure DOM is ready and trigger entrance animations
+  requestAnimationFrame(() => {
+    isMounted.value = true;
+  });
 });
 </script>
 
@@ -40,7 +49,7 @@ const formattedEventDate = computed(() => {
         loading="eager"
         decoding="async"
         fetchpriority="high"
-        class="w-full h-full object-cover grayscale opacity-60"
+        class="w-full h-full object-cover grayscale opacity-60 mma-ken-burns"
         :src="slice.primary.background_image.url"
       />
     </div>
@@ -48,20 +57,23 @@ const formattedEventDate = computed(() => {
     <div class="container mx-auto px-6 md:px-20 relative z-20">
       <div class="max-w-4xl">
         <div
-          class="inline-block bg-primary-container text-white px-4 py-1 mb-6 font-bold uppercase tracking-tighter skew-x-[-12deg]"
+          class="inline-block bg-primary-container text-white px-4 py-1 mb-6 font-bold uppercase tracking-tighter skew-x-[-12deg] mma-fade-left"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.1s' }"
         >
           <span class="block skew-x-[12deg]">{{ slice.primary.badge_text }}</span>
         </div>
         <h1
           class="font-headline text-5xl md:text-9xl font-black italic uppercase leading-[0.9] tracking-tighter mb-8 text-white"
         >
-          {{ slice.primary.headline_1 }}<br />{{ slice.primary.headline_2 }}<br /><span
-            class="text-primary-container"
-            >{{ slice.primary.headline_3 }}</span
-          >
+          <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.2s' }">{{ slice.primary.headline_1 }}</span>
+          <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.3s' }">{{ slice.primary.headline_2 }}</span>
+          <span class="block mma-fade-up text-primary-container" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.4s' }">{{ slice.primary.headline_3 }}</span>
         </h1>
         <p
-          class="text-xl md:text-2xl font-light text-on-surface-variant max-w-2xl mb-12 border-l-4 border-primary-container pl-6"
+          class="text-xl md:text-2xl font-light text-on-surface-variant max-w-2xl mb-12 border-l-4 border-primary-container pl-6 mma-fade-up"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.5s' }"
         >
           {{ asText(slice.primary.description) }}
         </p>
@@ -71,11 +83,13 @@ const formattedEventDate = computed(() => {
             :key="index"
             :field="button.link"
             :class="[
-              'px-10 py-5 font-black uppercase text-lg flex items-center justify-center gap-3 group',
+              'px-10 py-5 font-black uppercase text-lg flex items-center justify-center gap-3 group mma-fade-up',
+              { 'mma-active': isMounted },
               button.link.variant === 'Primary'
                 ? 'bg-primary-container text-white'
                 : 'border-2 border-outline-variant/30 text-white backdrop-blur-sm hover:bg-white/5 transition-colors'
             ]"
+            :style="{ transitionDelay: `${0.55 + index * 0.08}s` }"
           >
             {{ button.label }}
             <Icon
@@ -88,7 +102,11 @@ const formattedEventDate = computed(() => {
     </div>
 
     <div v-if="formattedEventDate || slice.primary.tba || slice.primary.event_location" class="absolute bottom-10 right-20 hidden lg:block">
-      <div class="flex flex-col items-end gap-2 text-primary font-headline italic font-bold">
+      <div
+        class="flex flex-col items-end gap-2 text-primary font-headline italic font-bold mma-fade-right"
+        :class="{ 'mma-active': isMounted }"
+        :style="{ transitionDelay: '0.7s' }"
+      >
         <span v-if="slice.primary.tba" class="text-6xl">TBA</span>
         <span v-else-if="formattedEventDate" class="text-6xl">{{ formattedEventDate }}</span>
         <span v-if="slice.primary.event_location" class="text-xl tracking-widest">{{ slice.primary.event_location }}</span>

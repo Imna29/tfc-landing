@@ -9,63 +9,93 @@ defineProps(
 );
 
 const sectionRef = ref<HTMLElement | null>(null);
-const inViewMap = ref<Record<number, boolean>>({});
+const cardStates = ref<Record<number, boolean>>({});
+const isHeaderInView = ref(false);
 const isMobileViewport = ref(false);
 
 let mobileViewportQuery: MediaQueryList | null = null;
-let observer: IntersectionObserver | null = null;
+let cardObserver: IntersectionObserver | null = null;
+let headerObserver: IntersectionObserver | null = null;
 
-const initializeMobileObserver = () => {
-  const shouldObserve = mobileViewportQuery?.matches ?? false;
-  isMobileViewport.value = shouldObserve;
+const initializeObservers = async () => {
+  await nextTick();
+  if (!sectionRef.value) return;
 
-  observer?.disconnect();
-  observer = null;
-  inViewMap.value = {};
+  const newsCards = sectionRef.value.querySelectorAll<HTMLElement>("[data-article-index]");
+  if (!newsCards?.length) return;
 
-  if (!shouldObserve) {
-    return;
-  }
+  newsCards.forEach((card, index) => {
+    const idx = Number(card.dataset.articleIndex);
+    if (Number.isNaN(idx)) return;
 
-  const newsCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-article-index]");
-  if (!newsCards?.length) {
-    return;
-  }
+    const rect = card.getBoundingClientRect();
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
 
-  observer = new IntersectionObserver(
+    if (isAboveFold) {
+      setTimeout(() => {
+        cardStates.value[idx] = true;
+      }, index * 100);
+    }
+  });
+
+  cardObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
-        const index = Number((entry.target as HTMLElement).dataset.articleIndex);
-        if (Number.isNaN(index)) {
-          return;
-        }
+        if (entry.isIntersecting) {
+          const el = entry.target as HTMLElement;
+          const idx = Number(el.dataset.articleIndex);
+          const index = Array.from(newsCards).indexOf(el);
 
-        inViewMap.value[index] = entry.isIntersecting;
+          if (!Number.isNaN(idx)) {
+            setTimeout(() => {
+              cardStates.value[idx] = true;
+            }, index * 100);
+          }
+          cardObserver?.unobserve(entry.target);
+        }
       });
     },
-    {
-      threshold: 0.45,
-    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
   );
 
-  newsCards.forEach((card) => observer?.observe(card));
+  newsCards.forEach((card) => {
+    const idx = Number(card.dataset.articleIndex);
+    if (Number.isNaN(idx) || !cardStates.value[idx]) {
+      cardObserver?.observe(card);
+    }
+  });
+
+  headerObserver = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          isHeaderInView.value = true;
+          headerObserver?.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.1 }
+  );
+  const header = sectionRef.value.querySelector("[data-section-header]");
+  if (header) headerObserver.observe(header);
 };
 
 const handleViewportChange = () => {
-  initializeMobileObserver();
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false;
 };
 
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
   mobileViewportQuery.addEventListener("change", handleViewportChange);
+  isMobileViewport.value = mobileViewportQuery.matches;
 
-  await nextTick();
-  initializeMobileObserver();
+  await initializeObservers();
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
-  observer?.disconnect();
+  cardObserver?.disconnect();
+  headerObserver?.disconnect();
 });
 </script>
 
@@ -76,7 +106,11 @@ onUnmounted(() => {
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
-    <h2 class="font-headline text-5xl font-black italic uppercase tracking-tighter mb-12 border-b-8 border-primary-container inline-block leading-none">
+    <h2
+      data-section-header
+      class="font-headline text-5xl font-black italic uppercase tracking-tighter mb-12 border-b-8 border-primary-container inline-block leading-none mma-fade-up"
+      :class="{ 'mma-active': isHeaderInView }"
+    >
       {{ slice.primary.title }}
     </h2>
 
@@ -84,7 +118,9 @@ onUnmounted(() => {
       <article
         v-for="(article, index) in slice.primary.articles"
         :key="index"
-        class="flex flex-col"
+        class="flex flex-col mma-fade-up"
+        :class="{ 'mma-active': cardStates[index] }"
+        :style="{ transitionDelay: `${index * 100}ms` }"
         :data-article-index="index"
       >
         <div class="bg-surface-container-highest mb-6 overflow-hidden">
@@ -96,7 +132,7 @@ onUnmounted(() => {
             fetchpriority="low"
             :class="[
               'w-full h-48 object-cover transition-all',
-              isMobileViewport && inViewMap[index]
+              isMobileViewport && cardStates[index]
                 ? 'grayscale-0'
                 : 'grayscale hover:grayscale-0',
             ]"

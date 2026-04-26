@@ -23,140 +23,123 @@ const leaders = computed(() => {
 });
 
 const sectionRef = ref<HTMLElement | null>(null);
-const inViewMap = ref<Record<string, boolean>>({});
-const animatedMap = ref<Record<string, boolean>>({});
+const cardStates = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
-const isMounted = ref(false);
+const isHeaderInView = ref(false);
 
 let mobileViewportQuery: MediaQueryList | null = null;
-let observer: IntersectionObserver | null = null;
-let animationObserver: IntersectionObserver | null = null;
+let cardObserver: IntersectionObserver | null = null;
+let headerObserver: IntersectionObserver | null = null;
 
-const initializeMobileObserver = () => {
-  const shouldObserve = mobileViewportQuery?.matches ?? false;
-  isMobileViewport.value = shouldObserve;
-
-  observer?.disconnect();
-  observer = null;
-  inViewMap.value = {};
-
-  if (!shouldObserve) {
-    return;
-  }
+const initializeObservers = () => {
+  cardObserver?.disconnect();
+  cardObserver = null;
 
   const leaderCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-leader-id]");
-  if (!leaderCards?.length) {
-    return;
-  }
+  if (!leaderCards?.length) return;
 
-  observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        const leaderId = (entry.target as HTMLElement).dataset.leaderId;
-        if (!leaderId) {
-          return;
-        }
+  leaderCards.forEach((card, index) => {
+    const id = card.dataset.leaderId;
+    if (!id) return;
 
-        inViewMap.value[leaderId] = entry.isIntersecting;
-      });
-    },
-    {
-      threshold: 0.45,
-    },
-  );
-
-  leaderCards.forEach((card) => observer?.observe(card));
-};
-
-const handleViewportChange = () => {
-  initializeMobileObserver();
-};
-
-const initializeAnimationObserver = () => {
-  animationObserver?.disconnect();
-  animationObserver = null;
-
-  const leaderCards = sectionRef.value?.querySelectorAll<HTMLElement>("[data-leader-id]");
-  if (!leaderCards?.length) {
-    return;
-  }
-
-  leaderCards.forEach((card) => {
     const rect = card.getBoundingClientRect();
-    const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
-    const leaderId = card.dataset.leaderId;
-    if (isInViewport && leaderId) {
-      animatedMap.value[leaderId] = true;
+    const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
+
+    if (isAboveFold) {
+      setTimeout(() => {
+        cardStates.value[id] = true;
+      }, index * 100);
     }
   });
 
-  animationObserver = new IntersectionObserver(
+  cardObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          const leaderId = (entry.target as HTMLElement).dataset.leaderId;
-          if (leaderId) {
-            animatedMap.value[leaderId] = true;
+          const el = entry.target as HTMLElement;
+          const id = el.dataset.leaderId;
+          const index = Array.from(leaderCards).indexOf(el);
+
+          if (id) {
+            setTimeout(() => {
+              cardStates.value[id] = true;
+            }, index * 100);
           }
-          animationObserver?.unobserve(entry.target);
+          cardObserver?.unobserve(entry.target);
         }
       });
     },
-    {
-      threshold: 0,
-      rootMargin: "0px 0px -60px 0px",
-    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
   );
 
   leaderCards.forEach((card) => {
-    const leaderId = card.dataset.leaderId;
-    if (leaderId && !animatedMap.value[leaderId]) {
-      animationObserver?.observe(card);
+    const id = card.dataset.leaderId;
+    if (!id || !cardStates.value[id]) {
+      cardObserver?.observe(card);
     }
   });
+};
+
+const handleViewportChange = () => {
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false;
 };
 
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
   mobileViewportQuery.addEventListener("change", handleViewportChange);
+  isMobileViewport.value = mobileViewportQuery.matches;
 
   await nextTick();
-  initializeMobileObserver();
-  initializeAnimationObserver();
-  isMounted.value = true;
+  initializeObservers();
+
+  if (sectionRef.value) {
+    headerObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            isHeaderInView.value = true;
+            headerObserver?.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    const header = sectionRef.value.querySelector("[data-section-header]");
+    if (header) headerObserver.observe(header);
+  }
 });
 
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
-  observer?.disconnect();
-  animationObserver?.disconnect();
+  cardObserver?.disconnect();
+  headerObserver?.disconnect();
 });
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="py-32 px-8 bg-surface-container-low"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
     <div class="max-w-7xl mx-auto">
       <h2
-        class="font-headline text-5xl font-black italic uppercase tracking-tighter mb-20 text-center"
+        data-section-header
+        class="font-headline text-5xl font-black italic uppercase tracking-tighter mb-20 text-center mma-fade-up"
+        :class="{ 'mma-active': isHeaderInView }"
       >
         {{ slice.primary.title }}
       </h2>
 
-      <div ref="sectionRef" class="grid grid-cols-1 md:grid-cols-3 gap-12">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
         <div
           v-for="(leader, index) in leaders"
           :key="leader.id"
           class="group space-y-6 text-center md:text-left hover:scale-[1.02] transition-all duration-700 ease-out"
           :class="[
-            !isMounted || animatedMap[leader.id]
-              ? 'opacity-100 translate-x-0 translate-y-0'
-              : isMobileViewport
-                ? (index % 2 === 0 ? 'opacity-0 -translate-x-16' : 'opacity-0 translate-x-16')
-                : 'opacity-0 translate-y-16',
+            'mma-fade-up',
+            { 'mma-active': cardStates[leader.id] }
           ]"
           :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-leader-id="leader.id"
@@ -169,7 +152,7 @@ onUnmounted(() => {
               :alt="leader.image.alt || leader.name || 'Leader'"
               :class="[
                 'w-full h-full object-cover transition-all duration-500',
-                isMobileViewport ? (inViewMap[leader.id] ? 'grayscale-0' : 'grayscale') : '',
+                isMobileViewport ? (cardStates[leader.id] ? 'grayscale-0' : 'grayscale') : '',
               ]"
               loading="lazy"
               decoding="async"

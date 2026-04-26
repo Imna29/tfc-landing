@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { asDate } from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
@@ -12,6 +12,16 @@ const days = ref(0)
 const hours = ref(0)
 const minutes = ref(0)
 const seconds = ref(0)
+
+const prevDays = ref(0)
+const prevHours = ref(0)
+const prevMinutes = ref(0)
+const prevSeconds = ref(0)
+
+const dayBounce = ref(false)
+const hourBounce = ref(false)
+const minuteBounce = ref(false)
+const secondBounce = ref(false)
 
 let interval: ReturnType<typeof setInterval> | null = null
 
@@ -27,10 +37,27 @@ const updateCountdown = (targetDate: Date) => {
     return
   }
 
+  prevDays.value = days.value
+  prevHours.value = hours.value
+  prevMinutes.value = minutes.value
+  prevSeconds.value = seconds.value
+
   days.value = Math.floor(diff / (1000 * 60 * 60 * 24))
   hours.value = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
   minutes.value = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
   seconds.value = Math.floor((diff % (1000 * 60)) / 1000)
+}
+
+watch(days, (n, o) => { if (n !== o) triggerBounce('day') })
+watch(hours, (n, o) => { if (n !== o) triggerBounce('hour') })
+watch(minutes, (n, o) => { if (n !== o) triggerBounce('minute') })
+watch(seconds, (n, o) => { if (n !== o) triggerBounce('second') })
+
+function triggerBounce(unit: 'day' | 'hour' | 'minute' | 'second') {
+  if (unit === 'day') { dayBounce.value = false; requestAnimationFrame(() => { dayBounce.value = true }) }
+  if (unit === 'hour') { hourBounce.value = false; requestAnimationFrame(() => { hourBounce.value = true }) }
+  if (unit === 'minute') { minuteBounce.value = false; requestAnimationFrame(() => { minuteBounce.value = true }) }
+  if (unit === 'second') { secondBounce.value = false; requestAnimationFrame(() => { secondBounce.value = true }) }
 }
 
 onMounted(() => {
@@ -46,10 +73,37 @@ onUnmounted(() => {
     clearInterval(interval)
   }
 })
+
+// Scroll reveal
+const sectionRef = ref<HTMLElement | null>(null)
+const isInView = ref(false)
+let observer: IntersectionObserver | null = null
+
+onMounted(async () => {
+  await nextTick()
+  if (!sectionRef.value) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          isInView.value = true
+          observer?.unobserve(entry.target)
+        }
+      })
+    },
+    { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+  )
+  observer.observe(sectionRef.value)
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+})
 </script>
 
 <template>
   <section
+    ref="sectionRef"
     class="bg-surface-container-low py-24 relative overflow-hidden"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
@@ -60,7 +114,7 @@ onUnmounted(() => {
 
     <div class="container mx-auto px-6 md:px-20 relative z-10">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-        <div class="lg:col-span-4">
+        <div class="lg:col-span-4 mma-fade-left" :class="{ 'mma-active': isInView }">
           <h2 class="font-headline text-5xl font-black italic uppercase tracking-tighter mb-6">{{ slice.primary.title }}</h2>
           <div class="space-y-4">
             <div class="flex items-center gap-4 border-b border-outline-variant/15 pb-4">
@@ -75,22 +129,22 @@ onUnmounted(() => {
           </div>
 
           <div v-if="!slice.primary.tba" class="flex gap-4 mt-12">
-            <div class="flex-1 bg-surface-container-highest p-4 text-center">
-              <p class="text-4xl font-black font-headline text-white">{{ days.toString().padStart(2, '0') }}</p>
+            <div class="flex-1 bg-surface-container-highest p-4 text-center mma-scale-in mma-delay-1" :class="{ 'mma-active': isInView }">
+              <p class="text-4xl font-black font-headline text-white" :class="{ 'digit-bounce': dayBounce }">{{ days.toString().padStart(2, '0') }}</p>
               <p class="text-xs uppercase text-primary font-bold">Days</p>
             </div>
-            <div class="flex-1 bg-surface-container-highest p-4 text-center">
-              <p class="text-4xl font-black font-headline text-white">{{ hours.toString().padStart(2, '0') }}</p>
+            <div class="flex-1 bg-surface-container-highest p-4 text-center mma-scale-in mma-delay-2" :class="{ 'mma-active': isInView }">
+              <p class="text-4xl font-black font-headline text-white" :class="{ 'digit-bounce': hourBounce }">{{ hours.toString().padStart(2, '0') }}</p>
               <p class="text-xs uppercase text-primary font-bold">Hrs</p>
             </div>
-            <div class="flex-1 bg-surface-container-highest p-4 text-center">
-              <p class="text-4xl font-black font-headline text-white">{{ minutes.toString().padStart(2, '0') }}</p>
+            <div class="flex-1 bg-surface-container-highest p-4 text-center mma-scale-in mma-delay-3" :class="{ 'mma-active': isInView }">
+              <p class="text-4xl font-black font-headline text-white" :class="{ 'digit-bounce': minuteBounce }">{{ minutes.toString().padStart(2, '0') }}</p>
               <p class="text-xs uppercase text-primary font-bold">Mins</p>
             </div>
           </div>
         </div>
 
-        <div class="lg:col-span-8">
+        <div class="lg:col-span-8 mma-scale-in mma-delay-2" :class="{ 'mma-active': isInView }">
           <div class="bg-surface-container-highest p-1 border-2 border-primary-container/20">
             <div class="relative aspect-video flex items-center justify-center group cursor-pointer overflow-hidden">
               <img
