@@ -32,6 +32,8 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-
+    '/**': { isr: 600 },
+    '/slice-simulator': { ssr: true },
+    '/slice-simulator/**': { ssr: true },
   },
 });

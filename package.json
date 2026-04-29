@@ -13,18 +13,18 @@
   },
   "dependencies": {
     "@nuxt/icon": "2.2.1",
-    "@nuxtjs/i18n": "10.2.4",
-    "@nuxtjs/prismic": "^5.2.0",
-    "@prismicio/client": "^7.21.6",
-    "@tailwindcss/vite": "^4.2.2",
+    "@nuxtjs/i18n": "10.3.0",
+    "@nuxtjs/prismic": "^5.2.1",
+    "@prismicio/client": "^7.21.8",
+    "@tailwindcss/vite": "^4.2.4",
     "motion-v": "^2.2.1",
     "nuxt": "^4.4.2",
-    "tailwindcss": "^4.2.2",
-    "vue": "^3.5.30",
-    "vue-router": "^5.0.4"
+    "tailwindcss": "^4.2.4",
+    "vue": "^3.5.33",
+    "vue-router": "^5.0.6"
   },
   "devDependencies": {
-    "oxfmt": "^0.41.0",
-    "oxlint": "^1.56.0"
+    "oxfmt": "^0.47.0",
+    "oxlint": "^1.62.0"
   }
 }
