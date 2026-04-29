@@ -32,26 +32,6 @@ export default defineNuxtConfig({
   },
 
   routeRules: {
-    // Static pages — cache for 10 minutes and revalidate in background
-    "/": { swr: 600 },
-    "/ka": { swr: 600 },
-    "/contact": { swr: 600 },
-    "/ka/contact": { swr: 600 },
-    "/terms-of-service": { swr: 600 },
-    "/ka/terms-of-service": { swr: 600 },
-    "/privacy-policy": { swr: 600 },
-    "/ka/privacy-policy": { swr: 600 },
 
-    // Slice simulator is a dev tool — keep it client-side only
-    "/slice-simulator": { ssr: false },
-    "/ka/slice-simulator": { ssr: false },
-
-    // Fighter profiles — cache for 10 minutes and revalidate in background
-    "/fighters/**": { swr: 600 },
-    "/ka/fighters/**": { swr: 600 },
-
-    // Catch-all for dynamic CMS pages — cache for 10 minutes and revalidate in background
-    "/**": { swr: 600 },
-    "/ka/**": { swr: 600 },
   },
 });
