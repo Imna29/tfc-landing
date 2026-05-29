@@ -29,6 +29,9 @@ export default defineNuxtConfig({
       { code: "ka", name: "Georgian" },
     ],
     defaultLocale: "en-us",
+    strategy: "no_prefix",
+    detectBrowserLanguage: false,
+    vueI18n: "./i18n/i18n.config.ts",
   },
 
   routeRules: {
