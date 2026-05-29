@@ -44,7 +44,6 @@ const props = defineProps(
 );
 
 const { client } = usePrismic();
-const { locale } = useI18n();
 
 const initializeCardObserver = () => {
   cardObserver?.disconnect();
@@ -111,19 +110,19 @@ const referencedFighterDocumentIds = computed(() =>
 
 const { data: fighterDocuments } = await useAsyncData(
   () =>
-    `fighters-section-fighters-${props.index}-${locale.value}-${referencedFighterDocumentIds.value.join(",") || "none"}`,
+    `fighters-section-fighters-${props.index}-en-us-${referencedFighterDocumentIds.value.join(",") || "none"}`,
   () => {
     if (referencedFighterDocumentIds.value.length === 0) {
       return Promise.resolve([] as Content.FighterDocument[]);
     }
 
     return client.getAllByType("fighter", {
-      lang: locale.value,
+      lang: "en-us",
       filters: [prismic.filter.any("document.id", referencedFighterDocumentIds.value)],
     });
   },
   {
-    watch: [locale, referencedFighterDocumentIds],
+    watch: [referencedFighterDocumentIds],
   },
 );
 

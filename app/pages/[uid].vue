@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { components } from "~/slices";
-const { locale } = useI18n();
 
 const { client } = usePrismic();
 const route = useRoute();
-const { data: page } = await useAsyncData(`${locale.value}/${route.params.uid}`, () =>
+const { data: page } = await useAsyncData(`en-us/${route.params.uid}`, () =>
   client.getByUID("page", route.params.uid as string, {
-    lang: locale.value,
+    lang: "en-us",
   }),
 );
 

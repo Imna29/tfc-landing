@@ -2,7 +2,6 @@
 import { isFilled } from "@prismicio/client";
 import { PrismicLink } from "@prismicio/vue";
 
-const { locale, locales, setLocale } = useI18n();
 const { client } = usePrismic();
 const isMobileMenuOpen = ref(false);
 
@@ -17,8 +16,8 @@ const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
 };
 
-const { data: footerDocument } = await useAsyncData(`${locale.value}/footer`, () =>
-  client.getSingle("footer", { lang: locale.value }),
+const { data: footerDocument } = await useAsyncData("en-us/footer", () =>
+  client.getSingle("footer", { lang: "en-us" }),
 );
 
 const footer = computed(() => {
@@ -92,21 +91,6 @@ const footer = computed(() => {
           </nav>
 
           <div class="flex items-center gap-6">
-            <!-- Locale selector temporarily hidden -->
-            <!-- <select
-              :value="locale"
-              @change="setLocale(($event?.target as HTMLSelectElement)?.value as 'en-us' | 'ka')"
-              class="bg-transparent text-xl cursor-pointer border border-outline-variant/30 px-2 py-1 hover:border-primary transition-colors"
-            >
-              <option
-                v-for="loc in locales"
-                :key="loc.code"
-                :value="loc.code"
-                class="bg-surface-container-high text-sm"
-              >
-                {{ loc.code === "en-us" ? "🇺🇸" : "🇬🇪" }}
-              </option>
-            </select> -->
             <NuxtLink
               to="/contact"
               class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"

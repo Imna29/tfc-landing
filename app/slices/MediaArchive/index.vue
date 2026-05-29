@@ -8,7 +8,6 @@ const props = defineProps(
 );
 
 const { client } = usePrismic();
-const { locale } = useI18n();
 
 const currentPage = ref(1);
 const activeFilterId = ref<string>("all");
@@ -18,15 +17,12 @@ const isVideoOpen = ref(false);
 const pageSize = 4;
 
 const { data: mediaTypes } = await useAsyncData(
-  () => `media-archive-types-${props.index}-${locale.value}`,
+  () => `media-archive-types-${props.index}-en-us`,
   () =>
     client.getAllByType("media_type", {
-      lang: locale.value,
+      lang: "en-us",
       orderings: [{ field: "my.media_type.name", direction: "asc" }],
     }),
-  {
-    watch: [locale],
-  },
 );
 
 const filterOptions = computed(() => {
@@ -54,20 +50,20 @@ const referencedMediaDocumentIds = computed(() =>
 
 const { data: mediaDocuments, pending: mediaPending } = await useAsyncData(
   () =>
-    `media-archive-items-${props.index}-${locale.value}-${referencedMediaDocumentIds.value.join(",") || "none"}`,
+    `media-archive-items-${props.index}-en-us-${referencedMediaDocumentIds.value.join(",") || "none"}`,
   () => {
     if (referencedMediaDocumentIds.value.length === 0) {
       return Promise.resolve([] as Content.MediaDocument[]);
     }
 
     return client.getAllByType("media", {
-      lang: locale.value,
+      lang: "en-us",
       filters: [prismic.filter.any("document.id", referencedMediaDocumentIds.value)],
       fetchLinks: ["media_type.name"],
     });
   },
   {
-    watch: [locale, referencedMediaDocumentIds],
+    watch: [referencedMediaDocumentIds],
   },
 );
 
@@ -187,10 +183,7 @@ const goToNextPage = () => {
   currentPage.value += 1;
 };
 
-watch(locale, () => {
-  activeFilterId.value = "all";
-  currentPage.value = 1;
-});
+
 </script>
 
 <template>

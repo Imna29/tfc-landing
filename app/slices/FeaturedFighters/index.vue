@@ -22,7 +22,6 @@ const props = defineProps(
 );
 
 const { client } = usePrismic();
-const { locale } = useI18n();
 
 const sectionRef = ref<HTMLElement | null>(null);
 const isMobileViewport = ref(false);
@@ -98,19 +97,19 @@ const referencedFighterDocumentIds = computed(() =>
 
 const { data: fighterDocuments } = await useAsyncData(
   () =>
-    `featured-fighters-${props.index}-${locale.value}-${referencedFighterDocumentIds.value.join(",") || "none"}`,
+    `featured-fighters-${props.index}-en-us-${referencedFighterDocumentIds.value.join(",") || "none"}`,
   () => {
     if (referencedFighterDocumentIds.value.length === 0) {
       return Promise.resolve([] as Content.FighterDocument[]);
     }
 
     return client.getAllByType("fighter", {
-      lang: locale.value,
+      lang: "en-us",
       filters: [prismic.filter.any("document.id", referencedFighterDocumentIds.value)],
     });
   },
   {
-    watch: [locale, referencedFighterDocumentIds],
+    watch: [referencedFighterDocumentIds],
   },
 );
 

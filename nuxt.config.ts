@@ -14,7 +14,7 @@ export default defineNuxtConfig({
     },
   },
 
-  modules: ["@nuxt/icon", "@nuxtjs/prismic", "@nuxtjs/i18n", "motion-v/nuxt"],
+  modules: ["@nuxt/icon", "@nuxtjs/prismic", "motion-v/nuxt"],
 
   prismic: {
     endpoint: prismicConfig.repositoryName,
@@ -23,17 +23,6 @@ export default defineNuxtConfig({
       routes: prismicConfig.routes,
     },
   },
-  i18n: {
-    locales: [
-      { code: "en-us", name: "English" },
-      { code: "ka", name: "Georgian" },
-    ],
-    defaultLocale: "en-us",
-    strategy: "no_prefix",
-    detectBrowserLanguage: false,
-    vueI18n: "./i18n/i18n.config.ts",
-  },
-
   routeRules: {
     '/**': { isr: 600 },
     '/slice-simulator': { ssr: true },

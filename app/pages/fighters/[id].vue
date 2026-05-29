@@ -39,7 +39,6 @@ interface FighterProfile {
 
 const route = useRoute();
 const { client } = usePrismic();
-const { locale } = useI18n();
 
 const fighterIdParam = route.params.id;
 const fighterId = Array.isArray(fighterIdParam)
@@ -49,7 +48,7 @@ const fighterId = Array.isArray(fighterIdParam)
     : "";
 
 const { data: fighterDocument } = await useAsyncData(
-  `${locale.value}/fighter/${fighterId}`,
+  `en-us/fighter/${fighterId}`,
   async () => {
     if (!fighterId) {
       return null;
@@ -57,7 +56,7 @@ const { data: fighterDocument } = await useAsyncData(
 
     try {
       return await client.getByUID("fighter", fighterId, {
-        lang: locale.value,
+        lang: "en-us",
       });
     } catch (error) {
       if ((error as { status?: number }).status === 404) {
