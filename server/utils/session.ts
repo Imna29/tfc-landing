@@ -1,6 +1,9 @@
 import type { Fan } from "#shared/fan";
+import { eq } from "drizzle-orm";
 import type { H3Event } from "h3";
+import { users } from "../db/schema";
 import { useAuth } from "./auth";
+import { useDatabase } from "./db";
 
 /**
  * A signed-in fan, plus the id the server needs to write rows against them.
@@ -53,4 +56,49 @@ export async function requireFan(event: H3Event): Promise<SignedInFan> {
   }
 
   return fan;
+}
+
+/**
+ * Who is making this request, refusing it unless they are an admin.
+ *
+ * `server/middleware/admin.ts` has already asked this of every request under
+ * `/admin` and `/api/admin`, so a handler that calls this is not what stops a
+ * fan getting in — it is how the handler learns *which* admin is acting, for
+ * the "who did this, and when" that lock and settlement records need. Calling
+ * it costs one more session lookup and one more row read, and buys a route
+ * that is still locked if it is ever moved out from under the prefix.
+ */
+export async function requireAdmin(event: H3Event): Promise<SignedInFan> {
+  const fan = await requireFan(event);
+
+  if (!(await isAdmin(fan.id))) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: "Admins only",
+      message: "Running TFC Predictions is for TFC staff.",
+    });
+  }
+
+  return fan;
+}
+
+/**
+ * Whether this user's role is admin, asked of the `users` row rather than of
+ * the session.
+ *
+ * A session outlives a decision. Reading the role here means a role taken away
+ * stops working on the very next request, rather than whenever that browser
+ * happens to sign in again — which is what makes revoking one worth doing.
+ *
+ * The role is deliberately not something `better-auth` knows about, so there
+ * is nowhere else this could be read from: see `ROLES` in `server/db/schema.ts`.
+ */
+async function isAdmin(userId: string): Promise<boolean> {
+  const [user] = await useDatabase()
+    .select({ role: users.role })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return user?.role === "admin";
 }

@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { users } from "../../server/db/schema";
 import { testDatabase } from "./database";
 
@@ -46,4 +47,24 @@ export async function createUser(overrides: Partial<NewUser> = {}) {
   if (!user) throw new Error("Failed to create a user.");
 
   return user;
+}
+
+/**
+ * Makes an existing account an admin.
+ *
+ * Word for word the `update` the README tells a human to run, because that is
+ * the only way to become an admin: no route grants the role, so a test that
+ * arranged one any other way would be arranging something that cannot happen.
+ */
+export async function grantAdmin(email: string): Promise<void> {
+  await testDatabase().execute(
+    sql`update users set role = 'admin' where lower(email) = lower(${email})`,
+  );
+}
+
+/** Takes the admin role away again, the same way. */
+export async function revokeAdmin(email: string): Promise<void> {
+  await testDatabase().execute(
+    sql`update users set role = 'fan' where lower(email) = lower(${email})`,
+  );
 }

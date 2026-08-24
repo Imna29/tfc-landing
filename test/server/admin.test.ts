@@ -1,0 +1,129 @@
+import { $fetch, fetch } from "@nuxt/test-utils/e2e";
+import { sql } from "drizzle-orm";
+import { describe, expect, it } from "vitest";
+import { users } from "../../server/db/schema";
+import { fanDetails, postJson, signUp, signUpAdmin } from "../helpers/accounts";
+import { testDatabase } from "../helpers/database";
+import { setupTestServer } from "../helpers/server";
+import { revokeAdmin } from "../helpers/users";
+
+/**
+ * The lock every admin capability sits behind.
+ *
+ * A file of its own rather than cases added to `test/server/accounts.test.ts`,
+ * and so one more Nuxt build in every run: this is the file six later admin
+ * tickets add to, and the one to copy when they do.
+ */
+describe("the admin area", async () => {
+  await setupTestServer();
+
+  describe("who gets in", () => {
+    it("refuses a fan an admin API endpoint", async () => {
+      const { cookie } = await signUp();
+
+      const response = await fetch("/api/admin/me", { headers: { cookie } });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("refuses a fan an admin page", async () => {
+      const { cookie } = await signUp();
+
+      const response = await fetch("/admin", { headers: { cookie } });
+
+      expect(response.status).toBe(403);
+    });
+
+    it("asks a signed-out visitor to sign in rather than only refusing them", async () => {
+      expect((await fetch("/admin")).status).toBe(401);
+
+      await expect($fetch("/api/admin/me")).rejects.toMatchObject({
+        statusCode: 401,
+        data: { message: expect.stringMatching(/sign in/i) },
+      });
+    });
+
+    it("lets an admin in", async () => {
+      const { details, cookie } = await signUpAdmin();
+
+      expect(await $fetch("/api/admin/me", { headers: { cookie } })).toEqual({
+        username: details.username,
+      });
+    });
+
+    it("shows an admin an index of what they can do", async () => {
+      const { details, cookie } = await signUpAdmin({ username: "cage-side-boss" });
+
+      const page = await $fetch("/admin", { headers: { cookie } });
+
+      expect(page).toContain(details.username);
+      expect(page).toMatch(/capabilities/i);
+    });
+  });
+
+  describe("what the lock covers", () => {
+    it("refuses an admin route before asking whether it exists", async () => {
+      // The guard is the prefix, not a list of routes that has to be kept up
+      // to date: an endpoint a later ticket adds is locked from its first line
+      // rather than from whenever somebody remembers to lock it.
+      const { cookie } = await signUp();
+
+      expect((await fetch("/api/admin/not-built-yet", { headers: { cookie } })).status).toBe(403);
+      expect((await fetch("/admin/not-built-yet", { headers: { cookie } })).status).toBe(403);
+    });
+
+    it("has nothing there for an admin either, so the refusal was the guard", async () => {
+      const { cookie } = await signUpAdmin();
+
+      expect((await fetch("/api/admin/not-built-yet", { headers: { cookie } })).status).toBe(404);
+    });
+
+    it("leaves everything outside the admin area alone", async () => {
+      const { cookie } = await signUp();
+
+      expect(await $fetch("/api/health")).toEqual({ status: "ok", users: 1 });
+      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toMatchObject({
+        email: expect.any(String),
+      });
+    });
+  });
+
+  describe("how the role is granted", () => {
+    it("makes every new account a fan, whatever the sign-up asked for", async () => {
+      // `role` is not a field the sign-up route or `better-auth` knows about,
+      // and asking for one has to stay a request nothing acts on.
+      await postJson("/api/accounts/sign-up", { ...fanDetails(), role: "admin" });
+
+      const [stored] = await testDatabase().select({ role: users.role }).from(users);
+
+      expect(stored).toEqual({ role: "fan" });
+    });
+
+    it("refuses to store a role nobody enforces", async () => {
+      const { details } = await signUp();
+
+      // A hand-run grant is a hand-typed string, and `Admin` matches nothing.
+      // Postgres says so rather than leaving an account that looks granted.
+      const outcome = await testDatabase()
+        .execute(sql`update users set role = 'Admin' where email = ${details.email}`)
+        .then(
+          () => "stored it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(outcome).toMatch(/users_role_known/);
+    });
+
+    it("stops an admin the moment the role is taken away", async () => {
+      const { details, cookie } = await signUpAdmin();
+
+      expect((await fetch("/api/admin/me", { headers: { cookie } })).status).toBe(200);
+
+      await revokeAdmin(details.email);
+
+      // The same cookie, the same session: the role is read from the row on
+      // every request, so revoking one does not wait for a sign-in.
+      expect((await fetch("/api/admin/me", { headers: { cookie } })).status).toBe(403);
+    });
+  });
+});

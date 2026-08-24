@@ -1,6 +1,6 @@
 import { fetch, url } from "@nuxt/test-utils/e2e";
 import type { SignUpDetails } from "../../shared/signUp";
-import { nextFanNumber } from "./users";
+import { grantAdmin, nextFanNumber } from "./users";
 
 /**
  * A fan who can sign up: old enough, unique, and unremarkable in every way a
@@ -37,6 +37,21 @@ export async function signUp(overrides: Partial<SignUpDetails> = {}) {
   }
 
   return { details, cookie: cookieFrom(response) };
+}
+
+/**
+ * Signs a fan up and grants them the admin role.
+ *
+ * The session is opened before the grant and keeps working after it, because
+ * the role is read from the `users` row on every request rather than carried
+ * on the session.
+ */
+export async function signUpAdmin(overrides: Partial<SignUpDetails> = {}) {
+  const signedUp = await signUp(overrides);
+
+  await grantAdmin(signedUp.details.email);
+
+  return signedUp;
 }
 
 /** Posts a sign-in the way the form does, and hands back the raw response. */

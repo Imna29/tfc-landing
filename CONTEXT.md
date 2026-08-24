@@ -123,6 +123,26 @@ The table is `users` and `better-auth` calls the model `user`, because that is w
 requires of a schema. Above that layer — routes, composables, pages, tests — the word is
 Fan.
 
+### Admin
+
+A [[fan]] whose [[role]] is admin: TFC staff who price a card, open and lock Bouts, enter
+results and run Seasons. Not a second kind of account — an Admin has a Balance and can
+play like anyone else, and every "as an admin" user story is about what the role permits,
+not about who the person is.
+
+The admin area is one deliberately plain part of the same application, at `/admin`. There
+is no separate admin site. See [[adr-0011]].
+
+### Role
+
+What a user is permitted to do: `fan` or `admin`, held as a column on the user row. Not
+"permission", "scope" or "claim" — there is one column with two values, and naming it as
+though it were a permissions system would promise something the product does not have.
+
+A Role is never carried on a session and is never settable through any route: it is
+granted by hand in SQL, so that no form, and no field an auth library might helpfully
+accept, can make somebody an admin. See [[adr-0011]].
+
 ### Username
 
 The only identifier TFC ever shows publicly: on a leaderboard, beside an Entry, anywhere

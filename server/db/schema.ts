@@ -8,11 +8,34 @@
  * `users`, `sessions`, `accounts` and `verifications` are the four tables
  * `better-auth` requires. Their columns are its columns and are named the way
  * it names them — see `server/utils/auth.ts`, which is where the mapping from
- * its vocabulary to this one is written down. The three extra columns on
- * `users` are ours.
+ * its vocabulary to this one is written down. The four extra columns on
+ * `users` are ours, `role` among them — see {@link ROLES} for why it is not
+ * one of its.
  */
 import { sql } from "drizzle-orm";
-import { boolean, date, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  date,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+/**
+ * What a user is allowed to do: play, or also run the game.
+ *
+ * An admin is a fan with a role, not a second kind of account — they hold
+ * Coins and can play like anyone else. Deliberately not a `better-auth`
+ * field: nothing it serves may read or write this column, so no route can
+ * grant it and no sign-up can ask for it. The only way to become an admin is
+ * the `update` in the README, run by hand against the database.
+ */
+export const ROLES = ["fan", "admin"] as const;
+
+export type Role = (typeof ROLES)[number];
 
 /**
  * A person with an account.
@@ -26,6 +49,9 @@ import { boolean, date, pgTable, text, timestamp, uniqueIndex, uuid } from "driz
  * There is deliberately no avatar column: fans are identified by username
  * (ADR-0009), so `better-auth`'s optional `image` field has nowhere to be
  * written and is never asked for.
+ *
+ * `role` is what the admin area checks on every request. It defaults to `fan`,
+ * so an account is only ever an admin because someone said so in SQL.
  */
 export const users = pgTable(
   "users",
@@ -37,6 +63,7 @@ export const users = pgTable(
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
     dateOfBirth: date("date_of_birth", { mode: "string" }).notNull(),
+    role: text("role").$type<Role>().notNull().default("fan"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -45,6 +72,10 @@ export const users = pgTable(
     // on a leaderboard and `ironmike` beside `IronMike` is not two people
     // anyone can tell apart.
     uniqueIndex("users_username_unique").on(sql`lower(${table.username})`),
+    // Granting the admin role is a hand-written `update` (see the README), and
+    // a hand-written `update` can be misspelled. Postgres refuses `'Admin'`
+    // here rather than storing a role that quietly matches nothing.
+    check("users_role_known", sql`${table.role} in ('fan', 'admin')`),
   ],
 );
 

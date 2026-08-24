@@ -148,6 +148,54 @@ sign-ups every ten seconds per IP, and three verification or reset emails a
 minute. A test file that spends those on assertions it could make another way
 runs out of them.
 
+## Admin
+
+Everything an admin can do lives in the same app, at `/admin` and under
+`/api/admin` — one deliberately plain area, no separate admin application and no
+design pass. The live lock console (#20) is the one screen that gets one,
+because it is the only one used cageside on a phone.
+
+`server/middleware/admin.ts` refuses every request under those two prefixes
+before any handler runs: 401 for a signed-out visitor, 403 for a signed-in fan.
+The guard is the *prefix*, not a list of routes, so an admin page or endpoint
+added by a later ticket is locked from its first line rather than from whenever
+somebody remembers to lock it. What that costs is the matching itself — a path
+the guard fails to recognise is a path served with no role check at all — which
+is why `server/utils/adminArea.ts` is a module of its own with unit tests of its
+own.
+
+A handler still calls `requireAdmin(event)`, but not to be let in: that already
+happened. It is how the handler learns *which* admin is acting, for the "who did
+this, and when" that lock and result records have to carry.
+
+`/api/admin/me` is the shape to copy for a new admin endpoint, and
+`test/server/admin.test.ts` the file to add its tests to.
+
+### Granting the admin role
+
+There is no route, no form and no script that grants it. `role` is not a field
+`better-auth` knows about, so nothing it serves can read or write the column and
+a sign-up asking for `"role": "admin"` is a request nothing acts on. The only
+way in is SQL, run by hand against the database:
+
+```sql
+update users set role = 'admin' where lower(email) = lower('someone@tfcgeo.com');
+```
+
+Check it landed:
+
+```sql
+select username, email, role from users where role = 'admin';
+```
+
+Every spelling but `fan` and `admin` — `'Admin'` included — is refused by the
+`users_role_known` check constraint, so a typo fails loudly instead of leaving
+an account that looks granted. To take the role away, set it back to `'fan'`:
+the role is read from the row on every request, so the next one is refused and
+there is no session to wait out.
+
+See ADR-0011 for why it is arranged this way.
+
 ## Email
 
 Two messages, and no others: a link that confirms a fan's email address, and a
@@ -234,7 +282,9 @@ arranges that, so no test has to remember to. Reach for `test/helpers` to
 arrange state — `createUser()` and friends fill in anything the test is not
 about, so what a test *is* about stays readable. `test/helpers/accounts.ts`
 signs fans up and in over HTTP, the way the forms do; `createUser()` writes a
-row directly and gives you a fan who cannot sign in.
+row directly and gives you a fan who cannot sign in. `signUpAdmin()` signs a fan
+up and then grants the role with the same `update` this README tells a human to
+run, so the documented way in and the tested way in cannot drift apart.
 
 The server suite runs with `DATABASE_POOL_MAX=1`, the connection budget a
 serverless function has, so code that needs a second connection while holding
