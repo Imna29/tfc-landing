@@ -23,12 +23,19 @@ function rulesFor(path: string) {
 }
 
 describe("marketing routes", () => {
-  it.each(["/", "/about", "/contact", "/fighters/some-fighter", "/some-prismic-page"])(
-    "%s keeps the ten-minute edge cache",
-    (path) => {
-      expect(rulesFor(path).isr).toBe(600);
-    },
-  );
+  it.each([
+    "/",
+    "/about",
+    "/contact",
+    "/fighters/some-fighter",
+    "/some-prismic-page",
+    // Prizes and the contest rules are Prismic-authored and identical for
+    // every visitor, signed in or not.
+    "/prizes",
+    "/contest-rules",
+  ])("%s keeps the ten-minute edge cache", (path) => {
+    expect(rulesFor(path).isr).toBe(600);
+  });
 });
 
 describe("routes that read a session", () => {

@@ -5,10 +5,13 @@ import { PrismicLink } from "@prismicio/vue";
 const { client } = usePrismic();
 const isMobileMenuOpen = ref(false);
 
-const mobileNavLinks = [
+// One list, both navigations. A section added here appears in each of them,
+// rather than in whichever one whoever added it remembered.
+const navLinks = [
   { to: "/events", label: "Events" },
   { to: "/fighters", label: "Fighters" },
   { to: "/media", label: "Media" },
+  { to: "/prizes", label: "Prizes" },
   { to: "/about", label: "About Us" },
 ];
 
@@ -65,28 +68,12 @@ const footer = computed(() => {
 
           <nav class="hidden md:flex items-center gap-10">
             <NuxtLink
-              to="/events"
+              v-for="link in navLinks"
+              :key="link.to"
+              :to="link.to"
               class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
             >
-              Events
-            </NuxtLink>
-            <NuxtLink
-              to="/fighters"
-              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Fighters
-            </NuxtLink>
-            <NuxtLink
-              to="/media"
-              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Media
-            </NuxtLink>
-            <NuxtLink
-              to="/about"
-              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              About Us
+              {{ link.label }}
             </NuxtLink>
           </nav>
 
@@ -116,7 +103,7 @@ const footer = computed(() => {
           class="md:hidden mt-4 border border-outline-variant/30 bg-surface-container-high"
         >
           <NuxtLink
-            v-for="link in mobileNavLinks"
+            v-for="link in navLinks"
             :key="link.to"
             :to="link.to"
             class="block px-4 py-3 text-sm font-bold uppercase tracking-widest border-b border-outline-variant/15 last:border-b-0 hover:text-primary transition-colors"
@@ -206,18 +193,22 @@ const footer = computed(() => {
             </ul>
           </div>
 
-          <div v-if="footer.legalLinks.length > 0">
+          <div>
             <h4
-              v-if="footer.legalHeading"
               class="font-headline font-black italic uppercase text-lg mb-8 border-l-2 border-primary-container pl-4"
             >
-              {{ footer.legalHeading }}
+              {{ footer.legalHeading || "Legal" }}
             </h4>
             <ul
               class="space-y-4 text-sm font-bold uppercase tracking-widest text-on-surface-variant"
             >
               <li v-for="(legalLink, index) in footer.legalLinks" :key="index">
                 <PrismicLink :field="legalLink.link" class="hover:text-primary transition-colors" />
+              </li>
+              <li>
+                <NuxtLink to="/contest-rules" class="hover:text-primary transition-colors">
+                  Contest Rules
+                </NuxtLink>
               </li>
             </ul>
           </div>

@@ -1,0 +1,72 @@
+{
+  "id": "prize_tiers",
+  "type": "SharedSlice",
+  "name": "PrizeTiers",
+  "variations": [
+    {
+      "id": "default",
+      "name": "Default",
+      "description": "Default",
+      "imageUrl": "",
+      "docURL": "...",
+      "version": "initial",
+      "primary": {
+        "heading": {
+          "type": "Text",
+          "config": {
+            "label": "heading",
+            "placeholder": "What you are playing for"
+          }
+        },
+        "intro": {
+          "type": "StructuredText",
+          "config": {
+            "label": "intro",
+            "placeholder": "",
+            "single": "paragraph,strong,em,hyperlink",
+            "allowTargetBlank": true
+          }
+        },
+        "tiers": {
+          "type": "Group",
+          "config": {
+            "label": "tiers",
+            "repeat": true,
+            "fields": {
+              "place": {
+                "type": "Text",
+                "config": {
+                  "label": "place",
+                  "placeholder": "1st"
+                }
+              },
+              "prize": {
+                "type": "Text",
+                "config": {
+                  "label": "prize",
+                  "placeholder": "What this finisher receives"
+                }
+              },
+              "detail": {
+                "type": "Text",
+                "config": {
+                  "label": "detail",
+                  "placeholder": ""
+                }
+              },
+              "image": {
+                "type": "Image",
+                "config": {
+                  "label": "image",
+                  "constraint": {},
+                  "thumbnails": []
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "description": "PrizeTiers"
+}

@@ -1,0 +1,80 @@
+{
+  "id": "prizes",
+  "label": "Prizes",
+  "repeatable": false,
+  "json": {
+    "Main": {
+      "title": {
+        "type": "Text",
+        "config": {
+          "label": "Title",
+          "placeholder": "Prizes"
+        }
+      },
+      "season_name": {
+        "type": "Text",
+        "config": {
+          "label": "Season name",
+          "placeholder": "Season 1"
+        }
+      },
+      "season_ends_at": {
+        "type": "Timestamp",
+        "config": {
+          "label": "Season ends at",
+          "placeholder": "The deadline fans are playing against, in Tbilisi time"
+        }
+      },
+      "season_deadline_note": {
+        "type": "Text",
+        "config": {
+          "label": "Season deadline note",
+          "placeholder": "One line under the date, about what the deadline means"
+        }
+      },
+      "slices": {
+        "type": "Slices",
+        "fieldset": "Slice Zone",
+        "config": {
+          "choices": {
+            "prize_tiers": {
+              "type": "SharedSlice"
+            },
+            "rich_text_section": {
+              "type": "SharedSlice"
+            }
+          }
+        }
+      }
+    },
+    "SEO & Metadata": {
+      "meta_title": {
+        "type": "Text",
+        "config": {
+          "label": "Meta Title",
+          "placeholder": "A title of the page used for social media and search engines"
+        }
+      },
+      "meta_description": {
+        "type": "Text",
+        "config": {
+          "label": "Meta Description",
+          "placeholder": "A brief summary of the page"
+        }
+      },
+      "meta_image": {
+        "type": "Image",
+        "config": {
+          "label": "Meta Image",
+          "constraint": {
+            "width": 2400,
+            "height": 1260
+          },
+          "thumbnails": []
+        }
+      }
+    }
+  },
+  "status": true,
+  "format": "page"
+}

@@ -1,0 +1,94 @@
+{
+  "id": "contest_rules",
+  "label": "Contest Rules",
+  "repeatable": false,
+  "json": {
+    "Main": {
+      "title": {
+        "type": "Text",
+        "config": {
+          "label": "Title",
+          "placeholder": "Contest rules"
+        }
+      },
+      "eligibility_heading": {
+        "type": "Text",
+        "config": {
+          "label": "Eligibility heading",
+          "placeholder": "Who can play"
+        }
+      },
+      "eligibility_rules": {
+        "type": "Group",
+        "config": {
+          "label": "Eligibility rules",
+          "repeat": true,
+          "fields": {
+            "replaces": {
+              "type": "Select",
+              "config": {
+                "label": "replaces",
+                "placeholder": "Leave empty to add a new rule",
+                "options": ["age", "one-account", "verified-email", "prize-terms"]
+              }
+            },
+            "title": {
+              "type": "Text",
+              "config": {
+                "label": "title",
+                "placeholder": "18 and over"
+              }
+            },
+            "detail": {
+              "type": "Text",
+              "config": {
+                "label": "detail",
+                "placeholder": "One sentence a fan can check themselves against"
+              }
+            }
+          }
+        }
+      },
+      "slices": {
+        "type": "Slices",
+        "fieldset": "Slice Zone",
+        "config": {
+          "choices": {
+            "rich_text_section": {
+              "type": "SharedSlice"
+            }
+          }
+        }
+      }
+    },
+    "SEO & Metadata": {
+      "meta_title": {
+        "type": "Text",
+        "config": {
+          "label": "Meta Title",
+          "placeholder": "A title of the page used for social media and search engines"
+        }
+      },
+      "meta_description": {
+        "type": "Text",
+        "config": {
+          "label": "Meta Description",
+          "placeholder": "A brief summary of the page"
+        }
+      },
+      "meta_image": {
+        "type": "Image",
+        "config": {
+          "label": "Meta Image",
+          "constraint": {
+            "width": 2400,
+            "height": 1260
+          },
+          "thumbnails": []
+        }
+      }
+    }
+  },
+  "status": true,
+  "format": "page"
+}

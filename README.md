@@ -74,6 +74,26 @@ bun run preview
 
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
 
+## Content model
+
+Pages are authored in Prismic. The models live in the repo — one directory per
+custom type under `customtypes/`, one per slice under `app/slices/` — and
+`prismicio-types.d.ts` is the generated TypeScript for them.
+
+The repo is only ever the *local* copy. A model added here does not exist in the
+Prismic repository until it is pushed with Slice Machine, and until it is, the
+content team has nothing to edit. `prizes` and `contest_rules` are in that state
+now: the pages render their built-in content and wait.
+
+Pages are written to survive that gap rather than to depend on it. A singleton
+that has never been created reads as a missing document, not an error, and
+`/contest-rules` publishes the ADR-0007 eligibility constraints from
+`app/utils/eligibilityRules.ts` until someone authors better wording.
+
+`test/unit/vocabulary.test.ts` holds the naming rule from `CONTEXT.md` over
+every file that carries copy: no sportsbook vocabulary, anywhere a fan can read
+it.
+
 ## Database
 
 Postgres, accessed with Drizzle. `DATABASE_URL` is the only variable needed to

@@ -2,7 +2,7 @@
 import type { Content } from "@prismicio/client";
 
 defineProps(
-  getSliceComponentProps<Content.TermsOfServiceSlice>(["slice", "index", "slices", "context"]),
+  getSliceComponentProps<Content.RichTextSectionSlice>(["slice", "index", "slices", "context"]),
 );
 </script>
 
