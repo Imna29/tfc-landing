@@ -97,18 +97,20 @@ const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /**
  * Everything that carries words a fan can read: components and pages, the
  * Prismic models whose labels and placeholders the content team writes
- * against, and the app-layer utils that hold copy of their own — the fallback
- * eligibility rules among them.
+ * against, and the modules that hold copy of their own — the fallback
+ * eligibility rules and the sentences sign-up answers with among them.
  *
  * `.ts` files elsewhere are deliberately out of scope. `void` is both banned
  * vocabulary and a TypeScript keyword, and a guard that fires on
- * `Promise<void>` is a guard people switch off. The corollary for `app/utils`,
- * which is in scope: a module that needs the keyword does not belong there.
+ * `Promise<void>` is a guard people switch off. The corollary for `app/utils`
+ * and `shared`, which are in scope: a module that needs the keyword does not
+ * belong in either.
  */
 export function contentSurfaceFiles(): ContentSurfaceFile[] {
   const paths = [
     ...walk(join(REPO_ROOT, "app"), (name) => name.endsWith(".vue") || name === "model.json"),
     ...walk(join(REPO_ROOT, "app", "utils"), (name) => name.endsWith(".ts")),
+    ...walk(join(REPO_ROOT, "shared"), (name) => name.endsWith(".ts")),
     ...walk(join(REPO_ROOT, "customtypes"), (name) => name === "index.json"),
   ];
 

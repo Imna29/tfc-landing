@@ -60,6 +60,7 @@ describe("the content surface", () => {
 
   it("covers the modules that hold copy of their own", () => {
     expect(files.map((file) => file.path)).toContain("app/utils/eligibilityRules.ts");
+    expect(files.map((file) => file.path)).toContain("shared/signUp.ts");
   });
 
   it.each(files.map((file) => [file.path, file.text] as const))(

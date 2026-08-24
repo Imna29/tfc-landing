@@ -96,8 +96,9 @@ it.
 
 ## Database
 
-Postgres, accessed with Drizzle. `DATABASE_URL` is the only variable needed to
-connect; copy `.env.example` to `.env` and point it at your local Postgres.
+Postgres, accessed with Drizzle. Copy `.env.example` to `.env`: `DATABASE_URL`
+points at your local Postgres, and `BETTER_AUTH_SECRET` is any long random
+string (`openssl rand -base64 32`) — changing it signs every fan out.
 
 ```bash
 createdb tfc                # or: docker exec <postgres> createdb -U postgres tfc
@@ -113,6 +114,32 @@ pnpm db:generate --name what_it_does
 
 Migrations are applied, never edited once committed — a Coin ledger has to be
 able to explain how it got to its current shape.
+
+## Accounts
+
+Signing up, signing in and sessions are `better-auth`, wired up in
+`server/utils/auth.ts`. That file is the only place its vocabulary meets this
+one, and the note at the top of it is worth reading before changing anything
+here: `better-auth` calls a display name `name`, and the only display name a
+fan has is their username.
+
+Two rules are enforced below every route rather than in one:
+
+- **18+** lives in a `user.create.before` database hook, so no route — not
+  `better-auth`'s own sign-up route, not a social login added later — can
+  create an account without it. ADR-0007 is not a rule one form gets to be the
+  enforcement of.
+- **Real names never leave the database.** `firstName` and `lastName` are
+  declared `returned: false`, so no response `better-auth` composes can carry
+  them. They exist only so a Prize can reach a person.
+
+A database hook must not query anything: it runs inside a transaction holding
+the process's only connection. See ADR-0010, which is the rule every later
+ticket has to work inside.
+
+Signing up has a route of this app's own — `POST /api/accounts/sign-up` — which
+speaks this domain's vocabulary and answers a bad form with every problem at
+once. Everything else is `better-auth` under `/api/auth`.
 
 ## Tests
 
@@ -131,4 +158,10 @@ Two projects:
 Every server test starts from an empty database; `test/setup/database.ts`
 arranges that, so no test has to remember to. Reach for `test/helpers` to
 arrange state — `createUser()` and friends fill in anything the test is not
-about, so what a test *is* about stays readable.
+about, so what a test *is* about stays readable. `test/helpers/accounts.ts`
+signs fans up and in over HTTP, the way the forms do; `createUser()` writes a
+row directly and gives you a fan who cannot sign in.
+
+The server suite runs with `DATABASE_POOL_MAX=1`, the connection budget a
+serverless function has, so code that needs a second connection while holding
+one deadlocks here rather than in production (ADR-0010).

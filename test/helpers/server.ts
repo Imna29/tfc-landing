@@ -22,6 +22,16 @@ export async function setupTestServer(overrides: Partial<SetupOptions> = {}) {
     build: true,
     env: {
       DATABASE_URL: inject("databaseUrl"),
+      // Any value will do — it only has to be the same for the life of one
+      // server, so the cookie it signs on sign-in still verifies on the next
+      // request.
+      BETTER_AUTH_SECRET: "a-test-run-signs-its-cookies-with-this",
+      // The connection budget a serverless function has, deliberately: code
+      // that needs a second connection while it holds one — a database hook
+      // querying inside a transaction, say — deadlocks in production and must
+      // deadlock here too. A test about concurrency has to raise this, and say
+      // why; see `server/db/client.ts`.
+      DATABASE_POOL_MAX: "1",
     },
     ...overrides,
   });

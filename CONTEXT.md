@@ -108,6 +108,27 @@ claiming, no shipping details, no prize state. See [[adr-0007]].
 Not a [[reward]]. A Reward is Coins the game pays a winning Entry; a Prize is what the
 Season's final standings are worth outside the game. Never a "payout" for either.
 
+### Fan
+
+A person with an account: the audience this game is built for, and the word the spec's
+user stories use throughout. Prefer it to "user" in copy and in names for things a fan
+would recognise as themselves.
+
+A Fan is public only as their [[username]]. Their first and last name are held solely so
+TFC can match a [[prize]] to a person and are never returned by any endpoint; their date
+of birth is the only evidence of the 18+ gate and is stored as a date, never as an age.
+See [[adr-0007]].
+
+The table is `users` and `better-auth` calls the model `user`, because that is what it
+requires of a schema. Above that layer — routes, composables, pages, tests — the word is
+Fan.
+
+### Username
+
+The only identifier TFC ever shows publicly: on a leaderboard, beside an Entry, anywhere
+one fan can see another. Chosen at signup, unique regardless of capitalisation, and never
+a real name.
+
 ### Coin
 
 The virtual currency. Has no real-money value and is never purchasable, transferable or

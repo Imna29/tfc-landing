@@ -67,6 +67,10 @@ export const routeRules = {
   ...section("/api", uncached),
 
   // ── Sections that read a session, server-rendered per request ──
+  // Signing in and signing up are personalised before a fan even has an
+  // account: the page sets a session cookie, and an edge-cached copy of it
+  // would be the same page for everyone who followed.
+  ...section("/account", { ...uncached, ssr: true }),
   ...section("/predictions", { ...uncached, ssr: true }),
   ...section("/profile", { ...uncached, ssr: true }),
   ...section("/admin", { ...uncached, ssr: true }),

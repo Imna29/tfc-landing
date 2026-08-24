@@ -42,6 +42,10 @@ describe("routes that read a session", () => {
   const sessionPaths = [
     "/api",
     "/api/health",
+    "/api/accounts/me",
+    "/account",
+    "/account/sign-in",
+    "/account/sign-up",
     "/api/entries",
     "/predictions",
     "/predictions/tfc-12",

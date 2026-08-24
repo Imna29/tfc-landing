@@ -78,6 +78,18 @@ const footer = computed(() => {
           </nav>
 
           <div class="flex items-center gap-6">
+            <!--
+              Deliberately the same link for everyone, signed in or out: this
+              header is rendered into edge-cached marketing pages, so anything
+              here that depended on a session would be one fan's, served to all
+              of them (ADR-0008). /profile is where a session is read.
+            -->
+            <NuxtLink
+              to="/profile"
+              class="hidden md:inline-flex text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+            >
+              Account
+            </NuxtLink>
             <NuxtLink
               to="/contact"
               class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
@@ -110,6 +122,13 @@ const footer = computed(() => {
             @click="closeMobileMenu"
           >
             {{ link.label }}
+          </NuxtLink>
+          <NuxtLink
+            to="/profile"
+            class="block px-4 py-3 text-sm font-bold uppercase tracking-widest border-b border-outline-variant/15 hover:text-primary transition-colors"
+            @click="closeMobileMenu"
+          >
+            Account
           </NuxtLink>
           <NuxtLink
             to="/contact"
