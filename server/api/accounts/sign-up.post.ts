@@ -58,12 +58,21 @@ export default defineEventHandler(async (event) => {
       returnHeaders: true,
     });
 
+    const cookies = headers.getSetCookie();
+
     // The session cookie `better-auth` set on its own reply, moved onto ours.
-    for (const cookie of headers.getSetCookie()) {
+    for (const cookie of cookies) {
       appendResponseHeader(event, "set-cookie", cookie);
     }
 
-    return { fan: fanFrom(response.user) };
+    return {
+      fan: fanFrom(response.user),
+      // Sent from here rather than from inside `better-auth`'s sign-up, which
+      // swallows a refusal and answers success. The account stands either way
+      // — it exists, the fan is signed in — so a failure is reported rather
+      // than raised, and the profile page offers the link again.
+      verificationEmailSent: await sendVerificationLink(email, asSignedIn(event, cookies)),
+    };
   } catch (error) {
     const problem = await problemFrom(error, username);
 
@@ -101,6 +110,23 @@ async function problemFrom(error: unknown, username: string) {
     default:
       return undefined;
   }
+}
+
+/**
+ * The request's headers, carrying the session that has just been created.
+ *
+ * This is how the fan's next request will arrive, and handing it over means
+ * `better-auth` sends the verification email against a session it can see.
+ * Without it, it looks the address up instead — down a path that answers the
+ * same way whether it sent anything or not, and takes half a second doing it
+ * so that the two cannot be told apart by timing.
+ */
+function asSignedIn(event: H3Event, cookies: string[]): Headers {
+  const headers = new Headers(event.headers);
+
+  headers.set("cookie", cookies.map((cookie) => cookie.split(";")[0]).join("; "));
+
+  return headers;
 }
 
 function reject(event: H3Event, problems: SignUpProblem[]) {

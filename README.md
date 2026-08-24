@@ -139,7 +139,68 @@ ticket has to work inside.
 
 Signing up has a route of this app's own — `POST /api/accounts/sign-up` — which
 speaks this domain's vocabulary and answers a bad form with every problem at
-once. Everything else is `better-auth` under `/api/auth`.
+once. Confirming an address and resetting a password add two more, for the
+reason given under [Email](#what-is-not-here). Everything else is `better-auth`
+under `/api/auth`, including verifying a link and setting the new password.
+
+`better-auth` rate-limits its own routes in a built server: three sign-ins or
+sign-ups every ten seconds per IP, and three verification or reset emails a
+minute. A test file that spends those on assertions it could make another way
+runs out of them.
+
+## Email
+
+Two messages, and no others: a link that confirms a fan's email address, and a
+link that lets one who is locked out set a new password. Both are `better-auth`
+flows; what this repo supplies is the transport, the copy, and the answer a fan
+gets when a message does not go out.
+
+- **`shared/emails.ts`** is what the messages say, and how long each link
+  lasts. It lives in `shared` because that is the part of the tree
+  `test/unit/vocabulary.test.ts` reads: an email is copy a fan reads like any
+  page, and copy composed in `server/` would be the one piece nothing checks.
+- **`server/utils/email.ts`** is how a message leaves. There is no queue and no
+  retry — ADR-0009 rules out a second managed service, and a retry loop inside
+  a request would hold a serverless function open waiting on somebody else's
+  outage. A message that cannot be handed over is reported to the fan, whose
+  retry is a button.
+
+Without `RESEND_API_KEY` the messages are written to the server log, link and
+all. That is the whole reason this was split from the accounts ticket: nobody
+needs DNS access to work on signing up. Setting it makes `EMAIL_FROM` and
+`BETTER_AUTH_URL` required, because sending for real means a verified sender
+and links that point somewhere real.
+
+`NODE_ENV` deliberately decides none of this. `nuxt build` settles it at build
+time, so a built server reads "production" whoever is running it — the test
+suite included. `server/db/client.ts` says the same about the connection pool.
+
+### Before it can send: DNS
+
+This is the part no code can do, and the part most likely to delay a launch.
+
+1. Add the domain to Resend — a **subdomain**, `mail.tfcgeo.com`, never the
+   apex. A sending subdomain keeps a deliverability problem away from the
+   address people write to.
+2. Publish the DNS records Resend shows: a `TXT` for DKIM, an `MX` and `TXT`
+   for the return path, and a `DMARC` `TXT` on `_dmarc.tfcgeo.com` if the
+   domain has none.
+3. Wait for Resend to report the domain verified.
+4. Set `RESEND_API_KEY`, `EMAIL_FROM` on that subdomain, and `BETTER_AUTH_URL`.
+
+Until step 3, sending fails with Resend refusing the sender — which surfaces to
+the fan as a retryable error and to the log with Resend's own message, rather
+than as a silent success.
+
+### What is not here
+
+The two routes this ticket adds — `POST /api/accounts/verification-email` and
+`POST /api/accounts/password-reset` — exist because `better-auth` swallows a
+send failure on the paths behind them and answers success. They call it through
+`auth.api`, which does not go through its HTTP handler, so they do **not**
+inherit its rate limiting (three requests a minute per IP on the routes they
+wrap). Rate limiting these belongs at the route level, as ADR-0009 says, and
+has no ticket yet.
 
 ## Tests
 
@@ -165,3 +226,11 @@ row directly and gives you a fan who cannot sign in.
 The server suite runs with `DATABASE_POOL_MAX=1`, the connection budget a
 serverless function has, so code that needs a second connection while holding
 one deadlocks here rather than in production (ADR-0010).
+
+Email is not mocked either. `test/helpers/mailbox.ts` starts a stand-in for
+Resend on a local port and `test/server/email.test.ts` points the app at it, so
+a test that reads a link out of that mailbox has proved the app composed,
+authenticated and sent a real request — which a stubbed `fetch` would only have
+proved about the stub. That file pins its port, because `BETTER_AUTH_URL` is
+what emailed links are built from and has to be configuration the server starts
+with rather than something discovered from it afterwards.

@@ -105,8 +105,17 @@ async function submit() {
   failure.value = "";
 
   try {
-    await $fetch("/api/accounts/sign-up", { method: "POST", body: { ...form } });
-    await navigateTo("/profile");
+    const created = await $fetch("/api/accounts/sign-up", { method: "POST", body: { ...form } });
+
+    // The route answers with problems or with an account; a rejection arrives
+    // as a thrown 422, so only the second shape ever gets here. TypeScript
+    // sees both, and the check is how it is told which one this is.
+    const emailSent = "verificationEmailSent" in created && created.verificationEmailSent;
+
+    // The account exists either way. A verification email that did not go out
+    // is carried across so the profile page can say so and offer another,
+    // rather than leaving a fan watching an inbox nothing was sent to.
+    await navigateTo(emailSent ? "/profile" : "/profile?verification=unsent");
   } catch (error) {
     const reported = (error as { data?: { problems?: { field: SignUpField; message: string }[] } })
       .data?.problems;

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { EMAIL_MESSAGES } from "#shared/emails";
+
 /**
  * The sign-in form.
  *
@@ -17,6 +19,11 @@ const { data: signedIn } = await useFan();
 if (signedIn.value) {
   await navigateTo("/profile");
 }
+
+// Setting a new password signs every session out, so a fan arrives here from
+// the reset form rather than at their account, and deserves to be told why.
+const route = useRoute();
+const justResetPassword = computed(() => route.query.reset === "done");
 
 const form = reactive({ email: "", password: "" });
 const failure = ref("");
@@ -42,6 +49,10 @@ async function submit() {
 
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-xl mx-auto">
+      <p v-if="justResetPassword" class="text-on-surface/80 leading-relaxed mb-10" role="status">
+        {{ EMAIL_MESSAGES.passwordChanged }}
+      </p>
+
       <form class="grid gap-8" novalidate @submit.prevent="submit">
         <AccountField
           v-model="form.email"
@@ -71,6 +82,12 @@ async function submit() {
       </form>
 
       <p class="mt-10 text-on-surface/70">
+        <NuxtLink to="/account/forgot-password" class="text-primary underline">
+          Forgotten your password?
+        </NuxtLink>
+      </p>
+
+      <p class="mt-4 text-on-surface/70">
         New here?
         <NuxtLink to="/account/sign-up" class="text-primary underline">Create an account</NuxtLink>.
       </p>

@@ -9,6 +9,7 @@
  * and the uniqueness of a username — are enforced on the server. What lives
  * here is the arithmetic and the wording they are enforced with.
  */
+import { looksLikeEmail } from "./emails";
 
 /** The age a fan must have reached to take part. See ADR-0007. */
 export const MINIMUM_AGE = 18;
@@ -174,11 +175,6 @@ const USERNAME = new RegExp(
   `^[A-Za-z0-9_-]{${USERNAME_LENGTH.minimum},${USERNAME_LENGTH.maximum}}$`,
 );
 
-// Deliberately loose. An address is only really validated by sending mail to
-// it, which is what the verification email is for; this catches the typo that
-// could never receive one.
-const EMAIL = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
-
 /**
  * Reads a sign-up form into the details an account is created from, or into
  * every reason it cannot be.
@@ -206,7 +202,7 @@ export function parseSignUpDetails(body: unknown, today: CalendarDate): ParsedSi
   const complain = (field: SignUpField, message: string) => problems.push({ field, message });
 
   if (!USERNAME.test(username)) complain("username", SIGN_UP_MESSAGES.username);
-  if (!EMAIL.test(email)) complain("email", SIGN_UP_MESSAGES.email);
+  if (!looksLikeEmail(email)) complain("email", SIGN_UP_MESSAGES.email);
   if (password.length < MINIMUM_PASSWORD_LENGTH) complain("password", SIGN_UP_MESSAGES.password);
   if (firstName === "") complain("firstName", SIGN_UP_MESSAGES.firstName);
   if (lastName === "") complain("lastName", SIGN_UP_MESSAGES.lastName);

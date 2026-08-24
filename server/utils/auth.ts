@@ -19,6 +19,14 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { type SQL, sql } from "drizzle-orm";
 import {
+  EMAIL_CONFIRMED_PATH,
+  PASSWORD_RESET_LINK_HOURS,
+  PASSWORD_RESET_PATH,
+  VERIFICATION_LINK_HOURS,
+  passwordResetEmail,
+  verificationEmail,
+} from "#shared/emails";
+import {
   MINIMUM_PASSWORD_LENGTH,
   SIGN_UP_MESSAGES,
   contestDateOn,
@@ -26,6 +34,7 @@ import {
 } from "#shared/signUp";
 import { accounts, sessions, users, verifications } from "../db/schema";
 import { useDatabase } from "./db";
+import { sendEmail, sendingEmail } from "./email";
 
 /** The code this app's own rejection carries, for the route that translates it. */
 export const REFUSED_UNDER_AGE = "UNDER_AGE";
@@ -46,6 +55,8 @@ function createAuth() {
   return betterAuth({
     appName: "TFC Predictions",
     secret: authSecret(),
+    baseURL: baseUrl(),
+    trustedOrigins: alsoTrusted(),
 
     database: drizzleAdapter(database, {
       provider: "pg",
@@ -79,12 +90,26 @@ function createAuth() {
       // registered is rejected" — and `server/api/accounts/sign-up.post.ts`
       // asks the question itself rather than inheriting the answer from here.
       requireEmailVerification: false,
-      sendResetPassword: async ({ user, url }) => logEmail("password reset", user.email, url),
+      resetPasswordTokenExpiresIn: PASSWORD_RESET_LINK_HOURS * 3600,
+      // A fan resetting their password is usually a fan who has lost control
+      // of the old one. Everywhere they were signed in stops being signed in.
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: ({ user, url }) =>
+        sendEmail({ to: user.email, ...passwordResetEmail(url) }),
     },
 
     emailVerification: {
-      sendOnSignUp: true,
-      sendVerificationEmail: async ({ user, url }) => logEmail("verify email", user.email, url),
+      // `server/api/accounts/sign-up.post.ts` sends this itself, immediately
+      // after the account exists. `better-auth` would send it from inside its
+      // own sign-up route and swallow a failure — see {@link sendingEmail} —
+      // and the fan would be told their email was on its way when it was not.
+      sendOnSignUp: false,
+      expiresIn: VERIFICATION_LINK_HOURS * 3600,
+      // Deliberately not `autoSignInAfterVerification`. Confirming an address
+      // is not signing in, and a link that did both would turn every
+      // verification email into a way into the account that sent it.
+      sendVerificationEmail: ({ user, url }) =>
+        sendEmail({ to: user.email, ...verificationEmail(url) }),
     },
 
     user: {
@@ -181,11 +206,103 @@ function authSecret(): string {
 }
 
 /**
- * Where transactional email goes until #5 gives it a transport.
+ * Sends a fan the link that confirms their email address, and says whether it
+ * left.
  *
- * Logged rather than swallowed so the link is reachable in development, and so
- * that this ticket does not wait on DNS access to a sending subdomain.
+ * `headers` should be the ones the request arrived with. When they carry the
+ * fan's session `better-auth` sends against it directly; when they do not it
+ * looks the address up, and answers the same way for an address with no
+ * account as for one with a confirmed address already — so a `true` from here
+ * means "nothing refused the message", not "an email is definitely on its way
+ * to somebody who needed one". Both callers know the fan exists and is
+ * unconfirmed, which is what makes the answer worth acting on.
  */
-function logEmail(kind: string, address: string, link: string) {
-  console.info(`[email] ${kind} → ${address}: ${link}`);
+export function sendVerificationLink(email: string, headers: Headers): Promise<boolean> {
+  return handedOver(email, () =>
+    useAuth().api.sendVerificationEmail({
+      body: { email, callbackURL: EMAIL_CONFIRMED_PATH },
+      headers,
+    }),
+  );
+}
+
+/**
+ * Sends a fan the link that lets them set a new password, and says whether it
+ * left.
+ *
+ * An address with no account is answered `true` without anything being sent,
+ * because that is `better-auth`'s answer and it is the right one: the fan is
+ * told a link is on its way either way, so that asking this route is not a way
+ * to find out who has an account here.
+ */
+export function sendPasswordResetLink(email: string, headers: Headers): Promise<boolean> {
+  return handedOver(email, () =>
+    useAuth().api.requestPasswordReset({
+      body: { email, redirectTo: PASSWORD_RESET_PATH },
+      headers,
+    }),
+  );
+}
+
+/**
+ * Whether the email `ask` composed reached the transport.
+ *
+ * Two things have to be caught, because `better-auth` does not treat sending
+ * consistently: its password reset route swallows a refusal and answers
+ * success, and its verification route lets one through. {@link sendingEmail}
+ * sees the first, the `catch` sees the second, and a caller sees one boolean.
+ */
+async function handedOver(email: string, ask: () => Promise<unknown>): Promise<boolean> {
+  try {
+    const { sent } = await sendingEmail(ask);
+
+    return sent;
+  } catch (error) {
+    // Anything else that went wrong here — the address is already confirmed,
+    // the database is unreachable — leaves the fan with the same thing to do
+    // as a refused message: ask again. It is logged rather than raised for
+    // that reason, not because it is unimportant.
+    console.error(`[email] could not send a link to ${email}`, error);
+
+    return false;
+  }
+}
+
+/**
+ * Where this app is reached, which is the origin every emailed link is built
+ * from.
+ *
+ * Set rather than inferred, on purpose. `better-auth` takes the origin from
+ * the incoming request when it is handling one, which is fine for a redirect
+ * and wrong for an email: a request carrying somebody else's `Host` header
+ * would put somebody else's domain in a password reset link. It is also simply
+ * unavailable — a route of this app's own calls `auth.api` directly, with no
+ * request to read, and every link composed there would come out relative.
+ *
+ * Unset, this falls back to wherever the process is listening, which is right
+ * for `nuxt dev` and for the test suite and wrong everywhere else. What makes
+ * that safe is that `chooseMailer` refuses to send for real without
+ * `BETTER_AUTH_URL`: nothing can reach a fan's inbox carrying a link to
+ * localhost.
+ */
+function baseUrl(): string {
+  return process.env.BETTER_AUTH_URL || localUrl(process.env.HOST || "localhost");
+}
+
+/**
+ * The origins to trust besides {@link baseUrl}.
+ *
+ * A local server answers to `localhost` and to `127.0.0.1` alike and a
+ * developer may have typed either; `baseURL` can only be one of them, and a
+ * write from the other would be refused as cross-origin. A deployment has one
+ * address and trusts only it.
+ */
+function alsoTrusted(): string[] {
+  if (process.env.BETTER_AUTH_URL) return [];
+
+  return [localUrl("localhost"), localUrl("127.0.0.1")];
+}
+
+function localUrl(host: string): string {
+  return `http://${host}:${process.env.PORT || 3000}`;
 }

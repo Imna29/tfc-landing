@@ -1,3 +1,4 @@
+import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { setup } from "@nuxt/test-utils/e2e";
 import { inject } from "vitest";
@@ -13,8 +14,12 @@ type SetupOptions = Parameters<typeof setup>[0];
  * adding cases to a file that already boots a server over adding another file,
  * unless the new file needs different configuration — which is the one thing
  * `overrides` is for.
+ *
+ * `env` is merged rather than replaced, so a file that needs one more variable
+ * — a mailbox to send to, say — does not have to restate the database and the
+ * connection budget to get it.
  */
-export async function setupTestServer(overrides: Partial<SetupOptions> = {}) {
+export async function setupTestServer({ env, ...overrides }: Partial<SetupOptions> = {}) {
   await setup({
     // This helper is two directories deep, same as the test files themselves.
     rootDir: fileURLToPath(new URL("../..", import.meta.url)),
@@ -32,7 +37,35 @@ export async function setupTestServer(overrides: Partial<SetupOptions> = {}) {
       // deadlock here too. A test about concurrency has to raise this, and say
       // why; see `server/db/client.ts`.
       DATABASE_POOL_MAX: "1",
+      ...env,
     },
     ...overrides,
+  });
+}
+
+/**
+ * A port nothing is listening on, for a test that has to know where the server
+ * will be before it starts.
+ *
+ * Only `test/server/email.test.ts` needs this, and needs it for a real reason:
+ * `BETTER_AUTH_URL` is what every emailed link is built from, and it has to be
+ * handed to the server as configuration rather than discovered from it
+ * afterwards. Server test files never run in parallel, so nothing else is
+ * racing for the port between this closing and Nitro binding it.
+ */
+export function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+
+      probe.close(() =>
+        typeof address === "object" && address
+          ? resolve(address.port)
+          : reject(new Error("Could not find a free port.")),
+      );
+    });
   });
 }
