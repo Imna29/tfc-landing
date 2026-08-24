@@ -1,0 +1,16 @@
+{
+  // Nuxt generates a tsconfig per part of the app it knows about; the test
+  // suite and the tooling around it are not among them. This picks up what
+  // they leave out, on the same settings the server code is checked with.
+  //
+  // `nuxt.node.d.ts` is what teaches TypeScript about `routeRules` and the
+  // rest of the Nuxt config surface, which the e2e tests configure directly.
+  "extends": "./.nuxt/tsconfig.server.json",
+  "include": [
+    ".nuxt/nuxt.node.d.ts",
+    "test/**/*",
+    "vitest.config.ts",
+    "drizzle.config.ts"
+  ],
+  "exclude": []
+}

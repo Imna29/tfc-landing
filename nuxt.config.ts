@@ -1,6 +1,7 @@
 import prismicConfig from "./prismic.config.json";
 // https://nuxt.com/docs/api/configuration/nuxt-config
 import tailwindcss from "@tailwindcss/vite";
+import { routeRules } from "./route-rules";
 
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
@@ -23,9 +24,8 @@ export default defineNuxtConfig({
       routes: prismicConfig.routes,
     },
   },
-  routeRules: {
-    '/**': { isr: 600 },
-    '/slice-simulator': { ssr: true },
-    '/slice-simulator/**': { ssr: true },
-  },
+
+  // The cache boundary lives in ./route-rules.ts so it can be asserted on
+  // directly. See ADR-0008.
+  routeRules,
 });
