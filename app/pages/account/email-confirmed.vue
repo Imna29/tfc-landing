@@ -22,6 +22,11 @@ const { data: fan } = await useFan();
 // `INVALID_TOKEN`, `TOKEN_EXPIRED`, `USER_NOT_FOUND` — three ways of saying
 // the one thing the fan can do something about.
 const refused = computed(() => Boolean(route.query.error));
+
+// Asking for another link is a thing a signed-in fan does from their account,
+// where the button lives. This one goes there; it does not pretend to send.
+const onwards = computed(() => (fan.value ? "/profile" : "/account/sign-in"));
+const onwardsLabel = computed(() => (fan.value ? "Your account" : "Sign in"));
 </script>
 
 <template>
@@ -29,33 +34,21 @@ const refused = computed(() => Boolean(route.query.error));
 
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-xl mx-auto">
-      <template v-if="refused">
-        <p class="text-on-surface/80 leading-relaxed">{{ EMAIL_MESSAGES.linkExpired }}</p>
-
-        <div class="mt-8 flex flex-wrap gap-4">
-          <NuxtLink
-            :to="fan ? '/profile' : '/account/sign-in'"
-            class="bg-primary-container text-white font-headline font-black uppercase tracking-widest px-8 py-4"
-          >
-            {{ fan ? "Send a new link" : "Sign in" }}
-          </NuxtLink>
-        </div>
-      </template>
-
-      <template v-else>
-        <p class="text-on-surface/80 leading-relaxed">
+      <p class="text-on-surface/80 leading-relaxed">
+        <template v-if="refused">{{ EMAIL_MESSAGES.linkExpired }}</template>
+        <template v-else>
           {{ EMAIL_MESSAGES.confirmed }} You can take part in TFC Predictions.
-        </p>
+        </template>
+      </p>
 
-        <div class="mt-8 flex flex-wrap gap-4">
-          <NuxtLink
-            :to="fan ? '/profile' : '/account/sign-in'"
-            class="bg-primary-container text-white font-headline font-black uppercase tracking-widest px-8 py-4"
-          >
-            {{ fan ? "Your account" : "Sign in" }}
-          </NuxtLink>
-        </div>
-      </template>
+      <div class="mt-8 flex flex-wrap gap-4">
+        <NuxtLink
+          :to="onwards"
+          class="bg-primary-container text-white font-headline font-black uppercase tracking-widest px-8 py-4"
+        >
+          {{ onwardsLabel }}
+        </NuxtLink>
+      </div>
     </div>
   </section>
 </template>

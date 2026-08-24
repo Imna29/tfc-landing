@@ -247,10 +247,12 @@ export function sendPasswordResetLink(email: string, headers: Headers): Promise<
 /**
  * Whether the email `ask` composed reached the transport.
  *
- * Two things have to be caught, because `better-auth` does not treat sending
- * consistently: its password reset route swallows a refusal and answers
- * success, and its verification route lets one through. {@link sendingEmail}
- * sees the first, the `catch` sees the second, and a caller sees one boolean.
+ * {@link sendingEmail} answers for the message itself, however `better-auth`
+ * treated the refusal, and has already logged it. What is caught here is
+ * everything else that can stop a link being sent — the address is confirmed
+ * already, the database is unreachable — which leaves the fan with the same
+ * thing to do as a refused message: ask again. Logged rather than raised for
+ * that reason, not because it is unimportant.
  */
 async function handedOver(email: string, ask: () => Promise<unknown>): Promise<boolean> {
   try {
@@ -258,11 +260,7 @@ async function handedOver(email: string, ask: () => Promise<unknown>): Promise<b
 
     return sent;
   } catch (error) {
-    // Anything else that went wrong here — the address is already confirmed,
-    // the database is unreachable — leaves the fan with the same thing to do
-    // as a refused message: ask again. It is logged rather than raised for
-    // that reason, not because it is unimportant.
-    console.error(`[email] could not send a link to ${email}`, error);
+    console.error(`[email] could not ask for a link to ${email}`, error);
 
     return false;
   }

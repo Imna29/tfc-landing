@@ -1,5 +1,3 @@
-import { EMAIL_MESSAGES } from "#shared/emails";
-
 /**
  * Sends the signed-in fan the link that confirms their email address, again.
  *
@@ -19,13 +17,7 @@ export default defineEventHandler(async (event) => {
   // an email failed.
   if (fan.emailVerified) return { sent: false };
 
-  if (!(await sendVerificationLink(fan.email, event.headers))) {
-    throw createError({
-      statusCode: 502,
-      statusMessage: "That email did not go out",
-      message: EMAIL_MESSAGES.notSent,
-    });
-  }
+  if (!(await sendVerificationLink(fan.email, event.headers))) throw createError(EMAIL_NOT_SENT);
 
   return { sent: true };
 });

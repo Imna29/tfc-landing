@@ -293,6 +293,20 @@ describe("transactional email", async () => {
       expect(mailbox.sent).toEqual([]);
     });
 
+    it("will not let `better-auth`'s own route answer success for an email it lost", async () => {
+      // Reachable by anything that skips this app's routes, and the one path
+      // where `better-auth` swallows the refusal and answers 200 on its own.
+      const { details } = await signUpAndRead();
+      mailbox.refuseNext();
+
+      const response = await postJson("/api/auth/request-password-reset", {
+        email: details.email,
+        redirectTo: "/account/reset-password",
+      });
+
+      expect(response.status).toBe(502);
+    });
+
     it("tells a locked-out fan when the email could not be sent", async () => {
       const { details } = await signUpAndRead();
       mailbox.refuseNext();

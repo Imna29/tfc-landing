@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -5,6 +6,11 @@ export default defineConfig({
     projects: [
       // Pure logic and configuration. No database, no Nuxt, no container.
       {
+        // Nuxt hands `#shared` to the app and to the server; this project boots
+        // neither, and the modules it tests reach their copy through it.
+        resolve: {
+          alias: { "#shared": fileURLToPath(new URL("./shared", import.meta.url)) },
+        },
         test: {
           name: "unit",
           include: ["test/unit/**/*.test.ts"],

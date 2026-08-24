@@ -1,4 +1,5 @@
 import { EMAIL_MESSAGES, looksLikeEmail } from "#shared/emails";
+import type { SignUpProblem } from "#shared/signUp";
 
 /**
  * Sends a fan who cannot sign in the link that lets them set a new password.
@@ -18,20 +19,17 @@ export default defineEventHandler(async (event) => {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
   if (!looksLikeEmail(email)) {
-    // The shape sign-up answers a bad form with, so one form component can
-    // read both.
+    // Typed as sign-up's problems rather than merely shaped like them, so that
+    // the form component reading both cannot be told they match when they have
+    // drifted apart.
+    const problems: SignUpProblem[] = [{ field: "email", message: EMAIL_MESSAGES.address }];
+
     setResponseStatus(event, 422);
 
-    return { problems: [{ field: "email", message: EMAIL_MESSAGES.address }] };
+    return { problems };
   }
 
-  if (!(await sendPasswordResetLink(email, event.headers))) {
-    throw createError({
-      statusCode: 502,
-      statusMessage: "That email did not go out",
-      message: EMAIL_MESSAGES.notSent,
-    });
-  }
+  if (!(await sendPasswordResetLink(email, event.headers))) throw createError(EMAIL_NOT_SENT);
 
   return { sent: true };
 });

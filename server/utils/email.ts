@@ -1,25 +1,23 @@
 /**
- * Transactional email: how a message leaves TFC, and how a route finds out
- * whether it did.
+ * Transactional email: how a message leaves TFC, how a route finds out whether
+ * it did, and what it tells a fan when it did not.
  *
- * This module is the transport and nothing else. What the messages *say* lives
- * in `shared/emails.ts`, where the vocabulary guard can read it; which message
- * is sent when is `server/utils/auth.ts`, where `better-auth` asks for one.
+ * What the messages *say* lives in `shared/emails.ts`, where the vocabulary
+ * guard can read it; which message is sent when is `server/utils/auth.ts`,
+ * where `better-auth` asks for one.
  *
- * There is no queue and no retry. `docs/adr/0009` rules out a second managed
- * service for v1, and a retry loop inside a request would hold a serverless
- * function open waiting on somebody else's outage. A message that cannot be
- * handed over is reported to the fan, who retries by asking again — which is
- * why every acceptance path in #5 ends in a button rather than in hope.
+ * There is no queue and no retry. ADR-0009 rules out a second managed service
+ * for v1, and a retry loop inside a request would hold a serverless function
+ * open waiting on somebody else's outage. A message that cannot be handed over
+ * is reported to the fan, who retries by asking again — which is why every
+ * acceptance path in #5 ends in a button rather than in hope.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { EMAIL_MESSAGES, type EmailMessage } from "#shared/emails";
 
 /** One message, addressed. */
-export interface Email {
+export interface Email extends EmailMessage {
   to: string;
-  subject: string;
-  text: string;
-  html: string;
 }
 
 export interface Mailer {
@@ -27,11 +25,13 @@ export interface Mailer {
   send(email: Email): Promise<void>;
 }
 
-/** The part of the environment this module reads. */
-export type MailerEnvironment = Partial<Record<string, string>>;
+/** The part of the environment this module reads, and no more of it. */
+export type MailerEnvironment = Partial<
+  Record<"RESEND_API_KEY" | "RESEND_BASE_URL" | "EMAIL_FROM" | "BETTER_AUTH_URL", string>
+>;
 
 /** Where Resend's API lives, unless the environment says otherwise. */
-const RESEND = "https://api.resend.com";
+const RESEND_API_URL = "https://api.resend.com";
 
 /** How long to wait for Resend before giving up on a message. */
 const SEND_TIMEOUT_MS = 10_000;
@@ -40,7 +40,15 @@ let mailer: Mailer | undefined;
 
 /** The application's mailer, created once per process and reused. */
 export function useMailer(): Mailer {
-  mailer ??= chooseMailer(process.env);
+  // Named one at a time rather than handed `process.env` wholesale, so this
+  // list is the whole of what email reads from the environment.
+  mailer ??= chooseMailer({
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    RESEND_BASE_URL: process.env.RESEND_BASE_URL,
+    EMAIL_FROM: process.env.EMAIL_FROM,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+  });
+
   return mailer;
 }
 
@@ -79,7 +87,11 @@ export function chooseMailer(environment: MailerEnvironment): Mailer {
       "sending for real without it would send fans links to a development server.",
   );
 
-  return createResendMailer({ apiKey, from, baseUrl: environment.RESEND_BASE_URL ?? RESEND });
+  return createResendMailer({
+    apiKey,
+    from,
+    baseUrl: environment.RESEND_BASE_URL ?? RESEND_API_URL,
+  });
 }
 
 function required(value: string | undefined, complaint: string): string {
@@ -168,7 +180,8 @@ export async function sendEmail(email: Email): Promise<void> {
 
 /** What `work` returned, and whether the email it sent actually left. */
 export interface Sent<Result> {
-  result: Result;
+  /** What `work` answered, absent only when it failed *because* the email did. */
+  result?: Result;
   /**
    * False only when a message was composed and the transport refused it. Work
    * that sent nothing has nothing to report, and says so.
@@ -193,8 +206,11 @@ const inFlight = new AsyncLocalStorage<Attempt>();
  * return value to read it from — so {@link sendEmail} records every refusal
  * here instead, where the route that started the work can see it.
  *
- * A failure of `work` itself is still a failure and is rethrown. Only the
- * verdict on the email is carried out separately.
+ * `better-auth` is not consistent about which of its paths swallow, so both
+ * shapes are handled here rather than at each call site: work that failed
+ * *because* the message did answers `sent: false` with nothing to return, and
+ * work that failed for any other reason is rethrown, because that is a failure
+ * the caller still has to deal with.
  */
 export async function sendingEmail<Result>(work: () => Promise<Result>): Promise<Sent<Result>> {
   const attempt: Attempt = {
@@ -204,10 +220,30 @@ export async function sendingEmail<Result>(work: () => Promise<Result>): Promise
     },
   };
 
-  const result = await inFlight.run(attempt, work);
+  try {
+    return { result: await inFlight.run(attempt, work), sent: !attempt.refused };
+  } catch (error) {
+    if (!attempt.refused) throw error;
 
-  return { result, sent: !attempt.refused };
+    return { sent: false };
+  }
 }
+
+/**
+ * The refusal every route hands a fan when a message could not be sent, as
+ * `createError` wants it.
+ *
+ * A 502 rather than a 500, because nothing here is broken: somebody else's
+ * mail server said no, and what the fan does about it is ask again. Data
+ * rather than a function that builds the error, because `createError` is one
+ * of Nitro's globals and this module is also imported straight into
+ * `test/unit/mailer.test.ts`, which boots no Nitro to have them.
+ */
+export const EMAIL_NOT_SENT = {
+  statusCode: 502,
+  statusMessage: "That email did not go out",
+  message: EMAIL_MESSAGES.notSent,
+} as const;
 
 /** Resend's own account of a refusal, or the status text if it gave none. */
 async function explain(response: Response): Promise<string> {

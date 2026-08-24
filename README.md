@@ -165,6 +165,11 @@ gets when a message does not go out.
   outage. A message that cannot be handed over is reported to the fan, whose
   retry is a button.
 
+Setting a new password signs every session out, this one included, so a fan
+lands back on the sign-in form: someone resetting a password has usually lost
+control of the old one, and leaving the sessions it opened alive would defeat
+the reset.
+
 Without `RESEND_API_KEY` the messages are written to the server log, link and
 all. That is the whole reason this was split from the accounts ticket: nobody
 needs DNS access to work on signing up. Setting it makes `EMAIL_FROM` and
@@ -194,13 +199,21 @@ than as a silent success.
 
 ### What is not here
 
-The two routes this ticket adds — `POST /api/accounts/verification-email` and
-`POST /api/accounts/password-reset` — exist because `better-auth` swallows a
-send failure on the paths behind them and answers success. They call it through
-`auth.api`, which does not go through its HTTP handler, so they do **not**
-inherit its rate limiting (three requests a minute per IP on the routes they
-wrap). Rate limiting these belongs at the route level, as ADR-0009 says, and
-has no ticket yet.
+**Rate limiting on the two routes this ticket adds.** `POST
+/api/accounts/verification-email` and `POST /api/accounts/password-reset` exist
+so that a fan hears about a message that did not go out. They reach
+`better-auth` through `auth.api` rather than through its HTTP handler, and so
+do **not** inherit its rate limiting — three of either a minute per IP on the
+routes they wrap.
+
+What that is worth knowing about: neither is an open relay. The verification
+route needs a session and only ever mails the address on it; the reset route
+sends nothing at all for an address with no account. So the exposure is
+volume — a fan's own inbox filled with TFC's own reset emails, and Resend
+quota spent doing it — not mail to strangers. Rate limiting these belongs at
+the route level, as ADR-0009 says, and has no ticket yet.
+
+`/api/accounts/sign-up` has the same gap, and has had it since #4.
 
 ## Tests
 

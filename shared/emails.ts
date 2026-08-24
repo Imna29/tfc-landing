@@ -1,6 +1,6 @@
 /**
- * Email addresses, the two messages TFC ever sends to one, and the sentences
- * the app says to a fan about either.
+ * Email addresses: what counts as one, the two messages TFC ever sends to one,
+ * where the links in them land, and the sentences the app says about either.
  *
  * The copy lives here rather than beside the transport that sends it for the
  * same reason `shared/signUp.ts` holds the sentences a rejected form shows: an
@@ -63,7 +63,11 @@ export const EMAIL_MESSAGES = {
   notSent:
     "TFC could not send that email just now. Nothing is wrong with your account — " +
     "try again in a moment.",
-  linkExpired: "That link has expired, or has already been used. Ask for a new one.",
+  // Covers every reason a link is refused — expired, already spent, or for an
+  // account that no longer exists — because the fan's move is the same for all
+  // three and none of them is worth telling a stranger apart.
+  linkExpired:
+    "That link did not work. It may have expired, or already been used. Ask for a new one.",
   confirmed: "Your email address is confirmed.",
   passwordChanged: "Your new password is set. Sign in with it.",
 } as const satisfies Record<string, string>;
