@@ -19,6 +19,11 @@
  * anticipates this shape — "any new authenticated route must be added to the
  * exemption list" — and it is the side of the trade-off that needs watching,
  * because forgetting to exempt a route fails open.
+ *
+ * These rules also assume there is only one spelling of each path to exempt.
+ * Vue Router does not assume that on its own — `/PROFILE` matched `/profile`
+ * and missed its exemption — so `nuxt.config.ts` makes route matching
+ * case-sensitive. See ADR-0012.
  */
 import type { NuxtConfig } from "nuxt/schema";
 

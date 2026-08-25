@@ -11,6 +11,11 @@
  *
  * Kept free of `h3` and of everything it drags in, so those tests can run in
  * the fast project without booting a server.
+ *
+ * It recognises spellings the app does not serve — `/ADMIN`, `/%61dmin` —
+ * because guarding a path that turns out not to exist costs a 404 nobody is
+ * harmed by, while failing to guard one costs everything. Which spellings
+ * reach a page at all is settled globally, by ADR-0012.
  */
 export const ADMIN_PREFIXES = ["/admin", "/api/admin"] as const;
 
@@ -19,35 +24,6 @@ export function isAdminPath(path: string): boolean {
   const asked = normalize(path);
 
   return ADMIN_PREFIXES.some((prefix) => asked === prefix || asked.startsWith(`${prefix}/`));
-}
-
-/**
- * Whether `path` is spelled the way `route-rules.ts` spells it — the only
- * spelling anything in the admin area is served under.
- *
- * Vue Router matches case-insensitively and Nitro's route rules do not, so
- * `/ADMIN` renders the admin page while missing the rule that exempts `/admin`
- * from the edge cache. It falls through to the marketing catch-all instead,
- * and one admin's page is stored and served to whoever asks next — the
- * silent, error-free leak ADR-0008 exists to prevent.
- *
- * An escaped spelling is not that hole: Nitro unescapes before anything routes
- * on the path, so `/%61dmin` reaches the rules and the guard alike as
- * `/admin`. This refuses it anyway, because which spellings survive to here is
- * a property of the platform rather than a promise it makes.
- *
- * So the answer to a second spelling is that there is nothing there: it is
- * refused before the role is even looked at, which also means it answers the
- * same way for an admin as for anyone else. Only the exempted spelling is ever
- * served, so only an uncacheable path can ever return an admin's page.
- *
- * A trailing slash is allowed because the route rules already cover it. What
- * this does rule out is an admin URL that needs escaping to be written down:
- * a later ticket's `/admin/events/[uid]` has to take a uid that survives being
- * spelled literally, which every Prismic uid and every uuid does.
- */
-export function isCanonicalSpelling(path: string): boolean {
-  return withoutTrailingSlash(withoutQuery(path)) === normalize(path);
 }
 
 /**

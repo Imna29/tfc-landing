@@ -9,6 +9,13 @@ const { data: page } = await useAsyncData(`en-us/${route.params.uid}`, () =>
   }),
 );
 
+// A uid with no document behind it is a page that is not there. Rendering an
+// empty SliceZone with a 200 instead would be a soft 404 — indistinguishable,
+// to a reader or a crawler, from a page whose content someone forgot to write.
+if (!page.value) {
+  throw createError({ statusCode: 404, statusMessage: "Page not found", fatal: true });
+}
+
 definePageMeta({
   withHeaderProfile: true,
   withHeaderDivider: true,

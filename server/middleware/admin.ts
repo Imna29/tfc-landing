@@ -14,11 +14,5 @@
 export default defineEventHandler(async (event) => {
   if (!isAdminPath(event.path)) return;
 
-  // Answered before the role is looked at, so it reads the same to everyone:
-  // a spelling the edge cache would store is not an admin's page to serve.
-  if (!isCanonicalSpelling(event.path)) {
-    throw createError({ statusCode: 404, statusMessage: "Not found" });
-  }
-
   await requireAdmin(event);
 });

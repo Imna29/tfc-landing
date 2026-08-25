@@ -28,4 +28,15 @@ export default defineNuxtConfig({
   // The cache boundary lives in ./route-rules.ts so it can be asserted on
   // directly. See ADR-0008.
   routeRules,
+
+  router: {
+    options: {
+      // Vue Router matches case-insensitively by default and Nitro's route
+      // rules do not, so `/PROFILE` rendered the signed-in page while missing
+      // the rule that exempts `/profile` from the edge cache. See ADR-0012:
+      // one spelling per URL is what keeps the served paths and the exempted
+      // paths the same set.
+      sensitive: true,
+    },
+  },
 });

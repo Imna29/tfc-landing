@@ -94,6 +94,22 @@ that has never been created reads as a missing document, not an error, and
 every file that carries copy: no sportsbook vocabulary, anywhere a fan can read
 it.
 
+## Routing
+
+**One spelling per URL.** Route matching is case-sensitive
+(`router.options.sensitive` in `nuxt.config.ts`), which is not Vue Router's
+default. It has to be, because Nitro's route rules are case-sensitive and Vue
+Router was not: `/PROFILE` rendered the signed-in fan's page while missing the
+rule that exempts `/profile` from the edge cache, so it fell through to the
+marketing catch-all and was stored and served to whoever asked next. See
+ADR-0012. The cost is that a URL typed in capitals is a 404 rather than the
+page it was aiming at.
+
+`app/pages/[uid].vue` is the Prismic catch-all and takes any single segment, so
+every wrong-case URL lands there. It answers 404 for a uid with no document
+behind it — an empty `SliceZone` with a 200 would make each one look like a
+page whose content nobody had written yet.
+
 ## Database
 
 Postgres, accessed with Drizzle. Copy `.env.example` to `.env`: `DATABASE_URL`
@@ -162,7 +178,9 @@ added by a later ticket is locked from its first line rather than from whenever
 somebody remembers to lock it. What that costs is the matching itself — a path
 the guard fails to recognise is a path served with no role check at all — which
 is why `server/utils/adminArea.ts` is a module of its own with unit tests of its
-own.
+own. It deliberately recognises more than the app serves, `/ADMIN` among them:
+guarding a path that turns out not to exist costs a 404, and failing to guard
+one costs everything.
 
 A handler still calls `requireAdmin(event)`, but not to be let in: that already
 happened. It is how the handler learns *which* admin is acting, for the "who did
