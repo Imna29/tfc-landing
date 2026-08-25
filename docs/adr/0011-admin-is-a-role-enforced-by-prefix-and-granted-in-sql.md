@@ -38,9 +38,16 @@ away takes effect on the next request rather than whenever that browser next sig
   case-insensitively, and `%61dmin` is another spelling of the same request.
   `server/utils/adminArea.ts` normalises both, and has unit tests of its own, because a path the
   guard fails to recognise is a path served with no role check at all.
-- The two prefixes are also written down in `route-rules.ts`, which exempts them from the edge
-  cache ([[adr-0008]]). Both lists have to stay in step: an edge-cached `/admin` page would be
-  one admin's page served to whoever asked next.
+- **The admin area answers to one spelling of each URL and 404s the rest.** Nitro's route rules
+  are case-sensitive where Vue Router is not, so `/ADMIN` renders the admin page while missing
+  the rule that exempts `/admin` from the edge cache — it falls to the marketing catch-all and
+  one admin's page is stored and served to whoever asks next, which is exactly the silent leak
+  [[adr-0008]] exists to prevent. Refusing the second spelling is what keeps the exemption list
+  and the served paths the same set; `test/unit/route-rules.test.ts` asserts that every guarded
+  prefix is in fact exempt. The same gap is open on `/profile` and the other authenticated
+  sections, and closing it there is not this decision's to make.
+- An admin URL therefore has to be writable without escaping — true of every Prismic uid and
+  every uuid a later ticket will put in one.
 - An admin is a fan with a role — same account, same Balance, same ability to play. Nothing
   stops an admin submitting Entries on a card they priced; that is a conflict of interest
   handled by who is given the role, not by the schema.

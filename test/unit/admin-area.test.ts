@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAdminPath } from "../../server/utils/adminArea";
+import { isAdminPath, isCanonicalSpelling } from "../../server/utils/adminArea";
 
 /**
  * The URL space `server/middleware/admin.ts` refuses to serve to anyone but an
@@ -54,5 +54,26 @@ describe("the admin area", () => {
     // A half-written escape sequence: `decodeURIComponent` throws on it, and
     // the answer to not knowing what a path says is not to let it through.
     expect(isAdminPath("/admin/%E0%A4%A")).toBe(true);
+  });
+
+  describe("the spellings it serves", () => {
+    it.each(["/admin", "/admin/", "/admin/events", "/api/admin/me", "/admin/events?season=2"])(
+      "serves %s",
+      (path) => {
+        expect(isCanonicalSpelling(path)).toBe(true);
+      },
+    );
+
+    it.each([
+      // Vue Router renders the admin page for each of these; `route-rules.ts`
+      // exempts none of them from the edge cache, so none of them is served.
+      "/ADMIN",
+      "/Admin/events",
+      "/%61dmin",
+      "/admin/%E0%A4%A",
+      "/API/admin/me",
+    ])("does not serve %s", (path) => {
+      expect(isCanonicalSpelling(path)).toBe(false);
+    });
   });
 });

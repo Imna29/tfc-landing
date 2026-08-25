@@ -2,6 +2,7 @@ import defu from "defu";
 import { createRouter, toRouteMatcher } from "radix3";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../route-rules";
+import { ADMIN_PREFIXES } from "../../server/utils/adminArea";
 
 /**
  * Resolves a path the way Nitro itself does at runtime — every matching rule
@@ -142,4 +143,17 @@ describe("the slice simulator", () => {
     expect(rulesFor(path).isr).toBe(false);
     expect(rulesFor(path).ssr).toBe(true);
   });
+});
+
+describe("the admin area", () => {
+  // `server/utils/adminArea.ts` guards these prefixes and says only the
+  // spelling exempted here is ever served. That is only true while every
+  // prefix it guards is in fact exempt, which is what this asserts — the two
+  // lists live in different files and nothing else would notice them parting.
+  it.each(ADMIN_PREFIXES.flatMap((prefix) => [prefix, `${prefix}/events/tfc-12`]))(
+    "%s is exempt from the edge cache",
+    (path) => {
+      expect(rulesFor(path).isr).toBe(false);
+    },
+  );
 });

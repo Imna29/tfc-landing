@@ -8,11 +8,17 @@
  * fan price their own Multipliers.
  *
  * The rejection is deliberately not a hidden link or an empty menu: it is the
- * server answering 401 or 403 to the request itself, so a fan who guesses the
- * URL gets exactly as far as a fan who follows one.
+ * server answering the request itself, so a fan who guesses the URL gets
+ * exactly as far as a fan who follows one.
  */
 export default defineEventHandler(async (event) => {
   if (!isAdminPath(event.path)) return;
+
+  // Answered before the role is looked at, so it reads the same to everyone:
+  // a spelling the edge cache would store is not an admin's page to serve.
+  if (!isCanonicalSpelling(event.path)) {
+    throw createError({ statusCode: 404, statusMessage: "Not found" });
+  }
 
   await requireAdmin(event);
 });

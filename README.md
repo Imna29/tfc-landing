@@ -176,7 +176,8 @@ this, and when" that lock and result records have to carry.
 There is no route, no form and no script that grants it. `role` is not a field
 `better-auth` knows about, so nothing it serves can read or write the column and
 a sign-up asking for `"role": "admin"` is a request nothing acts on. The only
-way in is SQL, run by hand against the database:
+way in is SQL, run by hand against the database — which has to have had
+`pnpm db:migrate` run against it, or there is no `role` column to set:
 
 ```sql
 update users set role = 'admin' where lower(email) = lower('someone@tfcgeo.com');

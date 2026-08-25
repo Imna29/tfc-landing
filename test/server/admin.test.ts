@@ -78,6 +78,28 @@ describe("the admin area", async () => {
       expect((await fetch("/api/admin/not-built-yet", { headers: { cookie } })).status).toBe(404);
     });
 
+    it("serves the admin area under one spelling only", async () => {
+      const { cookie } = await signUpAdmin();
+
+      // Vue Router matches case-insensitively, so `/ADMIN` reaches the same
+      // page — but `route-rules.ts` exempts `/admin`, and a spelling it does
+      // not exempt falls through to the marketing catch-all and is edge-cached
+      // for ten minutes: one admin's page, served to whoever asks next
+      // (ADR-0008). Nothing under this prefix answers to a second spelling.
+      expect((await fetch("/ADMIN", { headers: { cookie } })).status).toBe(404);
+    });
+
+    it("guards an escaped spelling too, however it is unescaped on the way in", async () => {
+      const { cookie } = await signUp();
+
+      // Nitro unescapes before anything routes on the path, so `/%61dmin` is
+      // the same request as `/admin` by the time the guard sees it — and so it
+      // is also the same request by the time the edge cache keys on it. The
+      // guard unescapes as well rather than relying on that, since it is the
+      // half that fails open.
+      expect((await fetch("/%61dmin", { headers: { cookie } })).status).toBe(403);
+    });
+
     it("leaves everything outside the admin area alone", async () => {
       const { cookie } = await signUp();
 

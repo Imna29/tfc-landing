@@ -9,7 +9,7 @@
  * `better-auth` requires. Their columns are its columns and are named the way
  * it names them — see `server/utils/auth.ts`, which is where the mapping from
  * its vocabulary to this one is written down. The four extra columns on
- * `users` are ours, `role` among them — see {@link ROLES} for why it is not
+ * `users` are ours, `role` among them — see {@link Role} for why it is not
  * one of its.
  */
 import { sql } from "drizzle-orm";
@@ -32,10 +32,13 @@ import {
  * field: nothing it serves may read or write this column, so no route can
  * grant it and no sign-up can ask for it. The only way to become an admin is
  * the `update` in the README, run by hand against the database.
+ *
+ * Spelled out here and again in the `users_role_known` check constraint
+ * below, rather than both derived from one array: a constraint built from an
+ * array renders as `in ($1, $2)` in the generated migration, which is not a
+ * constraint at all.
  */
-export const ROLES = ["fan", "admin"] as const;
-
-export type Role = (typeof ROLES)[number];
+export type Role = "fan" | "admin";
 
 /**
  * A person with an account.

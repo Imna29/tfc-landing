@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Fan } from "#shared/fan";
+
 /**
  * The index of the admin area.
  *
@@ -22,8 +24,17 @@ const request = useRequestFetch();
 // Asked of the admin area rather than of `/api/accounts/me`, so the page
 // renders from the same answer that decides whether it may be rendered.
 const { data: admin } = await useAsyncData("admin", () =>
-  request<{ username: string }>("/api/admin/me"),
+  request<Pick<Fan, "username">>("/api/admin/me"),
 );
+
+// On the server this cannot happen: the middleware refused everyone else
+// before this page was rendered at all. On a client-side navigation nothing
+// has asked the server anything, and rendering the shell for a fan who cannot
+// use it would be the hiding-navigation mistake in reverse — it would look
+// like it had worked.
+if (!admin.value) {
+  throw createError({ statusCode: 403, statusMessage: "Admins only", fatal: true });
+}
 
 /**
  * What an admin can do, listed as it gets built: one entry added by each
