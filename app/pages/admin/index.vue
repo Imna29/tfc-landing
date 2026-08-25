@@ -41,7 +41,15 @@ if (!admin.value) {
  * ticket that adds a capability — importing a card, pricing it, opening and
  * locking Bouts, entering results, running Seasons.
  */
-const capabilities: { title: string; description: string; to: string }[] = [];
+const capabilities: { title: string; description: string; to: string }[] = [
+  {
+    title: "Seasons",
+    description:
+      "Open a Season. Every fan starts it on the same Coins, and nothing anywhere adds any " +
+      "while it is being played.",
+    to: "/admin/seasons",
+  },
+];
 </script>
 
 <template>

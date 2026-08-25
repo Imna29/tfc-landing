@@ -26,6 +26,18 @@ describe("the admin area", async () => {
       expect(response.status).toBe(403);
     });
 
+    it("refuses a fan an admin endpoint a later ticket added", async () => {
+      // The file the README points a new admin endpoint's tests at, so that
+      // the guard is asserted here for each one rather than only wherever its
+      // own feature is tested. Opening a Season is #7's; what it does lives in
+      // `test/server/coins.test.ts`.
+      const { cookie } = await signUp();
+
+      expect((await postJson("/api/admin/seasons", { name: "Season 1" }, cookie)).status).toBe(403);
+      expect((await postJson("/api/admin/seasons", { name: "Season 1" })).status).toBe(401);
+      expect((await fetch("/api/admin/seasons", { headers: { cookie } })).status).toBe(403);
+    });
+
     it("refuses a fan an admin page", async () => {
       const { cookie } = await signUp();
 

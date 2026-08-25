@@ -20,6 +20,11 @@ export default defineConfig({
       // The real Nitro server against a real Postgres. Nothing is mocked: a
       // test that passes here is a statement about what the deployed app does.
       {
+        // A server test may import the modules the server is built from, and
+        // those reach `shared/` the way Nuxt hands it to them.
+        resolve: {
+          alias: { "#shared": fileURLToPath(new URL("./shared", import.meta.url)) },
+        },
         test: {
           name: "server",
           include: ["test/server/**/*.test.ts"],

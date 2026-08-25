@@ -20,3 +20,24 @@ export function useDatabase(): Database {
 
   return database;
 }
+
+/**
+ * Whether Postgres refused a write because of a named constraint or index.
+ *
+ * Every rule worth having is held by the database as well as asked about in a
+ * route, so that two requests in the same moment cannot both be told they are
+ * fine. This is how the route recognises its own question coming back as a
+ * refusal, and answers with the sentence it would have said the first time.
+ *
+ * The name is looked for on the error and in its message, and down the chain
+ * of causes: the `postgres` driver puts it in `constraint_name`, and Drizzle
+ * wraps that in an error of its own whose message carries the failed SQL.
+ */
+export function refusedByConstraint(error: unknown, constraint: string): boolean {
+  for (let cause: unknown = error; cause instanceof Error; cause = cause.cause) {
+    if ((cause as { constraint_name?: string }).constraint_name === constraint) return true;
+    if (cause.message.includes(constraint)) return true;
+  }
+
+  return false;
+}

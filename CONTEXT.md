@@ -168,6 +168,11 @@ in this domain.
 A user's current Coin total for the current Season, derived from their Coin Transactions.
 Coins committed to an unsettled Entry have already left the Balance.
 
+A **materialised Balance** is a stored copy of that total, per user per Season, so a header
+or a leaderboard does not add the ledger up on every request. It is derived data and can
+always be rebuilt from the Coin Transactions — it is never a source of truth, and never the
+mutable balance column [[adr-0003]] rules out.
+
 ### No Result
 
 A Bout that produced nothing gradable: cancelled, a fighter withdrew, a draw, or a no

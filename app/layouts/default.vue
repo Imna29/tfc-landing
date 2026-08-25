@@ -79,11 +79,14 @@ const footer = computed(() => {
 
           <div class="flex items-center gap-6">
             <!--
-              Deliberately the same link for everyone, signed in or out: this
-              header is rendered into edge-cached marketing pages, so anything
-              here that depended on a session would be one fan's, served to all
-              of them (ADR-0008). /profile is where a session is read.
+              The one thing here that knows who is asking, and the only way it
+              can be: FanBalance fetches in the browser and renders nothing on
+              the server, so the HTML this header ships in is the same for
+              everybody and stays safe to edge-cache (ADR-0008). Every other
+              link is the same link for everyone, signed in or out.
             -->
+            <FanBalance class="hidden md:inline-flex" />
+
             <NuxtLink
               to="/profile"
               class="hidden md:inline-flex text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
@@ -123,6 +126,10 @@ const footer = computed(() => {
           >
             {{ link.label }}
           </NuxtLink>
+          <FanBalance
+            class="block px-4 py-3 border-b border-outline-variant/15"
+            @click="closeMobileMenu"
+          />
           <NuxtLink
             to="/profile"
             class="block px-4 py-3 text-sm font-bold uppercase tracking-widest border-b border-outline-variant/15 hover:text-primary transition-colors"

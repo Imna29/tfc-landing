@@ -68,3 +68,22 @@ export async function revokeAdmin(email: string): Promise<void> {
     sql`update users set role = 'fan' where lower(email) = lower(${email})`,
   );
 }
+
+/**
+ * The id of the fan with this email address.
+ *
+ * For a test that has to read rows written about a fan — Coin Transactions,
+ * say — while still arranging that fan the way the forms do. Sign-up answers
+ * with a cookie and a username, deliberately never with an id.
+ */
+export async function fanId(email: string): Promise<string> {
+  const [fan] = await testDatabase()
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.email}) = lower(${email})`)
+    .limit(1);
+
+  if (!fan) throw new Error(`No fan has the email ${email}.`);
+
+  return fan.id;
+}

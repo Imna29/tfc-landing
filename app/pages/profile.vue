@@ -12,6 +12,7 @@ import { EMAIL_MESSAGES } from "#shared/emails";
  */
 const route = useRoute();
 const { data: fan, refresh } = await useFan();
+const { forget: forgetBalance } = useBalance();
 
 useSeoMeta({
   title: "Your account",
@@ -62,6 +63,7 @@ async function signOut() {
 
   try {
     await $fetch("/api/auth/sign-out", { method: "POST" });
+    forgetBalance();
     await refresh();
     await navigateTo("/account/sign-in");
   } finally {

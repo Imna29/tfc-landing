@@ -5,6 +5,19 @@ import * as schema from "./schema";
 export type Database = ReturnType<typeof createDatabase>;
 
 /**
+ * A transaction open on a connection, as `database.transaction()` hands one
+ * over.
+ *
+ * Named for what it is, because "transaction" alone means a Coin Transaction
+ * in this domain (`CONTEXT.md`) and the two turn up in the same functions.
+ * Anything that writes Coins takes one of these rather than reaching for a
+ * connection of its own: on a serverless function there is only one to reach
+ * for (ADR-0010), and a ledger row written outside the transaction that caused
+ * it is a Balance that can be half-moved.
+ */
+export type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+
+/**
  * How many connections one process may hold open.
  *
  * A serverless function handles one request at a time and is cloned to scale,

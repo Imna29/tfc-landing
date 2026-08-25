@@ -25,6 +25,10 @@ if (signedIn.value) {
 const route = useRoute();
 const justResetPassword = computed(() => route.query.reset === "done");
 
+// The header is mounted once and outlives every page, so it only learns a fan
+// has Coins because somewhere says so. See `app/composables/useBalance.ts`.
+const { refresh: refreshBalance } = useBalance();
+
 const form = reactive({ email: "", password: "" });
 const failure = ref("");
 const submitting = ref(false);
@@ -35,6 +39,7 @@ async function submit() {
 
   try {
     await $fetch("/api/auth/sign-in/email", { method: "POST", body: { ...form } });
+    await refreshBalance();
     await navigateTo("/profile");
   } catch {
     failure.value = "Those details do not match an account.";

@@ -215,6 +215,99 @@ there is no session to wait out.
 
 See ADR-0011 for why it is arranged this way.
 
+## Seasons and Coins
+
+**Balance is not a column.** It is what a fan's Coin Transactions add up to
+(ADR-0003), and every movement of Coins is an append-only row carrying its
+kind, a signed amount, a reason, and a reference to what caused it. The reason
+is corrections: when a result is entered wrongly and hundreds of Entries have
+settled against it, the fix has to be reversing rows that leave the mistake and
+its correction both visible, rather than balances silently rewritten.
+
+`balance_cache` is a materialised copy of what those rows add up to, per fan per
+Season, because the site header and the leaderboard cannot aggregate the whole
+ledger on every request and ADR-0009 rules out putting anything in front of
+Postgres. It is derived data. `server/utils/coins.ts` only ever writes it as a
+`select` back out of the ledger — there is deliberately no "add this much"
+path — so `rebuildBalanceCache` is the same statement with nothing narrowing
+it, and `test/server/coins.test.ts` corrupts the cache and proves it comes back.
+
+### Where Coins come from, and nowhere else
+
+`POST /api/admin/seasons` opens a Season and grants every fan who has an account
+their 100 Coins. A fan who joins afterwards is granted the same 100 by a
+`user.create.after` database hook, so it happens on `better-auth`'s own sign-up
+route too, not only on this app's. That is the whole supply: everything a later
+ticket adds moves Coins that already exist.
+
+There is no route that adds Coins to a fan, and adding one would undo this. What
+stops one being added by accident is in the schema, not in a review:
+
+- `coin_transactions_one_grant_per_fan`, a partial unique index — one grant per
+  fan per Season, whatever asks.
+- `coin_transactions_grant_is_the_starting_balance` — a grant is worth exactly
+  100 Coins and points at its own Season. Hard-coded, so changing what everyone
+  starts on is a migration somebody reviews.
+- `coin_transactions_kind_known` permits exactly the kinds that something writes
+  today, which is one. The ticket that adds a commitment or a Reward adds its
+  kind in its own migration, where somebody has to ask what writes it and what
+  stops it writing twice.
+- `seasons_one_open`, another partial unique index — at most one Season open, so
+  two admins pressing the button in the same second cannot hand out two
+  hundreds.
+- A `coin_transactions_are_append_only` trigger refuses every `update` and
+  `delete` on the ledger. Drizzle does not model triggers, so it is hand-written
+  in `0003_seasons_and_the_coin_ledger.sql` and nothing but the test suite will
+  notice if it goes missing.
+
+Closing a Season and rolling into the next one arrive with #19. Until then a
+Season opens and stays open.
+
+### Repairing a fan with no Coins
+
+The joining grant is not in the same transaction as the account — it cannot be;
+`better-auth` has already committed by the time an `after` hook may query
+(ADR-0010). If it fails, the account exists holding nothing, and the failure is
+reported rather than swallowed so that somebody knows. Writing the missing row
+by hand is the repair, and it is refused rather than doubled if the fan turned
+out to have one already:
+
+```sql
+insert into coin_transactions (season_id, user_id, kind, amount, reason, cause, cause_id)
+select s.id, u.id, 'season_grant', 100, 'Joined ' || s.name, 'season', s.id
+from seasons s, users u
+where s.status = 'open' and lower(u.email) = lower('someone@example.com')
+on conflict do nothing;
+```
+
+Then bring the materialised Balance back in step — the ledger is the truth, and
+the cache is only what it was last told:
+
+```sql
+insert into balance_cache (season_id, user_id, balance)
+select season_id, user_id, sum(amount) from coin_transactions
+where season_id = (select id from seasons where status = 'open')
+group by season_id, user_id
+on conflict (season_id, user_id) do update
+  set balance = excluded.balance, updated_at = now();
+```
+
+### The Balance in the site header
+
+`app/components/FanBalance.vue` asks `/api/coins/balance` **from the browser**,
+and renders nothing at all on the server. That is not a preference. The header
+is part of every marketing page, and those are edge-cached with a key that
+ignores cookies (ADR-0008): a Balance rendered into one would be stored and
+served to whoever asked next. So the HTML ships identical for everybody and the
+browser fills the number in.
+
+The consequence is that the header is mounted once and outlives every page, so
+it only learns the answer has changed because somewhere says so. That is what
+`useBalance()`'s three verbs are for: `load()` is "make sure we know", which is
+what the header itself calls; `refresh()` is "it has changed, ask again", which
+signing in and signing up call, and which submitting an Entry will have to when
+#11 lands; `forget()` is "there is no fan now", which signing out calls.
+
 ## Email
 
 Two messages, and no others: a link that confirms a fan's email address, and a

@@ -47,6 +47,10 @@ interface AccountFormField {
   max?: string;
 }
 
+// Signing up signs the fan in and grants them the Season's Coins, so the
+// header has something to say from the moment they land on their profile.
+const { refresh: refreshBalance } = useBalance();
+
 const problems = ref<Partial<Record<SignUpField, string>>>({});
 const failure = ref("");
 const submitting = ref(false);
@@ -111,6 +115,8 @@ async function submit() {
     // as a thrown 422, so only the second shape ever gets here. TypeScript
     // sees both, and the check is how it is told which one this is.
     const emailSent = "verificationEmailSent" in created && created.verificationEmailSent;
+
+    await refreshBalance();
 
     // The account exists either way. A verification email that did not go out
     // is carried across so the profile page can say so and offer another,

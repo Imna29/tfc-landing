@@ -17,7 +17,10 @@ import {
   boolean,
   check,
   date,
+  index,
+  integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -139,3 +142,186 @@ export const verifications = pgTable("verifications", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Whether a Season is being played, or is over.
+ *
+ * Closing one freezes its final standings and is #19's work; what this ticket
+ * needs from it is the `seasons_one_open` index below, which is what makes
+ * "the current Season" a fact rather than whichever row happens to sort last.
+ *
+ * Spelled out here and again in `seasons_status_known`, for the reason given
+ * on {@link Role}.
+ */
+export type SeasonStatus = "open" | "closed";
+
+/**
+ * An admin-declared block of Events, and the scope of every Balance and
+ * leaderboard.
+ *
+ * Every fan starts a Season with the same hundred Coins and there are no
+ * top-ups: a fan who reaches zero waits for the next Season. That rule is only
+ * as good as the Coin ledger's constraints — see {@link coinTransactions}.
+ *
+ * `openedBy` is which admin opened it. Nothing reads it yet; it is recorded
+ * because "who did this, and when" is the question a Season nobody remembers
+ * opening will be asked, and it cannot be answered later if it was not
+ * written down at the time.
+ */
+export const seasons = pgTable(
+  "seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    status: text("status").$type<SeasonStatus>().notNull().default("open"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    openedBy: uuid("opened_by")
+      .notNull()
+      .references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (table) => [
+    // A Season's name is how a fan tells last year's standings from this
+    // year's, so two Seasons called "Season 2" would make the history
+    // unreadable. Case-insensitive for the same reason usernames are.
+    uniqueIndex("seasons_name_unique").on(sql`lower(${table.name})`),
+    // At most one Season open at a time. Postgres holds this rather than a
+    // route checking first and inserting after, because two admins opening a
+    // Season in the same moment would both find nothing open and both be
+    // right — and the second Season would grant everybody another hundred
+    // Coins.
+    uniqueIndex("seasons_one_open")
+      .on(table.status)
+      .where(sql`${table.status} = 'open'`),
+    check("seasons_status_known", sql`${table.status} in ('open', 'closed')`),
+    // A closed Season without the date it closed on is a frozen standing
+    // nobody can date, and an open one carrying a closing date is a row two
+    // columns disagree about.
+    check(
+      "seasons_closed_is_dated",
+      sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * What moved Coins. One kind per ticket that can move them, added by that
+ * ticket's own migration.
+ *
+ * Today there is exactly one, and that is the point: a Season grant is the
+ * only way Coins come into existence, `coin_transactions_kind_known` is what
+ * says so, and the ticket that adds a commitment or a Reward has to say so
+ * again in SQL that somebody reads. A kind permitted before anything writes it
+ * is a kind nobody has thought about.
+ */
+export type CoinTransactionKind = "season_grant";
+
+/** What a Coin Transaction points at as the thing that caused it. */
+export type CoinTransactionCause = "season";
+
+/**
+ * The Coin ledger: one append-only row per movement of Coins, and the source
+ * of truth for every Balance (ADR-0003).
+ *
+ * There is no mutable balance column anywhere in this schema. {@link balanceCache}
+ * is a materialised copy of what these rows add up to, and can be thrown away
+ * and rebuilt from them at any time.
+ *
+ * **Append-only is enforced by the database.** The migration that creates this
+ * table also creates a trigger that refuses every `update` and `delete`, so a
+ * mistake is corrected by writing a reversing row rather than by rewriting
+ * what happened — which is the whole reason ADR-0003 chose a ledger.
+ *
+ * `seasonId` is the scope: which Season's Balance this row moves. `cause` and
+ * `causeId` are the provenance: what caused it to be written. Today they are
+ * the same Season, and they will not be for long — an Entry's commitment is
+ * scoped to a Season and caused by an Entry. They are here from the first row
+ * rather than added with the second kind because provenance cannot be
+ * back-filled: rows written before anyone recorded what caused them can never
+ * be made to explain themselves.
+ *
+ * Neither foreign key cascades, unlike the ones on `sessions` and `accounts`:
+ * deleting a fan who holds Coins is refused rather than quietly taking their
+ * ledger with them. Nothing deletes a fan today, and when something needs to,
+ * what happens to their rows is a decision somebody makes then.
+ *
+ * The constraints are what make the Season rules' "no mid-Season top-ups"
+ * (`CONTEXT.md`) true rather than merely intended. A fan gets one grant per Season and it is worth
+ * exactly the hundred Coins `STARTING_BALANCE` names in `shared/coins.ts`,
+ * whatever code asks for — including code nobody has written yet, and a
+ * hand-typed `insert` at three in the morning.
+ */
+export const coinTransactions = pgTable(
+  "coin_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: text("kind").$type<CoinTransactionKind>().notNull(),
+    /** Signed: Coins arriving are positive, Coins leaving are negative. */
+    amount: integer("amount").notNull(),
+    /** Why, in a sentence, for whoever has to explain a Balance to a fan. */
+    reason: text("reason").notNull(),
+    cause: text("cause").$type<CoinTransactionCause>().notNull(),
+    causeId: uuid("cause_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // The whole Coin printer, shut. One grant per fan per Season, refused by
+    // Postgres rather than by whoever remembers to check first.
+    uniqueIndex("coin_transactions_one_grant_per_fan")
+      .on(table.userId, table.seasonId)
+      .where(sql`${table.kind} = 'season_grant'`),
+    // Every Balance read and every rebuild groups by these two.
+    index("coin_transactions_by_fan").on(table.seasonId, table.userId),
+    check("coin_transactions_kind_known", sql`${table.kind} in ('season_grant')`),
+    check("coin_transactions_cause_known", sql`${table.cause} in ('season')`),
+    // A row that moves nothing is not a movement; it is a row somebody wrote
+    // by accident, and it makes the ledger longer without making it say more.
+    check("coin_transactions_moves_coins", sql`${table.amount} <> 0`),
+    check("coin_transactions_reason_is_written", sql`length(trim(${table.reason})) > 0`),
+    // Hard-coded rather than read from a setting, and so a migration to
+    // change. Everyone starting a Season on the same number is the level field
+    // the whole competition rests on; changing it is a decision somebody
+    // should have to write down and have reviewed.
+    check(
+      "coin_transactions_grant_is_the_starting_balance",
+      sql`${table.kind} <> 'season_grant' or (${table.amount} = 100
+        and ${table.cause} = 'season' and ${table.causeId} = ${table.seasonId})`,
+    ),
+  ],
+);
+
+/**
+ * The materialised Balance: what one fan's Coin Transactions add up to in one
+ * Season.
+ *
+ * Named a cache on purpose. ADR-0003 forbids a mutable balance column, and
+ * this looks exactly like one at a glance — so it says at every call site that
+ * it is derived data, safe to delete, and rebuildable from
+ * {@link coinTransactions} by `rebuildBalanceCache` in `server/utils/coins.ts`. It exists because a
+ * leaderboard and a site header cannot aggregate the whole ledger on every
+ * request (ADR-0009 rules out putting Redis in front of that).
+ *
+ * `balance` is deliberately not constrained to be positive. Reversing a Reward
+ * a fan has already committed elsewhere takes them below zero, and that is a
+ * correction working (ADR-0003), not a bug to be refused.
+ */
+export const balanceCache = pgTable(
+  "balance_cache",
+  {
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    balance: integer("balance").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.seasonId, table.userId] })],
+);

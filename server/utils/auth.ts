@@ -26,6 +26,7 @@ import {
   passwordResetEmail,
   verificationEmail,
 } from "#shared/emails";
+import { COIN_REASONS } from "#shared/coins";
 import {
   MINIMUM_PASSWORD_LENGTH,
   SIGN_UP_MESSAGES,
@@ -33,8 +34,10 @@ import {
   isOldEnoughOn,
 } from "#shared/signUp";
 import { accounts, sessions, users, verifications } from "../db/schema";
+import { grantOneFanTheirStartingCoins } from "./coins";
 import { useDatabase } from "./db";
 import { sendEmail, sendingEmail } from "./email";
+import { currentSeason } from "./seasons";
 
 /** The code this app's own rejection carries, for the route that translates it. */
 export const REFUSED_UNDER_AGE = "UNDER_AGE";
@@ -127,7 +130,7 @@ function createAuth() {
     },
 
     databaseHooks: {
-      user: { create: { before: refuseUnderAge } },
+      user: { create: { before: refuseUnderAge, after: grantJoiningFanTheirCoins } },
     },
   });
 }
@@ -158,6 +161,35 @@ async function refuseUnderAge(user: Record<string, unknown>) {
       message: SIGN_UP_MESSAGES.underAge,
     });
   }
+}
+
+/**
+ * The Season's starting Coins, granted the moment an account exists.
+ *
+ * Here rather than in `server/api/accounts/sign-up.post.ts` for the reason the
+ * 18+ gate is: `better-auth` serves a sign-up route of its own, and every
+ * later way of creating a user arrives here too. "A fan who joins receives 100
+ * Coins" is not a rule one form gets to be the enforcement of.
+ *
+ * An `after` hook, unlike the `before` one above, may query: `better-auth`
+ * queues these until its own transaction has committed, so the process's only
+ * connection is free again by the time this runs (ADR-0010). What it costs is
+ * that this is no longer the same transaction as the account — a failure here
+ * leaves an account that exists holding no Coins, and it is deliberately not
+ * swallowed: a fan told their account was created when their Balance was not
+ * recorded would find out at the moment they tried to play. The README says
+ * how to write the missing grant by hand.
+ *
+ * A fan who signs up while no Season is open is granted nothing and needs
+ * nothing: opening one grants to every fan who has an account by then.
+ */
+async function grantJoiningFanTheirCoins(user: Record<string, unknown>) {
+  const userId = typeof user.id === "string" ? user.id : "";
+  const season = await currentSeason();
+
+  if (!userId || !season) return;
+
+  await grantOneFanTheirStartingCoins(season.id, COIN_REASONS.joinedSeason(season.name), userId);
 }
 
 /**
