@@ -36,6 +36,16 @@ describe("the admin area", async () => {
       expect((await postJson("/api/admin/seasons", { name: "Season 1" }, cookie)).status).toBe(403);
       expect((await postJson("/api/admin/seasons", { name: "Season 1" })).status).toBe(401);
       expect((await fetch("/api/admin/seasons", { headers: { cookie } })).status).toBe(403);
+
+      // Importing a card is #8's; what it does with one lives in
+      // `test/unit/card-import.test.ts`. The refusal is asserted here, and it
+      // matters more than most: these routes read Prismic and write the Bouts
+      // the whole game is played against.
+      expect((await postJson("/api/admin/events", { prismicId: "anything" }, cookie)).status).toBe(
+        403,
+      );
+      expect((await postJson("/api/admin/events", { prismicId: "anything" })).status).toBe(401);
+      expect((await fetch("/api/admin/events", { headers: { cookie } })).status).toBe(403);
     });
 
     it("refuses a fan an admin page", async () => {

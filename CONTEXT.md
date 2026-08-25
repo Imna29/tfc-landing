@@ -20,8 +20,8 @@ product name too.
 ### Event
 
 One TFC fight card: a set of Bouts on a single date at a single venue. Authored in Prismic
-and copied into Postgres when an admin opens it for predictions. Belongs to exactly one
-Season. See [[adr-0001]].
+and [[import]]ed into Postgres by an admin, which is what the game runs on from then on.
+Belongs to exactly one Season. See [[adr-0001]].
 
 ### Lock
 
@@ -43,6 +43,35 @@ its weight class, and how many rounds it is scheduled for.
 
 Not a "match", "fight", or "matchup". A Bout is the thing users predict against; the
 `fighter` documents it references are the same fighters shown on the marketing site.
+
+### Corner
+
+One side of a [[bout]]: **red** or **blue**. Carries the name the fighter is fought under
+and, when that fighter has a `fighter` document, their image and the uid their profile
+page is reached by.
+
+A corner with only a name is a **fallback name**, and is how a late replacement booked
+days before a card appears on it at all. Requiring a document would mean either a rushed
+half-empty one or a Bout that cannot be published, and the second costs predictions on a
+fight that is actually happening. See [[adr-0001]].
+
+### Card order
+
+Where a [[bout]] sits on an [[event]]: 1 is fought first. Two Bouts on one card can never
+share a place — it is the order they are locked in as the card progresses ([[adr-0006]]),
+and the order a fan reads the card in.
+
+Deliberately not the order the Bouts appear in Prismic, which is usually the reverse: a
+card is written main event first and fought the other way round.
+
+### Import
+
+Copying an [[event]] and its [[bout]]s out of Prismic and into Postgres, which is where
+the game reads them from afterwards ([[adr-0001]]). An admin does it, and does it again to
+pull a lineup change through — but only while every Bout on the card is still closed. Once
+one is open, fans hold Coins against these rows and the card can no longer be replaced.
+
+Not a "sync": nothing goes back the other way, and nothing repeats it on a schedule.
 
 ### Question
 

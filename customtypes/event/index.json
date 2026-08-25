@@ -1,0 +1,118 @@
+{
+  "format": "custom",
+  "id": "event",
+  "json": {
+    "Main": {
+      "uid": {
+        "config": {
+          "label": "UID"
+        },
+        "type": "UID"
+      },
+      "title": {
+        "config": {
+          "label": "title"
+        },
+        "type": "Text"
+      },
+      "scheduled_start": {
+        "config": {
+          "label": "scheduled start"
+        },
+        "type": "Timestamp"
+      },
+      "venue": {
+        "config": {
+          "label": "venue"
+        },
+        "type": "Text"
+      },
+      "poster": {
+        "config": {
+          "label": "poster"
+        },
+        "type": "Image"
+      },
+      "bouts": {
+        "config": {
+          "fields": {
+            "card_order": {
+              "config": {
+                "label": "card order",
+                "min": 1
+              },
+              "type": "Number"
+            },
+            "red_corner": {
+              "config": {
+                "customtypes": [
+                  "fighter"
+                ],
+                "label": "red corner",
+                "select": "document"
+              },
+              "type": "Link"
+            },
+            "red_corner_name": {
+              "config": {
+                "label": "red corner name (if no fighter document yet)"
+              },
+              "type": "Text"
+            },
+            "blue_corner": {
+              "config": {
+                "customtypes": [
+                  "fighter"
+                ],
+                "label": "blue corner",
+                "select": "document"
+              },
+              "type": "Link"
+            },
+            "blue_corner_name": {
+              "config": {
+                "label": "blue corner name (if no fighter document yet)"
+              },
+              "type": "Text"
+            },
+            "division": {
+              "config": {
+                "customtypes": [
+                  "division"
+                ],
+                "label": "division",
+                "select": "document"
+              },
+              "type": "Link"
+            },
+            "scheduled_rounds": {
+              "config": {
+                "label": "scheduled rounds",
+                "max": 12,
+                "min": 1
+              },
+              "type": "Number"
+            },
+            "main_event": {
+              "config": {
+                "label": "main event"
+              },
+              "type": "Boolean"
+            },
+            "title_fight": {
+              "config": {
+                "label": "title fight"
+              },
+              "type": "Boolean"
+            }
+          },
+          "label": "bouts"
+        },
+        "type": "Group"
+      }
+    }
+  },
+  "label": "Event",
+  "repeatable": true,
+  "status": true
+}

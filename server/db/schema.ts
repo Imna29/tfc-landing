@@ -325,3 +325,144 @@ export const balanceCache = pgTable(
   },
   (table) => [primaryKey({ columns: [table.seasonId, table.userId] })],
 );
+
+/**
+ * Where a Bout is: not yet taking Predictions, or taking them.
+ *
+ * `closed` is where a Bout starts. An admin prices its Outcomes and opens it
+ * (#9), and from that moment it is a Bout fans hold Coins against — which is
+ * what {@link bouts} is careful about below.
+ *
+ * `locked` arrives with #12 and `settled` with #14, each added by that
+ * ticket's own migration, for the reason given on {@link CoinTransactionKind}:
+ * a state permitted before anything writes it is a state nobody has thought
+ * about. Everything here that asks whether a Bout is still untouched asks
+ * whether it is `closed`, so those two land without changing what this ticket
+ * decided.
+ */
+export type BoutStatus = "closed" | "open";
+
+/**
+ * One TFC fight card, copied out of Prismic (ADR-0001).
+ *
+ * Prismic is where a card is authored and the marketing site reads it from.
+ * This is the copy the game runs on: once a Bout here is open, a Prediction
+ * points at a row in {@link bouts} by id, and a later edit in Prismic changes
+ * the poster on the website and nothing a fan has committed Coins to.
+ *
+ * `prismicId` is the document the card came from, and is unique: one Prismic
+ * document is one Event, however many times it is re-imported. It is a `text`
+ * column rather than a `uuid` because a Prismic id (`adYU6hEAACMAWIl9`) is
+ * theirs, not ours.
+ *
+ * `seasonId` is which Season's Coins are committed on it. It is set on every
+ * import rather than only the first: a card whose Bouts are all still closed
+ * has nothing riding on it, so re-importing it into the Season actually being
+ * played is right, and once anything is open re-import is refused entirely.
+ *
+ * `importedBy` and `importedAt` are who pulled this version of the card
+ * through and when, which is the question asked when a lineup on the site
+ * disagrees with the lineup in the game.
+ */
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    prismicId: text("prismic_id").notNull(),
+    title: text("title").notNull(),
+    scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
+    venue: text("venue").notNull(),
+    posterUrl: text("poster_url"),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    importedBy: uuid("imported_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    // One Event per Prismic document. Importing the same card twice would put
+    // the same fights on the game twice, with Coins split between two copies
+    // of every Bout.
+    uniqueIndex("events_one_per_prismic_document").on(table.prismicId),
+    // "The upcoming Event" is the question the public card page asks (#10).
+    index("events_by_scheduled_start").on(table.scheduledStart),
+    check("events_title_is_written", sql`length(trim(${table.title})) > 0`),
+    check("events_venue_is_written", sql`length(trim(${table.venue})) > 0`),
+  ],
+);
+
+/**
+ * One scheduled fight on a card: what a fan predicts against, and what a
+ * Prediction will point at.
+ *
+ * Both corners are written out rather than kept in a table of their own,
+ * because a Bout has exactly two and always will. A corner carries the name it
+ * is fought under, and — only when that corner is a fighter with a document —
+ * the Prismic id, the uid their profile page is reached by, and their image.
+ * A corner with only a name is the late replacement ADR-0001's authoring
+ * surface has to allow for: requiring a `fighter` document 48 hours out would
+ * mean either a rushed half-empty document or a Bout that cannot be published,
+ * and the second costs predictions on a fight that is actually happening.
+ *
+ * The images are URLs into Prismic's CDN rather than files of our own
+ * (ADR-0009 rules out object storage), copied at import so the card renders
+ * from one query rather than from Postgres and a CMS together.
+ *
+ * **A Bout that is no longer closed is never deleted.** The migration that
+ * creates this table also creates a trigger refusing it, so re-importing a
+ * card that has been opened is refused by Postgres and not merely by the route
+ * that asks first — a replaced Bout is a Prediction pointing at a fight that
+ * no longer exists.
+ */
+export const bouts = pgTable(
+  "bouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    /** Where on the card it is fought: 1 is first. */
+    cardOrder: integer("card_order").notNull(),
+    status: text("status").$type<BoutStatus>().notNull().default("closed"),
+    redName: text("red_name").notNull(),
+    redFighterId: text("red_fighter_id"),
+    redFighterUid: text("red_fighter_uid"),
+    redImageUrl: text("red_image_url"),
+    blueName: text("blue_name").notNull(),
+    blueFighterId: text("blue_fighter_id"),
+    blueFighterUid: text("blue_fighter_uid"),
+    blueImageUrl: text("blue_image_url"),
+    /** The weight class, as the `division` document names it. */
+    division: text("division").notNull(),
+    scheduledRounds: integer("scheduled_rounds").notNull(),
+    mainEvent: boolean("main_event").notNull().default(false),
+    titleFight: boolean("title_fight").notNull().default(false),
+  },
+  (table) => [
+    // Card order is how the Bouts are told apart on the card and the order
+    // they are locked in, so two Bouts cannot share a place.
+    uniqueIndex("bouts_one_per_place_on_the_card").on(table.eventId, table.cardOrder),
+    // One Bout closes a card.
+    uniqueIndex("bouts_one_main_event")
+      .on(table.eventId)
+      .where(sql`${table.mainEvent}`),
+    check("bouts_status_known", sql`${table.status} in ('closed', 'open')`),
+    check("bouts_card_order_is_a_place", sql`${table.cardOrder} >= 1`),
+    // Spelled out again in `SCHEDULED_ROUNDS` in `shared/events.ts`, which is
+    // what the import refuses with and what the Prismic field is bounded by.
+    check("bouts_rounds_are_scheduled", sql`${table.scheduledRounds} between 1 and 12`),
+    check(
+      "bouts_corners_are_named",
+      sql`length(trim(${table.redName})) > 0 and length(trim(${table.blueName})) > 0`,
+    ),
+    // Nobody fights themselves. Two corners pointing at one `fighter`
+    // document is a Bout somebody built by copying the row above it.
+    check(
+      "bouts_corners_are_two_fighters",
+      sql`${table.redFighterId} is null or ${table.redFighterId} <> ${table.blueFighterId}`,
+    ),
+    check("bouts_division_is_written", sql`length(trim(${table.division})) > 0`),
+  ],
+);

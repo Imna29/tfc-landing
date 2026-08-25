@@ -43,6 +43,13 @@ if (!admin.value) {
  */
 const capabilities: { title: string; description: string; to: string }[] = [
   {
+    title: "Events",
+    description:
+      "Import a fight card out of Prismic. The copy in the game is what fans predict on, and " +
+      "a card can only be re-imported while every Bout on it is still closed.",
+    to: "/admin/events",
+  },
+  {
     title: "Seasons",
     description:
       "Open a Season. Every fan starts it on the same Coins, and nothing anywhere adds any " +

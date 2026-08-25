@@ -372,6 +372,60 @@ what the header itself calls; `refresh()` is "it has changed, ask again", which
 signing in and signing up call, and which submitting an Entry will have to when
 #11 lands; `forget()` is "there is no fan now", which signing out calls.
 
+## Cards: from Prismic into the game
+
+A fight card is authored in Prismic as an `event` document — title, scheduled
+start, venue, poster, and a repeatable `bouts` group — and an admin imports it
+at `/admin/events`. Import copies the Event and its Bouts into Postgres, and
+**from that moment the game reads only Postgres** (ADR-0001). Editing the
+document afterwards changes the marketing site; it never changes a Bout a fan
+has committed Coins to.
+
+Each corner of a Bout is either a link to a `fighter` document — whose name,
+image and uid are resolved at import — or a **fallback name** typed straight
+into the group. Fight cards change late, and a replacement booked 48 hours out
+usually has no `fighter` document yet; requiring one would mean either a rushed
+half-empty document or a Bout that cannot be published, and the second costs
+predictions on a fight that is actually happening.
+
+The import is two halves, and they are worth telling apart:
+
+- `server/utils/cardImport.ts` decides what the card **says**. Pure, and the
+  half with tests (`test/unit/card-import.test.ts`): it refuses a card whose
+  Bout has no card order, whose corners are empty, whose fighter document is
+  unpublished, whose division is missing, or which claims two main events —
+  each with a sentence naming the row to go and fix.
+- `server/utils/events.ts` decides what the game **runs on**: the Event and its
+  Bouts, written as one transaction.
+
+### Re-importing, and the door that shuts
+
+A card can be re-imported while **every Bout on it is still closed**, which is
+how a lineup change gets pulled through. Re-import replaces the Bouts rather
+than reconciling them — a replacement fighter, a Bout added and a Bout dropped
+are all the same edit from outside — so a re-imported card is a card to be
+priced again once #9 lands.
+
+Once any Bout has been opened, re-import is refused. Not by the route being
+careful: by a trigger in `0004_event_import.sql` that refuses to `delete` a Bout
+whose status is not `closed`, because a replaced Bout is a Prediction pointing
+at a fight that no longer exists. The route asks first only so that the admin is
+told which rule it was.
+
+`bouts.status` is `closed` or `open` today. `locked` arrives with #12 and
+`settled` with #14, each added by that ticket's own migration — everything here
+asks whether a Bout is still `closed`, so those land without reopening this
+decision.
+
+### Pushing the model
+
+`customtypes/event/` is the local copy of the model, written with the Prismic
+CLI (see the Content model section above) and pushed to the repository. Nothing
+renders an `event` document on the marketing site yet, and `prismic.config.json`
+deliberately has no route for it: routes are validated by the Document API on
+every fetch, and an entry for a type it does not yet recognise takes the whole
+site down (see the same section).
+
 ## Email
 
 Two messages, and no others: a link that confirms a fan's email address, and a

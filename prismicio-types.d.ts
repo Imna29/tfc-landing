@@ -278,6 +278,172 @@ interface DivisionDocumentData {
 export type DivisionDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<DivisionDocumentData>, "division", Lang>;
 
 /**
+ * Item in *Event → bouts*
+ */
+export interface EventDocumentDataBoutsItem {
+	/**
+	 * card order field in *Event → bouts*
+	 *
+	 * - **Field Type**: Number
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].card_order
+	 * - **Documentation**: https://prismic.io/docs/fields/number
+	 */
+	card_order: prismic.NumberField;
+	
+	/**
+	 * red corner field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].red_corner
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	red_corner: prismic.ContentRelationshipField<"fighter">;
+	
+	/**
+	 * red corner name (if no fighter document yet) field in *Event → bouts*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].red_corner_name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	red_corner_name: prismic.KeyTextField;
+	
+	/**
+	 * blue corner field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].blue_corner
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	blue_corner: prismic.ContentRelationshipField<"fighter">;
+	
+	/**
+	 * blue corner name (if no fighter document yet) field in *Event → bouts*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].blue_corner_name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	blue_corner_name: prismic.KeyTextField;
+	
+	/**
+	 * division field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].division
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	division: prismic.ContentRelationshipField<"division">;
+	
+	/**
+	 * scheduled rounds field in *Event → bouts*
+	 *
+	 * - **Field Type**: Number
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].scheduled_rounds
+	 * - **Documentation**: https://prismic.io/docs/fields/number
+	 */
+	scheduled_rounds: prismic.NumberField;
+	
+	/**
+	 * main event field in *Event → bouts*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].main_event
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	main_event: prismic.BooleanField;
+	
+	/**
+	 * title fight field in *Event → bouts*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].title_fight
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	title_fight: prismic.BooleanField;
+}
+
+/**
+ * Content for Event documents
+ */
+interface EventDocumentData {
+	/**
+	 * title field in *Event*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.title
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * scheduled start field in *Event*
+	 *
+	 * - **Field Type**: Timestamp
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.scheduled_start
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/timestamp
+	 */
+	scheduled_start: prismic.TimestampField;
+	
+	/**
+	 * venue field in *Event*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.venue
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	venue: prismic.KeyTextField;
+	
+	/**
+	 * poster field in *Event*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.poster
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	poster: prismic.ImageField<never>;
+	
+	/**
+	 * bouts field in *Event*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	bouts: prismic.GroupField<Simplify<EventDocumentDataBoutsItem>>;
+}
+
+/**
+ * Event document from Prismic
+ *
+ * - **API ID**: `event`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type EventDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<EventDocumentData>, "event", Lang>;
+
+/**
  * Item in *Fighter → disciplines*
  */
 export interface FighterDocumentDataDisciplinesItem {
@@ -1288,7 +1454,7 @@ interface TermsOfServiceDocumentData {
  */
 export type TermsOfServiceDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<TermsOfServiceDocumentData>, "terms_of_service", Lang>;
 
-export type AllDocumentTypes = ContestRulesDocument | CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | PrizesDocument | TermsOfServiceDocument;
+export type AllDocumentTypes = ContestRulesDocument | CtaDocument | DisciplineDocument | DivisionDocument | EventDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | PrizesDocument | TermsOfServiceDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -3769,6 +3935,9 @@ declare module "@prismicio/client" {
 			DisciplineDocumentData,
 			DivisionDocument,
 			DivisionDocumentData,
+			EventDocument,
+			EventDocumentData,
+			EventDocumentDataBoutsItem,
 			FighterDocument,
 			FighterDocumentData,
 			FighterDocumentDataDisciplinesItem,

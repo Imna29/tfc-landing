@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { STARTING_BALANCE, coinsLabel } from "#shared/coins";
 import { SEASON_NAME_LENGTH } from "#shared/seasons";
-import { CONTEST_TIME_ZONE } from "#shared/signUp";
 
 /**
  * Opening a Season, and the record of the ones that have been.
@@ -58,31 +57,10 @@ async function openSeason() {
 
     await refresh();
   } catch (error) {
-    problem.value =
-      (error as { data?: { message?: string } }).data?.message ??
-      "Something went wrong on our side. Try again in a moment.";
+    problem.value = problemFrom(error);
   } finally {
     opening.value = false;
   }
-}
-
-/**
- * A moment as an admin reads one, in Georgia, where the promotion is.
- *
- * The time zone is named rather than left to the reader's. This page is
- * server-rendered and then hydrated, so a format that followed whatever zone
- * the process happens to be in would render one string on the server and a
- * different one in the browser — and an admin comparing "when did we open it"
- * against a card's start time wants both in the same zone anyway.
- */
-const MOMENT = new Intl.DateTimeFormat("en-GB", {
-  dateStyle: "medium",
-  timeStyle: "short",
-  timeZone: CONTEST_TIME_ZONE,
-});
-
-function inTbilisi(moment: string | null): string {
-  return moment ? MOMENT.format(new Date(moment)) : "—";
 }
 </script>
 
