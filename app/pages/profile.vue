@@ -62,7 +62,10 @@ async function signOut() {
   signingOut.value = true;
 
   try {
-    await $fetch("/api/auth/sign-out", { method: "POST" });
+    // The empty body is not spare: `better-auth` refuses a request with no
+    // `content-type`, and ofetch only sets one when it has something to
+    // serialise. Sign-out is the only call here with nothing to send.
+    await $fetch("/api/auth/sign-out", { method: "POST", body: {} });
     forgetBalance();
     await refresh();
     await navigateTo("/account/sign-in");
