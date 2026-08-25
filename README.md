@@ -185,6 +185,11 @@ createdb tfc                # or: docker exec <postgres> createdb -U postgres tf
 pnpm db:migrate             # apply migrations
 ```
 
+Run `pnpm db:migrate` again after pulling work that added one. A missing
+migration does not announce itself as a missing migration: it surfaces as
+`relation "events" does not exist` from whichever route touches the table
+first.
+
 The schema is `server/db/schema.ts`. After changing it, generate a migration and
 read the SQL before it runs anywhere:
 

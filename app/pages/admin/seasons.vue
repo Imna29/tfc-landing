@@ -22,14 +22,15 @@ useSeoMeta({
 
 const request = useRequestFetch();
 
-const { data, refresh } = await useAsyncData("admin-seasons", () => request("/api/admin/seasons"));
+const { data, error, refresh } = await useAsyncData("admin-seasons", () =>
+  request("/api/admin/seasons"),
+);
 
 // On a client-side navigation nothing has asked the server anything, so an
 // empty answer here is a fan who guessed the URL rather than an admin with no
-// Seasons. Same reasoning as `app/pages/admin/index.vue`.
-if (!data.value) {
-  throw createError({ statusCode: 403, statusMessage: "Admins only", fatal: true });
-}
+// Seasons — unless the server answered something else entirely, which is why
+// this is not simply a refusal. Same reasoning as `app/pages/admin/index.vue`.
+if (!data.value) throw noAnswerFrom(error.value);
 
 const seasons = computed(() => data.value?.seasons ?? []);
 const anyOpen = computed(() => seasons.value.some((season) => season.status === "open"));

@@ -23,18 +23,17 @@ const request = useRequestFetch();
 
 // Asked of the admin area rather than of `/api/accounts/me`, so the page
 // renders from the same answer that decides whether it may be rendered.
-const { data: admin } = await useAsyncData("admin", () =>
+const { data: admin, error } = await useAsyncData("admin", () =>
   request<Pick<Fan, "username">>("/api/admin/me"),
 );
 
-// On the server this cannot happen: the middleware refused everyone else
+// On the server a refusal cannot happen: the middleware refused everyone else
 // before this page was rendered at all. On a client-side navigation nothing
 // has asked the server anything, and rendering the shell for a fan who cannot
 // use it would be the hiding-navigation mistake in reverse — it would look
-// like it had worked.
-if (!admin.value) {
-  throw createError({ statusCode: 403, statusMessage: "Admins only", fatal: true });
-}
+// like it had worked. Anything the server answered other than a refusal is
+// said as it was, rather than as a permission this admin is missing.
+if (!admin.value) throw noAnswerFrom(error.value);
 
 /**
  * What an admin can do, listed as it gets built: one entry added by each

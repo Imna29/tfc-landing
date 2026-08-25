@@ -35,20 +35,11 @@ const {
   request(`/api/admin/events/${route.params.id}`),
 );
 
-// Two different reasons the answer can be empty, and they are not the same
-// page. An admin following a link to a card a re-import has since replaced
-// should be told the card is gone; a fan who guessed the URL was refused by
-// the API before any of this rendered, and gets the refusal the rest of the
-// admin area gives them.
-if (!card.value) {
-  const refused = error.value?.statusCode === 401 || error.value?.statusCode === 403;
-
-  throw createError({
-    statusCode: refused ? 403 : 404,
-    statusMessage: refused ? "Admins only" : "That card is not in the game",
-    fatal: true,
-  });
-}
+// An admin following a link to a card a re-import has since replaced is told
+// the card is gone; a fan who guessed the URL was refused by the API before
+// any of this rendered, and gets the refusal the rest of the admin area gives
+// them. The two are not the same page.
+if (!card.value) throw noAnswerFrom(error.value);
 
 const bouts = computed(() => card.value?.bouts ?? []);
 

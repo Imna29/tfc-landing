@@ -26,14 +26,15 @@ useSeoMeta({
 
 const request = useRequestFetch();
 
-const { data, refresh } = await useAsyncData("admin-events", () => request("/api/admin/events"));
+const { data, error, refresh } = await useAsyncData("admin-events", () =>
+  request("/api/admin/events"),
+);
 
 // On a client-side navigation nothing has asked the server anything, so an
 // empty answer here is a fan who guessed the URL rather than an admin with no
-// cards. Same reasoning as `app/pages/admin/index.vue`.
-if (!data.value) {
-  throw createError({ statusCode: 403, statusMessage: "Admins only", fatal: true });
-}
+// cards — unless the server answered something else entirely, which is why
+// this is not simply a refusal. Same reasoning as `app/pages/admin/index.vue`.
+if (!data.value) throw noAnswerFrom(error.value);
 
 const cards = computed(() => data.value?.cards ?? []);
 const season = computed(() => data.value?.season ?? null);
@@ -135,7 +136,9 @@ async function importCard(prismicId: string) {
             <td class="py-3">
               <button
                 type="button"
-                :disabled="!season || (card.imported?.open ?? 0) > 0 || importing === card.prismicId"
+                :disabled="
+                  !season || (card.imported?.open ?? 0) > 0 || importing === card.prismicId
+                "
                 class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
                 @click="importCard(card.prismicId)"
               >
