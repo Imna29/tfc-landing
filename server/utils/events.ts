@@ -13,9 +13,10 @@
  * predict on with no sign that anything is missing.
  */
 import { desc, eq, sql } from "drizzle-orm";
-import { bouts, events, seasons } from "../db/schema";
+import { bouts, events, outcomes, seasons } from "../db/schema";
 import type { Card } from "./cardImport";
 import { useDatabase } from "./db";
+import { seedOutcomes } from "./pricing";
 
 /** The name of the trigger that refuses to replace a Bout fans are on. */
 export const BOUTS_ARE_REPLACED_ONLY_WHILE_CLOSED = "bouts_are_replaced_only_while_closed";
@@ -32,8 +33,15 @@ export interface ImportedEvent {
   seasonName: string;
   importedAt: Date;
   bouts: number;
-  /** Whether any Bout is no longer closed, which is what refuses a re-import. */
-  opened: boolean;
+  /** How many Bouts still have an Outcome nobody has priced (#9). */
+  unpriced: number;
+  /**
+   * How many are open for predictions.
+   *
+   * Also what refuses a re-import: one open Bout is enough, because fans hold
+   * Coins against that row (ADR-0001).
+   */
+  open: number;
 }
 
 /**
@@ -41,8 +49,9 @@ export interface ImportedEvent {
  * order the Prismic side is listed in.
  *
  * The Bouts are counted and their state summarised here rather than fetched
- * with each Event, because what the listing answers is "is this card in, and
- * can I still change it?" — two numbers, not a card each.
+ * with each Event, because what the listing answers is "is this card in, what
+ * is left to do to it, and can I still change it?" — four numbers, not a card
+ * each. The card itself is `cardToPrice` in `server/utils/pricing.ts`.
  */
 export function importedEvents(): Promise<ImportedEvent[]> {
   return useDatabase()
@@ -54,12 +63,21 @@ export function importedEvents(): Promise<ImportedEvent[]> {
       venue: events.venue,
       seasonName: seasons.name,
       importedAt: events.importedAt,
-      bouts: sql<number>`count(${bouts.id})`.mapWith(Number),
-      opened: sql<boolean>`coalesce(bool_or(${bouts.status} <> 'closed'), false)`.mapWith(Boolean),
+      bouts: sql<number>`count(distinct ${bouts.id})`.mapWith(Number),
+      // A Bout with no Outcomes at all counts as unpriced, which is what it
+      // is: the join finds nothing for it, and it cannot be opened either.
+      unpriced:
+        sql<number>`count(distinct ${bouts.id}) filter (where ${outcomes.pricedAt} is null)`.mapWith(
+          Number,
+        ),
+      open: sql<number>`count(distinct ${bouts.id}) filter (where ${bouts.status} <> 'closed')`.mapWith(
+        Number,
+      ),
     })
     .from(events)
     .innerJoin(seasons, eq(seasons.id, events.seasonId))
     .leftJoin(bouts, eq(bouts.eventId, events.id))
+    .leftJoin(outcomes, eq(outcomes.boutId, bouts.id))
     .groupBy(events.id, seasons.name)
     .orderBy(desc(events.scheduledStart));
 }
@@ -160,24 +178,33 @@ export function importCard(
       id: bouts.id,
     });
 
-    await tx.insert(bouts).values(
-      card.bouts.map((bout) => ({
-        eventId: event.id,
-        cardOrder: bout.cardOrder,
-        redName: bout.red.name,
-        redFighterId: bout.red.fighterId,
-        redFighterUid: bout.red.fighterUid,
-        redImageUrl: bout.red.imageUrl,
-        blueName: bout.blue.name,
-        blueFighterId: bout.blue.fighterId,
-        blueFighterUid: bout.blue.fighterUid,
-        blueImageUrl: bout.blue.imageUrl,
-        division: bout.division,
-        scheduledRounds: bout.scheduledRounds,
-        mainEvent: bout.mainEvent,
-        titleFight: bout.titleFight,
-      })),
-    );
+    const written = await tx
+      .insert(bouts)
+      .values(
+        card.bouts.map((bout) => ({
+          eventId: event.id,
+          cardOrder: bout.cardOrder,
+          redName: bout.red.name,
+          redFighterId: bout.red.fighterId,
+          redFighterUid: bout.red.fighterUid,
+          redImageUrl: bout.red.imageUrl,
+          blueName: bout.blue.name,
+          blueFighterId: bout.blue.fighterId,
+          blueFighterUid: bout.blue.fighterUid,
+          blueImageUrl: bout.blue.imageUrl,
+          division: bout.division,
+          scheduledRounds: bout.scheduledRounds,
+          mainEvent: bout.mainEvent,
+          titleFight: bout.titleFight,
+        })),
+      )
+      .returning({ id: bouts.id, scheduledRounds: bouts.scheduledRounds });
+
+    // Seeded here rather than by the admin who prices the card, so that a Bout
+    // exists with its Questions already asked and eight numbers to correct.
+    // A re-imported Bout is a new row, so this is also what makes a lineup
+    // change a card to be priced again (ADR-0002).
+    await seedOutcomes(tx, written);
 
     return {
       id: event.id,

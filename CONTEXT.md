@@ -94,6 +94,13 @@ A Multiplier is copied onto a Prediction when the Entry is submitted and never r
 Editing an Outcome's Multiplier afterwards never changes an Entry that already exists.
 See [[adr-0002]].
 
+Every Outcome is [[import]]ed carrying a **seeded** Multiplier from a fixed table, so that
+pricing a card is eight numbers per Bout adjusted rather than eight authored from blank. A
+seeded Multiplier is deliberately not a price: an Outcome is **priced** only once an admin
+has set it, and a Bout with an **unpriced** Outcome cannot be opened. Method and round
+Multipliers are priced conditionally on the winner the fan picked ([[adr-0004]]) — a method
+of ×3.2 means ×3.2 *given that* the fighter they chose wins.
+
 ### Prediction
 
 A user's answer for **one Bout**: a required winner Outcome, plus optionally a method

@@ -19,6 +19,7 @@ import {
   date,
   index,
   integer,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -26,6 +27,13 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+// Relative rather than `#shared/…`, unlike every other server module: this
+// file is also compiled by `drizzle-kit generate`, which knows nothing of the
+// alias Nuxt provides. Type-only, so the import is erased before either sees
+// it — the values these name are spelled out again in the check constraints
+// below, where Postgres can hold them.
+import type { Corner } from "../../shared/events";
+import type { Method, Question } from "../../shared/pricing";
 
 /**
  * What a user is allowed to do: play, or also run the game.
@@ -464,5 +472,109 @@ export const bouts = pgTable(
       sql`${table.redFighterId} is null or ${table.redFighterId} <> ${table.blueFighterId}`,
     ),
     check("bouts_division_is_written", sql`length(trim(${table.division})) > 0`),
+  ],
+);
+
+/**
+ * One selectable answer to one Question about a Bout — "Fighter A", "KO/TKO",
+ * "Round 2" — carrying the Multiplier that answer pays.
+ *
+ * Every Bout is imported with its whole set: two winner Outcomes, three method
+ * Outcomes, and one round Outcome for each round the Bout is scheduled for, so
+ * a three-round Bout has no round 4 to offer. They are written by the import
+ * that creates the Bout and by nothing else — see `defaultOutcomes` in
+ * `shared/pricing.ts`, which is the one place that says what a Bout is asked.
+ *
+ * Exactly one of `corner`, `method` and `round` is set, and which one is
+ * decided by `question`; `outcomes_answers_its_question` is what says so. The
+ * three unique indexes are what stop a Bout being asked the same thing twice —
+ * two "Round 2" Outcomes on one Bout would be two different Multipliers for
+ * one answer, and no saying which a fan was shown.
+ *
+ * `pricedAt` and `pricedBy` are the difference between a seeded default and a
+ * price. Import seeds a Multiplier on every Outcome so that pricing a card is
+ * eight numbers adjusted rather than eight authored from blank (ADR-0002), and
+ * those seeded numbers are deliberately not a price: they are null here until
+ * an admin has saved the Bout, and a Bout with an unpriced Outcome cannot be
+ * opened. The migration that creates this table holds that with a trigger, so
+ * it is true of a hand-written `update` as well as of the route.
+ *
+ * A Multiplier is copied onto a Prediction when an Entry is submitted and
+ * never read back (ADR-0002), which is why nothing here is frozen once a Bout
+ * is open: correcting a mispriced Outcome changes what the next Entry is
+ * offered and never an Entry that already exists.
+ */
+export const outcomes = pgTable(
+  "outcomes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id, { onDelete: "cascade" }),
+    question: text("question").$type<Question>().notNull(),
+    /** Which corner wins, on a winner Outcome. Null on every other. */
+    corner: text("corner").$type<Corner>(),
+    /** How the Bout ends, on a method Outcome. Null on every other. */
+    method: text("method").$type<Method>(),
+    /** Which round it ends in, on a round Outcome. Null on every other. */
+    round: integer("round"),
+    /**
+     * What this answer pays.
+     *
+     * `numeric(5, 2)` rather than a float, because Postgres stores and
+     * compares it as the decimal it is: 1.90 typed by an admin is 1.90 in the
+     * column, and every Multiplier in the table is a number somebody could
+     * have typed. It is handed to JavaScript as a number, which is what a
+     * Prediction copies and a Reward is computed from.
+     */
+    multiplier: numeric("multiplier", { precision: 5, scale: 2, mode: "number" }).notNull(),
+    /** When an admin priced it, or null while it is still the seeded default. */
+    pricedAt: timestamp("priced_at", { withTimezone: true }),
+    /** Which admin priced it, for the "who set this?" a mispriced card asks. */
+    pricedBy: uuid("priced_by").references(() => users.id),
+  },
+  (table) => [
+    uniqueIndex("outcomes_one_per_corner").on(table.boutId, table.corner),
+    uniqueIndex("outcomes_one_per_method").on(table.boutId, table.method),
+    uniqueIndex("outcomes_one_per_round").on(table.boutId, table.round),
+    check("outcomes_question_known", sql`${table.question} in ('winner', 'method', 'round')`),
+    check(
+      "outcomes_corner_known",
+      sql`${table.corner} is null or ${table.corner} in ('red', 'blue')`,
+    ),
+    check(
+      "outcomes_method_known",
+      sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
+    ),
+    // The upper bound is the one `bouts_rounds_are_scheduled` puts on a Bout.
+    // That a Bout offers exactly the rounds it is scheduled for is arithmetic
+    // the import does, not something Postgres can check across the two tables.
+    check(
+      "outcomes_round_is_a_round",
+      sql`${table.round} is null or ${table.round} between 1 and 12`,
+    ),
+    // One answer per Outcome, decided by the Question it answers. Without this
+    // a row could carry a corner and a round at once, and nothing downstream
+    // would know which of them a fan had picked.
+    check(
+      "outcomes_answers_its_question",
+      sql`(${table.question} = 'winner' and ${table.corner} is not null
+            and ${table.method} is null and ${table.round} is null)
+        or (${table.question} = 'method' and ${table.method} is not null
+            and ${table.corner} is null and ${table.round} is null)
+        or (${table.question} = 'round' and ${table.round} is not null
+            and ${table.corner} is null and ${table.method} is null)`,
+    ),
+    // A Multiplier at or below 1 pays a correct Prediction its own Coins back
+    // or less, which is not a price anybody meant to type. The ceiling is the
+    // stuck key: 190 where 1.90 was meant. Spelled out again in `MULTIPLIER`
+    // in `shared/pricing.ts`, which is what the admin area refuses with.
+    check("outcomes_multiplier_pays", sql`${table.multiplier} > 1 and ${table.multiplier} <= 100`),
+    // A price nobody is recorded as having set is a price nobody can be asked
+    // about.
+    check(
+      "outcomes_priced_is_attributed",
+      sql`(${table.pricedAt} is null) = (${table.pricedBy} is null)`,
+    ),
   ],
 );

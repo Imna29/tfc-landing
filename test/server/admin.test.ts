@@ -46,6 +46,22 @@ describe("the admin area", async () => {
       );
       expect((await postJson("/api/admin/events", { prismicId: "anything" })).status).toBe(401);
       expect((await fetch("/api/admin/events", { headers: { cookie } })).status).toBe(403);
+
+      // Pricing a card and opening its Bouts is #9's; what they do lives in
+      // `test/server/bouts.test.ts`. A fan who reached these could set their
+      // own Multipliers and then commit Coins against them.
+      const anyId = "0f6d0f5a-2c0e-4b0a-9d51-6a0a3f0f9c11";
+      const multipliers = { multipliers: { [anyId]: 2 } };
+
+      expect((await fetch(`/api/admin/events/${anyId}`, { headers: { cookie } })).status).toBe(403);
+      expect(
+        (await postJson(`/api/admin/bouts/${anyId}/multipliers`, multipliers, cookie)).status,
+      ).toBe(403);
+      expect((await postJson(`/api/admin/bouts/${anyId}/multipliers`, multipliers)).status).toBe(
+        401,
+      );
+      expect((await postJson(`/api/admin/bouts/${anyId}/open`, {}, cookie)).status).toBe(403);
+      expect((await postJson(`/api/admin/bouts/${anyId}/open`, {})).status).toBe(401);
     });
 
     it("refuses a fan an admin page", async () => {

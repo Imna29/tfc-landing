@@ -13,7 +13,10 @@
  * rows. So each card says which side of that line it is on rather than only
  * whether it is in.
  *
- * Pricing those Bouts and opening them arrives with #9.
+ * The second thing it has to make obvious is what is left to do to a card that
+ * is in: how many of its Bouts nobody has priced, and how many are open. A
+ * card is priced Bout by Bout on `/admin/events/[id]`, and this is where an
+ * admin sees at a glance which card still needs sitting down with.
  */
 useSeoMeta({
   title: "Events",
@@ -93,6 +96,7 @@ async function importCard(prismicId: string) {
             <th scope="col" class="py-3 pr-4">Venue</th>
             <th scope="col" class="py-3 pr-4">Bouts</th>
             <th scope="col" class="py-3 pr-4">In the game</th>
+            <th scope="col" class="py-3 pr-4">Left to do</th>
             <th scope="col" class="py-3" />
           </tr>
         </thead>
@@ -110,16 +114,28 @@ async function importCard(prismicId: string) {
               <template v-if="card.imported">
                 {{ card.imported.bouts }} in {{ card.imported.seasonName }}, imported
                 {{ inTbilisi(card.imported.importedAt) }}.
-                <span v-if="card.imported.opened" class="block text-on-surface/70">
-                  Open for predictions.
-                </span>
               </template>
               <template v-else>Not imported.</template>
+            </td>
+            <td class="py-3 pr-4">
+              <template v-if="card.imported">
+                <NuxtLink :to="`/admin/events/${card.imported.id}`" class="underline">
+                  {{
+                    card.imported.unpriced === 0
+                      ? "Every Bout priced"
+                      : `${card.imported.unpriced} of ${card.imported.bouts} still to price`
+                  }}
+                </NuxtLink>
+                <span class="block text-on-surface/70">
+                  {{ card.imported.open }} of {{ card.imported.bouts }} open for predictions.
+                </span>
+              </template>
+              <template v-else>—</template>
             </td>
             <td class="py-3">
               <button
                 type="button"
-                :disabled="!season || card.imported?.opened || importing === card.prismicId"
+                :disabled="!season || (card.imported?.open ?? 0) > 0 || importing === card.prismicId"
                 class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
                 @click="importCard(card.prismicId)"
               >

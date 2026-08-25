@@ -41,3 +41,17 @@ export function refusedByConstraint(error: unknown, constraint: string): boolean
 
   return false;
 }
+
+/**
+ * Whether this is a shape Postgres will accept as a `uuid`.
+ *
+ * Every id in this schema is one, and they reach the server as text in a URL.
+ * Asking first turns "not a row anybody has" into the 404 it is, rather than
+ * the 500 an invalid cast raises halfway down a query.
+ */
+export function looksLikeId(value: string | undefined): value is string {
+  return (
+    value !== undefined &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}

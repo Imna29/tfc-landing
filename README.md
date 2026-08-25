@@ -417,6 +417,55 @@ told which rule it was.
 asks whether a Bout is still `closed`, so those land without reopening this
 decision.
 
+### Pricing a card, and opening its Bouts
+
+Every Bout arrives with its whole set of Outcomes already written: two winner
+Outcomes, three method Outcomes, and **one round Outcome for each round it is
+scheduled for**, so a three-round Bout has no round 4 to offer. `shared/pricing.ts`
+is the one place that says what a Bout is asked and what each answer is seeded
+to pay; `server/utils/pricing.ts` writes them, inside the import's own
+transaction.
+
+Seeding is what makes ADR-0002 payable. Multipliers are fixed by hand, so
+somebody at TFC prices every card before it opens — forever, not once — and the
+difference between ten minutes and an hour is whether they are adjusting eight
+numbers per Bout or authoring them from blank.
+
+**A seeded Multiplier is not a price.** `outcomes.priced_at` is null until an
+admin saves that Bout at `/admin/events/[id]`, and a Bout with an unpriced
+Outcome **cannot be opened**: nothing in the default table knows which fighter
+is favoured, and ADR-0002 has no pool to self-correct a mispriced Outcome once
+fans are committing Coins against it. The route says so, and so do two triggers
+in `0005_multipliers_and_opening_bouts.sql` — the rule holds for a hand-written
+`update`, and for a Bout inserted open, which has no Outcomes at all. `/admin/events` lists, per card, how many Bouts are still to price
+and how many are open.
+
+Method and round Multipliers are priced **conditionally on the winner the fan
+picked**, because ADR-0004 multiplies them onto a winner pick rather than
+treating them as a chain of their own: "Submission ×3.2" means "×3.2 given that
+your fighter wins". That is what makes eight numbers enough where pricing every
+combination by hand would be thirty.
+
+A Multiplier is above 1 and no higher than 100, to two decimal places
+(`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
+correct Prediction returns exactly the Coins committed and below it a fan is
+worse off for being right; the ceiling is the stuck key — 190 where 1.90 was
+meant — and nothing above it could be paid anyway, since a combined Multiplier
+is capped at ×100.
+
+Two consequences worth knowing:
+
+- **A re-imported card is a card to be priced again.** Re-import replaces the
+  Bouts, and the Outcomes hung off them go with them.
+- Repricing a Bout that is already open is deliberately allowed. A Prediction
+  carries a *copy* of the Multiplier it was submitted at (ADR-0002), so
+  correcting a number changes what the next Entry is offered and never an Entry
+  that already exists.
+
+A card imported before this migration has no Outcomes at all, and is refused an
+opening by the same rule. Re-import it — which is allowed while every Bout on it
+is still closed — and it comes back seeded.
+
 ### Pushing the model
 
 `customtypes/event/` is the local copy of the model, written with the Prismic
