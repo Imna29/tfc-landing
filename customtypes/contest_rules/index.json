@@ -1,94 +1,99 @@
 {
+  "format": "page",
   "id": "contest_rules",
-  "label": "Contest Rules",
-  "repeatable": false,
   "json": {
     "Main": {
       "title": {
-        "type": "Text",
         "config": {
           "label": "Title",
           "placeholder": "Contest rules"
-        }
+        },
+        "type": "Text"
       },
       "eligibility_heading": {
-        "type": "Text",
         "config": {
           "label": "Eligibility heading",
           "placeholder": "Who can play"
-        }
+        },
+        "type": "Text"
       },
       "eligibility_rules": {
-        "type": "Group",
         "config": {
-          "label": "Eligibility rules",
-          "repeat": true,
           "fields": {
             "replaces": {
-              "type": "Select",
               "config": {
                 "label": "replaces",
-                "placeholder": "Leave empty to add a new rule",
-                "options": ["age", "one-account", "verified-email", "prize-terms"]
-              }
+                "options": [
+                  "age",
+                  "one-account",
+                  "verified-email",
+                  "prize-terms"
+                ],
+                "placeholder": "Leave empty to add a new rule"
+              },
+              "type": "Select"
             },
             "title": {
-              "type": "Text",
               "config": {
                 "label": "title",
                 "placeholder": "18 and over"
-              }
+              },
+              "type": "Text"
             },
             "detail": {
-              "type": "Text",
               "config": {
                 "label": "detail",
                 "placeholder": "One sentence a fan can check themselves against"
-              }
+              },
+              "type": "Text"
             }
-          }
-        }
+          },
+          "label": "Eligibility rules",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "slices": {
-        "type": "Slices",
-        "fieldset": "Slice Zone",
         "config": {
           "choices": {
             "rich_text_section": {
               "type": "SharedSlice"
             }
           }
-        }
+        },
+        "fieldset": "Slice Zone",
+        "type": "Slices"
       }
     },
     "SEO & Metadata": {
       "meta_title": {
-        "type": "Text",
         "config": {
           "label": "Meta Title",
           "placeholder": "A title of the page used for social media and search engines"
-        }
+        },
+        "type": "Text"
       },
       "meta_description": {
-        "type": "Text",
         "config": {
           "label": "Meta Description",
           "placeholder": "A brief summary of the page"
-        }
+        },
+        "type": "Text"
       },
       "meta_image": {
-        "type": "Image",
         "config": {
-          "label": "Meta Image",
           "constraint": {
-            "width": 2400,
-            "height": 1260
+            "height": 1260,
+            "width": 2400
           },
+          "label": "Meta Image",
           "thumbnails": []
-        }
+        },
+        "type": "Image"
       }
     }
   },
-  "status": true,
-  "format": "page"
+  "label": "Contest Rules",
+  "repeatable": false,
+  "status": true
 }

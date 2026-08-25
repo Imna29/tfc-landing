@@ -1,64 +1,64 @@
 {
+  "description": "FeaturedVideo",
   "id": "featured_video",
-  "type": "SharedSlice",
   "name": "FeaturedVideo",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "headline_1": {
-          "type": "Text",
           "config": {
             "label": "headline 1",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "headline_2": {
-          "type": "Text",
           "config": {
             "label": "headline 2",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "youtube_link": {
-          "type": "Embed",
           "config": {
             "label": "youtube link",
             "placeholder": ""
-          }
+          },
+          "type": "Embed"
         },
         "thumbnail": {
-          "type": "Image",
           "config": {
-            "label": "thumbnail",
             "constraint": {},
+            "label": "thumbnail",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "video": {
-          "type": "Link",
           "config": {
+            "allowText": true,
             "label": "video",
             "placeholder": "",
-            "select": "media",
-            "allowText": true,
-            "repeat": false
-          }
+            "repeat": false,
+            "select": "media"
+          },
+          "type": "Link"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "FeaturedVideo"
+  ]
 }

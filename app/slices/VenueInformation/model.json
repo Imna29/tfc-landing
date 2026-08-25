@@ -1,101 +1,101 @@
 {
+  "description": "VenueInformation",
   "id": "venue_information",
-  "type": "SharedSlice",
   "name": "VenueInformation",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title_line_1": {
-          "type": "Text",
           "config": {
             "label": "title line 1",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "title_line_2": {
-          "type": "Text",
           "config": {
             "label": "title line 2",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "venue_label": {
-          "type": "Text",
           "config": {
             "label": "venue label",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "venue_name": {
-          "type": "Text",
           "config": {
             "label": "venue name",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "transport_info": {
-          "type": "Group",
           "config": {
-            "label": "transport info",
-            "repeat": true,
             "fields": {
               "icon": {
-                "type": "Text",
                 "config": {
                   "label": "icon",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "text": {
-                "type": "Text",
                 "config": {
                   "label": "text",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               }
-            }
-          }
+            },
+            "label": "transport info",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "directions_button_label": {
-          "type": "Text",
           "config": {
             "label": "directions button label",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "directions_buttons_link": {
-          "type": "Link",
           "config": {
-            "label": "directions buttons link",
-            "placeholder": "",
-            "select": null,
             "allowTargetBlank": true,
             "allowText": true,
-            "repeat": false
-          }
+            "label": "directions buttons link",
+            "placeholder": "",
+            "repeat": false,
+            "select": null
+          },
+          "type": "Link"
         },
         "address": {
-          "type": "Text",
           "config": {
             "label": "address",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "google_maps_embed": {
-          "type": "Text",
           "config": {
             "label": "google maps embed",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "VenueInformation"
+  ]
 }

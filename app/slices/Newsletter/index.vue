@@ -39,7 +39,7 @@ const email = ref('')
           <input
             v-model="email"
             type="email"
-            :placeholder="slice.primary.email_placeholder"
+            :placeholder="slice.primary.email_placeholder ?? undefined"
             class="bg-transparent border-0 border-b-4 border-white text-white placeholder:text-white/50 font-black text-2xl py-4 focus:ring-0 focus:border-white uppercase"
           >
           <button type="submit" class="bg-white text-primary-container py-5 font-black uppercase text-xl hover:bg-on-surface-variant transition-colors">

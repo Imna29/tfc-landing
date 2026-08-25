@@ -7,7 +7,10 @@ interface Highlight {
   isMain: boolean;
 }
 
-const highlights: Highlight[] = [
+// A non-empty tuple, because the layout is not a list: the first highlight is
+// the large tile and the rest fill the column beside it. Typed this way the
+// template can read `highlights[0]` without asserting it is there.
+const highlights: [Highlight, ...Highlight[]] = [
   {
     id: "main",
     title: "Mamuka's Destructive Fly-Knee KO",

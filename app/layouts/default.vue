@@ -190,7 +190,6 @@ const footer = computed(() => {
                 :key="index"
                 :field="social.link"
                 class="w-10 h-10 border border-outline-variant/30 flex items-center justify-center hover:bg-primary-container transition-colors"
-                :target="social.link.target"
               >
                 <Icon v-if="social.icon" :name="social.icon" class="text-sm text-white" />
               </PrismicLink>
@@ -211,7 +210,6 @@ const footer = computed(() => {
                 <PrismicLink
                   :field="navLink.link"
                   class="hover:text-primary transition-colors"
-                  :target="navLink.link.target"
                 >
                   {{ navLink.link.text }}
                 </PrismicLink>

@@ -81,14 +81,78 @@ custom type under `customtypes/`, one per slice under `app/slices/` — and
 `prismicio-types.d.ts` is the generated TypeScript for them.
 
 The repo is only ever the *local* copy. A model added here does not exist in the
-Prismic repository until it is pushed with Slice Machine, and until it is, the
-content team has nothing to edit. `prizes` and `contest_rules` are in that state
-now: the pages render their built-in content and wait.
+Prismic repository until it is pushed with the Prismic CLI, and until it is, the
+content team has nothing to edit. `prizes` and `contest_rules` have been pushed
+and have no documents written against them yet, so the pages render their
+built-in content and wait.
 
 Pages are written to survive that gap rather than to depend on it. A singleton
 that has never been created reads as a missing document, not an error, and
 `/contest-rules` publishes the ADR-0007 eligibility constraints from
 `app/utils/eligibilityRules.ts` until someone authors better wording.
+
+**`prismic.config.json` cannot describe a type the Document API does not
+already know.** Its `routes` are sent to Prismic as a query parameter on
+*every* document fetch, and the API validates the whole array before answering:
+one entry naming a type it does not recognise fails the request with a 400
+`Link resolver error`, so no page gets any content and `app/pages/[uid].vue`
+answers 404 for all of them. The failure is total and names a type rather than
+a route, which is what makes it read like a broken app rather than a config
+that ran ahead of the content.
+
+Pushing the model is *not* enough to make that entry safe, and neither is
+writing a document: `cta` and `picture` carry no documents at all and are
+accepted, while `prizes` and `contest_rules` were still rejected long after a
+successful push. Prismic keeps more than one view of which types exist and they
+converge at their own pace — the `types` map on `/api/v2` listed both new types
+while the route validator was still refusing them, with its error naming the
+older, shorter list. So `types` is not the gate, and the only honest check is
+to ask the validator itself:
+
+```bash
+ref=$(curl -s https://tfc-landing.cdn.prismic.io/api/v2 | jq -r '.refs[0].ref')
+curl -s -o /dev/null -w '%{http_code}\n' -G \
+  https://tfc-landing.cdn.prismic.io/api/v2/documents/search \
+  --data-urlencode "ref=$ref" \
+  --data-urlencode 'routes=[{"type":"prizes","path":"/prizes"}]' \
+  --data-urlencode 'q=[[at(document.type,"home_page")]]'
+```
+
+`200` means the entry is safe to add; `400` means it would take the whole site
+down with it. Run it once per type being added. `route-rules.ts` is
+unaffected either way — `/prizes` and `/contest-rules` are real pages under
+`app/pages/`, and the resolver only ever computed `document.url` for links to
+those documents, of which there are none yet.
+
+Models are edited either in the [Type Builder][type-builder] — Prismic's
+browser UI, which writes straight to the repository — or here with the CLI,
+which is the half that syncs. `prismic.config.json` is its config too, so there
+is nothing to set up:
+
+```bash
+npx prismic login
+npx prismic status        # what would be pushed or pulled, before doing either
+npx prismic push          # local models up to Prismic
+npx prismic pull          # remote models down into the repo
+npx prismic gen types     # regenerate prismicio-types.d.ts
+```
+
+Each direction makes one side match the other, and neither merges. `push`
+treats the local models as the source of truth and *deletes* remote models the
+repo does not have; `pull` treats the remote as the source of truth and
+*deletes* local ones — which, while `prizes` and `contest_rules` are still
+unpushed, means a `pull` right now would remove them and the two slices they
+were added with. Read `status` first, work from a clean tree, and let git be
+the thing that makes a wrong direction recoverable.
+
+A custom type also has to go up together with the slices its slice zone offers,
+or it lands with choices that resolve to nothing.
+
+Model JSON under `customtypes/` and `app/slices/` is written by these tools; do
+not hand-edit it. `.agents/skills/prismic` teaches coding agents the same
+workflow.
+
+[type-builder]: https://prismic.io/docs/type-builder
 
 `test/unit/vocabulary.test.ts` holds the naming rule from `CONTEXT.md` over
 every file that carries copy: no sportsbook vocabulary, anywhere a fan can read

@@ -1,141 +1,141 @@
 {
+  "format": "custom",
   "id": "footer",
-  "label": "Footer",
-  "repeatable": false,
   "json": {
     "Main": {
       "logo": {
-        "type": "Image",
         "config": {
-          "label": "logo",
           "constraint": {},
+          "label": "logo",
           "thumbnails": []
-        }
+        },
+        "type": "Image"
       },
       "about_text": {
-        "type": "Text",
         "config": {
           "label": "about text",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "social_links": {
-        "type": "Group",
         "config": {
-          "label": "social links",
-          "repeat": true,
           "fields": {
             "icon": {
-              "type": "Text",
               "config": {
                 "label": "icon",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "link": {
-              "type": "Link",
               "config": {
-                "label": "link",
-                "placeholder": "",
-                "select": null,
                 "allowTargetBlank": true,
                 "allowText": false,
-                "repeat": false
-              }
+                "label": "link",
+                "placeholder": "",
+                "repeat": false,
+                "select": null
+              },
+              "type": "Link"
             }
-          }
-        }
+          },
+          "label": "social links",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "navigation_heading": {
-        "type": "Text",
         "config": {
           "label": "navigation heading",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "navigation_links": {
-        "type": "Group",
         "config": {
-          "label": "navigation links",
-          "repeat": true,
           "fields": {
             "link": {
-              "type": "Link",
               "config": {
-                "label": "link",
-                "placeholder": "",
-                "select": null,
                 "allowTargetBlank": true,
                 "allowText": true,
-                "repeat": false
-              }
+                "label": "link",
+                "placeholder": "",
+                "repeat": false,
+                "select": null
+              },
+              "type": "Link"
             }
-          }
-        }
+          },
+          "label": "navigation links",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "legal_heading": {
-        "type": "Text",
         "config": {
           "label": "legal heading",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "legal_links": {
-        "type": "Group",
         "config": {
-          "label": "legal links",
-          "repeat": true,
           "fields": {
             "link": {
-              "type": "Link",
               "config": {
-                "label": "link",
-                "placeholder": "",
-                "select": null,
                 "allowTargetBlank": true,
                 "allowText": true,
-                "repeat": false
-              }
+                "label": "link",
+                "placeholder": "",
+                "repeat": false,
+                "select": null
+              },
+              "type": "Link"
             }
-          }
-        }
+          },
+          "label": "legal links",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "contact": {
-        "type": "Text",
         "config": {
           "label": "contact",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "contact_links": {
-        "type": "Group",
         "config": {
-          "label": "contact links",
-          "repeat": true,
           "fields": {
             "link": {
-              "type": "Link",
               "config": {
-                "label": "link",
-                "placeholder": "",
-                "select": null,
                 "allowTargetBlank": true,
                 "allowText": true,
-                "repeat": false
-              }
+                "label": "link",
+                "placeholder": "",
+                "repeat": false,
+                "select": null
+              },
+              "type": "Link"
             }
-          }
-        }
+          },
+          "label": "contact links",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "email": {
-        "type": "Text",
         "config": {
           "label": "email",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       }
     }
   },
-  "status": true,
-  "format": "custom"
+  "label": "Footer",
+  "repeatable": false,
+  "status": true
 }

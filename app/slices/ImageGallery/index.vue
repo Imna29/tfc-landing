@@ -10,13 +10,15 @@ const titleText = computed(() => props.slice.primary.title || "THE");
 const titleHighlightText = computed(() => props.slice.primary.title_highlight || "LENS");
 const ctaLabel = computed(() => props.slice.primary.view_all_button_label || "VIEW FULL PHOTO ARCHIVE");
 
+// flatMap rather than map-then-filter: a filter that asks about `item.image`
+// says nothing to TypeScript about `item`, so the images came out still
+// possibly empty and `url` still possibly null. Dropping them here narrows
+// what is kept. The index is the position in the unfiltered group either way,
+// so the ids are the same ones.
 const galleryImages = computed(() =>
-  props.slice.primary.images
-    .map((item, index) => ({
-      id: `${props.slice.id}-${index}`,
-      image: item.image,
-    }))
-    .filter((item) => isFilled.image(item.image)),
+  props.slice.primary.images.flatMap((item, index) =>
+    isFilled.image(item.image) ? [{ id: `${props.slice.id}-${index}`, image: item.image }] : [],
+  ),
 );
 </script>
 

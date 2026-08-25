@@ -1,67 +1,67 @@
 {
+  "description": "Newsletter",
   "id": "newsletter",
-  "type": "SharedSlice",
   "name": "Newsletter",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "headline_1": {
-          "type": "Text",
           "config": {
             "label": "headline 1",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "headline_2": {
-          "type": "Text",
           "config": {
             "label": "headline 2",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "description": {
-          "type": "Text",
           "config": {
             "label": "description",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "email_placeholder": {
-          "type": "Text",
           "config": {
             "label": "email placeholder",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "submit_label": {
-          "type": "Text",
           "config": {
             "label": "submit label",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "success_message": {
-          "type": "Text",
           "config": {
             "label": "success message",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "error_message": {
-          "type": "Text",
           "config": {
             "label": "error message",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "Newsletter"
+  ]
 }

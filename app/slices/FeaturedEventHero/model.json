@@ -1,101 +1,101 @@
 {
+  "description": "FeaturedEventHero",
   "id": "featured_event_hero",
-  "type": "SharedSlice",
   "name": "FeaturedEventHero",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "badge": {
-          "type": "Text",
           "config": {
             "label": "badge",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "date": {
-          "type": "Timestamp",
           "config": {
             "label": "date",
             "placeholder": ""
-          }
+          },
+          "type": "Timestamp"
         },
         "image": {
-          "type": "Image",
           "config": {
-            "label": "image",
             "constraint": {},
+            "label": "image",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "cta": {
-          "type": "Group",
           "config": {
-            "label": "cta",
-            "repeat": true,
             "fields": {
               "label": {
-                "type": "Text",
                 "config": {
                   "label": "label",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "link": {
-                "type": "Link",
                 "config": {
-                  "label": "link",
-                  "placeholder": "",
-                  "select": null,
                   "allowTargetBlank": true,
                   "allowText": true,
+                  "label": "link",
+                  "placeholder": "",
                   "repeat": false,
+                  "select": null,
                   "variants": [
                     "Primary",
                     "Secondary"
                   ]
-                }
+                },
+                "type": "Link"
               }
-            }
-          }
+            },
+            "label": "cta",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "location": {
-          "type": "Text",
           "config": {
             "label": "location",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "tba": {
-          "type": "Boolean",
           "config": {
-            "label": "tba",
             "default_value": false,
-            "placeholder_true": "true",
-            "placeholder_false": "false"
-          }
+            "label": "tba",
+            "placeholder_false": "false",
+            "placeholder_true": "true"
+          },
+          "type": "Boolean"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "FeaturedEventHero"
+  ]
 }

@@ -1,54 +1,54 @@
 {
+  "description": "AboutUsCta",
   "id": "about_us_cta",
-  "type": "SharedSlice",
   "name": "AboutUsCta",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "title_highlight": {
-          "type": "Text",
           "config": {
             "label": "title highlight",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "cta": {
-          "type": "Link",
           "config": {
-            "label": "cta",
-            "placeholder": "",
-            "select": null,
             "allowTargetBlank": true,
             "allowText": true,
+            "label": "cta",
+            "placeholder": "",
             "repeat": true,
+            "select": null,
             "variants": [
               "Primary",
               "Secondary"
             ]
-          }
+          },
+          "type": "Link"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "AboutUsCta"
+  ]
 }

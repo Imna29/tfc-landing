@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isFilled } from "@prismicio/client";
+import { asLinkAttrs, isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 
 defineProps(
@@ -22,7 +22,7 @@ defineProps(
           v-for="(sponsor, index) in slice.primary.sponsors"
           :key="index"
           :is="isFilled.link(sponsor.link) ? 'a' : 'div'"
-          v-bind="isFilled.link(sponsor.link) ? { href: sponsor.link.url, target: sponsor.link.target } : {}"
+          v-bind="isFilled.link(sponsor.link) ? asLinkAttrs(sponsor.link) : {}"
           class="opacity-30 grayscale hover:grayscale-0 hover:opacity-100 transition-all"
         >
           <img

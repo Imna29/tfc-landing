@@ -1,48 +1,48 @@
 {
+  "description": "CultureCommunity",
   "id": "culture_community",
-  "type": "SharedSlice",
   "name": "CultureCommunity",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "image_1": {
-          "type": "Image",
           "config": {
-            "label": "image 1",
             "constraint": {},
+            "label": "image 1",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "image_2": {
-          "type": "Image",
           "config": {
-            "label": "image 2",
             "constraint": {},
+            "label": "image 2",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "text": {
-          "type": "Text",
           "config": {
             "label": "text",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "CultureCommunity"
+  ]
 }

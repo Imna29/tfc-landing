@@ -1,72 +1,72 @@
 {
+  "description": "PrizeTiers",
   "id": "prize_tiers",
-  "type": "SharedSlice",
   "name": "PrizeTiers",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "heading": {
-          "type": "Text",
           "config": {
             "label": "heading",
             "placeholder": "What you are playing for"
-          }
+          },
+          "type": "Text"
         },
         "intro": {
-          "type": "StructuredText",
           "config": {
+            "allowTargetBlank": true,
             "label": "intro",
             "placeholder": "",
-            "single": "paragraph,strong,em,hyperlink",
-            "allowTargetBlank": true
-          }
+            "single": "paragraph,strong,em,hyperlink"
+          },
+          "type": "StructuredText"
         },
         "tiers": {
-          "type": "Group",
           "config": {
-            "label": "tiers",
-            "repeat": true,
             "fields": {
               "place": {
-                "type": "Text",
                 "config": {
                   "label": "place",
                   "placeholder": "1st"
-                }
+                },
+                "type": "Text"
               },
               "prize": {
-                "type": "Text",
                 "config": {
                   "label": "prize",
                   "placeholder": "What this finisher receives"
-                }
+                },
+                "type": "Text"
               },
               "detail": {
-                "type": "Text",
                 "config": {
                   "label": "detail",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "image": {
-                "type": "Image",
                 "config": {
-                  "label": "image",
                   "constraint": {},
+                  "label": "image",
                   "thumbnails": []
-                }
+                },
+                "type": "Image"
               }
-            }
-          }
+            },
+            "label": "tiers",
+            "repeat": true
+          },
+          "type": "Group"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "PrizeTiers"
+  ]
 }

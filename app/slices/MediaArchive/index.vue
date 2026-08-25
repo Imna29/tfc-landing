@@ -98,7 +98,9 @@ const filteredMediaItems = computed(() => {
   }
 
   return orderedMediaItems.value.filter(
-    (item) => item.data.media_type.id === selectedMediaTypeId.value,
+    (item) =>
+      isFilled.contentRelationship(item.data.media_type) &&
+      item.data.media_type.id === selectedMediaTypeId.value,
   );
 });
 
@@ -144,8 +146,15 @@ const getImageUrl = (item: Content.MediaDocument) => {
 
 const hasImage = (item: Content.MediaDocument) => Boolean(getImageUrl(item));
 
-const getTypeLabel = (item: Content.MediaDocument) =>
-  item.data.media_type.data?.name?.toUpperCase() || "MEDIA";
+const getTypeLabel = (item: Content.MediaDocument) => {
+  const mediaType = item.data.media_type;
+
+  // An unlinked media type, or one whose name was never fetched, is still a
+  // piece of media — the badge just says so generically.
+  if (!isFilled.contentRelationship(mediaType)) return "MEDIA";
+
+  return mediaType.data?.name?.toUpperCase() || "MEDIA";
+};
 
 const getPrimaryBadge = (item: Content.MediaDocument) => item.data.badges[0]?.name || null;
 

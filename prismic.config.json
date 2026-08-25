@@ -10,14 +10,6 @@
       "path": "/:uid"
     },
     {
-      "type": "prizes",
-      "path": "/prizes"
-    },
-    {
-      "type": "contest_rules",
-      "path": "/contest-rules"
-    },
-    {
       "type": "privacy_policy",
       "path": "/privacy-policy"
     },

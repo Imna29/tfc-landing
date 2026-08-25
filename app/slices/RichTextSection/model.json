@@ -1,27 +1,27 @@
 {
+  "description": "RichTextSection",
   "id": "rich_text_section",
-  "type": "SharedSlice",
   "name": "RichTextSection",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "content": {
-          "type": "StructuredText",
           "config": {
+            "allowTargetBlank": true,
             "label": "content",
-            "placeholder": "",
             "multi": "paragraph,heading1,heading2,heading3,strong,em,hyperlink,list-item,o-list-item",
-            "allowTargetBlank": true
-          }
+            "placeholder": ""
+          },
+          "type": "StructuredText"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "RichTextSection"
+  ]
 }

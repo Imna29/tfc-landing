@@ -1,136 +1,136 @@
 {
+  "description": "UpcomingEventsGrid",
   "id": "upcoming_events_grid",
-  "type": "SharedSlice",
   "name": "UpcomingEventsGrid",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "decorative_text": {
-          "type": "Text",
           "config": {
             "label": "decorative text",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "events": {
-          "type": "Group",
           "config": {
-            "label": "events",
-            "repeat": true,
             "fields": {
               "badge": {
-                "type": "Text",
                 "config": {
                   "label": "badge",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "title": {
-                "type": "Text",
                 "config": {
                   "label": "title",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "date": {
-                "type": "Date",
                 "config": {
                   "label": "date",
                   "placeholder": ""
-                }
+                },
+                "type": "Date"
               },
               "venue": {
-                "type": "Text",
                 "config": {
                   "label": "venue",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "image": {
-                "type": "Image",
                 "config": {
-                  "label": "image",
                   "constraint": {},
+                  "label": "image",
                   "thumbnails": []
-                }
+                },
+                "type": "Image"
               },
               "tags_comma_separated": {
-                "type": "Text",
                 "config": {
                   "label": "tags comma separated",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "tickets_button_text": {
-                "type": "Text",
                 "config": {
                   "label": "tickets button text",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "tickets_button_link": {
-                "type": "Link",
                 "config": {
-                  "label": "tickets button link",
-                  "placeholder": "",
-                  "select": null,
                   "allowTargetBlank": true,
                   "allowText": true,
-                  "repeat": false
-                }
+                  "label": "tickets button link",
+                  "placeholder": "",
+                  "repeat": false,
+                  "select": null
+                },
+                "type": "Link"
               },
               "stream_button_text": {
-                "type": "Text",
                 "config": {
                   "label": "stream button text",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "stream_button_link": {
-                "type": "Link",
                 "config": {
-                  "label": "stream button link",
-                  "placeholder": "",
-                  "select": null,
                   "allowTargetBlank": true,
                   "allowText": true,
-                  "repeat": false
-                }
+                  "label": "stream button link",
+                  "placeholder": "",
+                  "repeat": false,
+                  "select": null
+                },
+                "type": "Link"
               }
-            }
-          }
+            },
+            "label": "events",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "tba": {
-          "type": "Boolean",
           "config": {
-            "label": "tba",
             "default_value": false,
-            "placeholder_true": "true",
-            "placeholder_false": "false"
-          }
+            "label": "tba",
+            "placeholder_false": "false",
+            "placeholder_true": "true"
+          },
+          "type": "Boolean"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "UpcomingEventsGrid"
+  ]
 }

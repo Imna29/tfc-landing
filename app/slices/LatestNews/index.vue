@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from "vue";
-import { isFilled } from "@prismicio/client";
+import { asLinkAttrs, isFilled } from "@prismicio/client";
 import { asDate } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 
@@ -144,7 +144,7 @@ onUnmounted(() => {
         </time>
         <component
           :is="isFilled.link(article.article_link) ? 'a' : 'div'"
-          v-bind="isFilled.link(article.article_link) ? { href: article.article_link.url, target: article.article_link.target } : {}"
+          v-bind="isFilled.link(article.article_link) ? asLinkAttrs(article.article_link) : {}"
         >
           <h3 class="font-headline text-2xl font-black italic uppercase leading-tight mb-4 hover:text-primary transition-colors cursor-pointer">
             {{ article.title }}

@@ -77,7 +77,7 @@ onMounted(() => {
         >
           {{ asText(slice.primary.description) }}
         </p>
-        <div v-if="isFilled.repeatable(slice.primary.cta)" class="flex flex-col sm:flex-row gap-4">
+        <div v-if="isFilled.group(slice.primary.cta)" class="flex flex-col sm:flex-row gap-4">
           <PrismicLink
             v-for="(button, index) in slice.primary.cta"
             :key="index"
@@ -93,6 +93,7 @@ onMounted(() => {
           >
             {{ button.label }}
             <Icon
+              v-if="button.icon"
               :name="button.icon"
               :class="button.link.variant === 'Primary' ? 'group-hover:translate-x-1 transition-transform' : ''"
             />

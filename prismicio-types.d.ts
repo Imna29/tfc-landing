@@ -289,7 +289,7 @@ export interface FighterDocumentDataDisciplinesItem {
 	 * - **API ID Path**: fighter.disciplines[].discipline
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	discipline: ContentRelationshipFieldWithData<[{"id":"discipline","fields":["name"]}]>;
+	discipline: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"discipline"}]>;
 }
 
 /**
@@ -465,7 +465,7 @@ interface FighterDocumentData {
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	division: ContentRelationshipFieldWithData<[{"id":"division","fields":["name"]}]>;
+	division: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"division"}]>;
 	
 	/**
 	 * disciplines field in *Fighter*
@@ -906,7 +906,7 @@ interface MediaDocumentData {
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	media_type: ContentRelationshipFieldWithData<[{"id":"media_type","fields":["name"]}]>;
+	media_type: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"media_type"}]>;
 	
 	/**
 	 * thumbnail field in *Media*
@@ -1227,7 +1227,6 @@ interface PrizesDocumentData {
  * @typeParam Lang - Language API ID of the document.
  */
 export type PrizesDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<PrizesDocumentData>, "prizes", Lang>;
-
 
 type TermsOfServiceDocumentDataSlicesSlice = TermsOfServiceSlice
 
@@ -1849,7 +1848,7 @@ export interface FeaturedFightersSliceDefaultPrimaryFightersItem {
 	 * - **API ID Path**: featured_fighters.default.primary.fighters[].fighter
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","age","image","from","height"]}]>;
+	fighter: ContentRelationshipFieldWithData<[{"fields":["name","nickname","record","age","image","from","height"],"id":"fighter"}]>;
 }
 
 /**
@@ -2010,7 +2009,7 @@ export interface FightersSectionSliceDefaultPrimaryFightersItem {
 	 * - **API ID Path**: fighters_section.default.primary.fighters[].fighter
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","image",{"id":"division","customtypes":[{"id":"division","fields":["name"]}]},{"id":"badges","fields":["label"]},{"id":"disciplines","fields":[{"id":"discipline","customtypes":[{"id":"discipline","fields":["name"]}]}]}]}]>;
+	fighter: ContentRelationshipFieldWithData<[{"fields":["name","nickname","record","image",{"customtypes":[{"fields":["name"],"id":"division"}],"id":"division"},{"fields":["label"],"id":"badges"},{"fields":[{"customtypes":[{"fields":["name"],"id":"discipline"}],"id":"discipline"}],"id":"disciplines"}],"id":"fighter"}]>;
 }
 
 /**
@@ -2986,7 +2985,6 @@ type RichTextSectionSliceVariation = RichTextSectionSliceDefault
  * - **Documentation**: https://prismic.io/docs/slices
  */
 export type RichTextSectionSlice = prismic.SharedSlice<"rich_text_section", RichTextSectionSliceVariation>;
-
 
 /**
  * Item in *SponsorLogos → Default → Primary → sponsors*
