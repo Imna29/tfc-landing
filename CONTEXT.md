@@ -58,11 +58,31 @@ is applied by the requests that care where a Bout is: the public card, an Entry 
 submitted, and the admin area. A card nobody is looking at locks the moment somebody
 looks, and the [[lock]] is still dated at the moment it fell due.
 
+### Result
+
+What happened in a [[bout]], as an admin records it: who won, the method it ended by, and
+the round it ended in. A [[bout]] that ends in a Decision has no round, for the same reason
+a Prediction of one has none.
+
+Recorded once per Bout and only after it has locked — entering one locks a Bout still open
+— and the Bout is **settled** from that moment, which is the end of the road its status
+travels: closed, open, locked, settled. A Result entered wrong is corrected rather than
+deleted (#16), the way a Coin Transaction is ([[adr-0003]]).
+
+Not a "score" and not an "outcome": an [[outcome]] is an answer the game offered, and a
+Result is what actually happened. A [[bout]] that produced nothing gradable is a
+[[no-result]] rather than a Result of its own.
+
 ### Settlement
 
-Grading every Entry affected by a Bout's result and writing the resulting Coin
+Grading every Entry affected by a Bout's [[result]] and writing the resulting Coin
 Transactions, as one transaction. An Entry becomes Lost the instant any of its Predictions
 loses, without waiting for its remaining Bouts. See [[adr-0003]].
+
+A Prediction is **correct** only if every answer in it is: the winner, and the method and
+round where the fan named them. Whether one landed is worked out from the Bout's Result
+whenever it is shown, never written onto the Prediction — the [[result]] is the only record
+of what happened.
 
 ### Bout
 
@@ -165,6 +185,10 @@ at submission, not at settlement. Never a "stake".
 
 Coins returned by a winning Entry: Amount × the Entry's combined Multiplier, which is capped
 at ×100. A losing Entry has no Reward; it is not a "negative reward". Never a "payout".
+
+The cap is a rule of the game rather than a number frozen on the Entry, so a Reward is
+worked out from the Predictions every time one is needed and never read back from a promise.
+See [[adr-0013]].
 
 ### Prize
 

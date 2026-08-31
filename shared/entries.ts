@@ -51,15 +51,37 @@ export const AMOUNT = { minimum: 1 } as const;
  * shown to the fan the moment it starts deciding their Reward: a number that
  * quietly stopped growing would read as a game that had stopped working.
  *
- * **Changing this number changes what every unsettled Entry pays.** An Entry
- * freezes what each of its answers paid (ADR-0002) and nothing else: the cap
- * and the rounding are rules, applied wherever a Reward is worked out, so an
- * Entry submitted under ×100 would settle under whatever this says by then.
- * That is a decision to take between Seasons rather than during one — and the
- * reason it is a constant somebody edits in a reviewed change rather than a
- * setting somebody can type.
+ * **The cap is a rule of the game, not a term of the offer** (ADR-0013). An
+ * Entry freezes what each of its answers paid (ADR-0002) and nothing else, so
+ * the cap and the rounding are applied wherever a Reward is worked out —
+ * here, in the panel a fan confirms in, and in the settlement that pays. There
+ * is no capped number written onto an Entry for settlement to read back,
+ * because settlement could not pay it in any case: a No Result contributes
+ * ×1.0 (ADR-0005), and the Reward is worked out from the answers that survived.
+ *
+ * The consequence is worth saying plainly: **changing this number changes what
+ * every unsettled Entry pays.** That is a decision to take between Seasons
+ * rather than during one, and the reason it is a constant somebody edits in a
+ * reviewed change rather than a setting somebody can type.
  */
 export const COMBINED_MULTIPLIER_CAP = 100;
+
+/**
+ * Where an Entry is.
+ *
+ * Everything an Entry can become is somebody's ticket, and each of them widens
+ * `entries_status_known` in a migration that somebody reads: #14 wrote the
+ * `won` and `lost` a settled Entry ends at, #13 adds the `cancelled` a fan
+ * withdraws to, and #15 the `refunded` an Entry of nothing but No Results is
+ * made whole with. A status permitted before anything writes it is a status
+ * nobody has thought about.
+ *
+ * Shared rather than kept in the schema for the reason `BoutStatus` is: this
+ * is what `gradeEntry` in `shared/results.ts` answers with, and what the
+ * profile history reads back. Spelled out again in the check constraint, for
+ * the reason given on `Role` in `server/db/schema.ts`.
+ */
+export type EntryStatus = "open" | "won" | "lost";
 
 /**
  * A fan's answer to one Bout, as they are building it.

@@ -170,6 +170,76 @@ export async function commitCoins(
   await materialiseBalances(tx, commitment.seasonId, [commitment.userId]);
 }
 
+/** One Entry's Reward, as settlement worked it out. */
+export interface Reward {
+  /** The Season whose Balance it moves, which is the Entry's own. */
+  seasonId: string;
+  userId: string;
+  entryId: string;
+  /** The Coins it returns, which is the Amount at the combined Multiplier. */
+  amount: number;
+  reason: string;
+}
+
+/**
+ * Returns the Coins a winning Entry earned, and brings the materialised copy of
+ * every Balance it moved in step.
+ *
+ * The other end of {@link commitCoins}: the Amount left the Balance at
+ * submission, and this is the only thing that puts Coins back into one. It
+ * writes and does not ask — whether these Entries won is settlement's question,
+ * asked of the Results under a row lock — and
+ * `coin_transactions_one_reward_per_entry` is what refuses a second Reward for
+ * an Entry regardless of what asked for it.
+ *
+ * Every Reward of one settlement in one statement rather than a row each,
+ * because a Bout on a well-attended card decides hundreds of Entries and a
+ * round trip apiece would hold the transaction open for as long as the card has
+ * fans. Nothing is written at all for a settlement that paid nobody, which is
+ * every Bout an admin enters a result for before the chains on it are finished.
+ *
+ * Takes the transaction to run inside because an Entry marked Won whose Reward
+ * was not written is Coins destroyed with no error anywhere (ADR-0003).
+ */
+export async function creditRewards(
+  tx: DatabaseTransaction,
+  rewards: readonly Reward[],
+): Promise<number> {
+  if (rewards.length === 0) return 0;
+
+  await tx.insert(coinTransactions).values(
+    rewards.map((reward) => ({
+      seasonId: reward.seasonId,
+      userId: reward.userId,
+      kind: "entry_reward" as const,
+      // Signed, like every row in the ledger: Coins arriving are positive.
+      amount: reward.amount,
+      reason: reward.reason,
+      cause: "entry" as const,
+      causeId: reward.entryId,
+    })),
+  );
+
+  // Grouped by Season rather than assuming one. An Entry belongs to the Season
+  // it was submitted in and a Bout to the Season its card was imported into,
+  // and those are the same Season today — but this is the statement that would
+  // silently write half a Season's Balances if they ever were not.
+  const fansBySeason = new Map<string, Set<string>>();
+
+  for (const reward of rewards) {
+    const fans = fansBySeason.get(reward.seasonId) ?? new Set<string>();
+
+    fans.add(reward.userId);
+    fansBySeason.set(reward.seasonId, fans);
+  }
+
+  for (const [seasonId, fans] of fansBySeason) {
+    await materialiseBalances(tx, seasonId, [...fans]);
+  }
+
+  return rewards.reduce((coins, reward) => coins + reward.amount, 0);
+}
+
 /**
  * Writes what the ledger says these fans' Balances are into `balance_cache`.
  *

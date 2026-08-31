@@ -1,6 +1,16 @@
 <script setup lang="ts">
+import type { Corner } from "#shared/events";
 import { LOCK_KIND_LABELS } from "#shared/locks";
-import { MULTIPLIER, outcomeLabel, QUESTION_LABELS, QUESTIONS } from "#shared/pricing";
+import {
+  METHODS,
+  METHOD_LABELS,
+  MULTIPLIER,
+  outcomeLabel,
+  QUESTIONS,
+  QUESTION_LABELS,
+  type Method,
+} from "#shared/pricing";
+import { RESULT_MESSAGES, resultLabel } from "#shared/results";
 
 /**
  * Pricing one fight card, opening its Bouts for predictions, and locking them
@@ -24,6 +34,13 @@ import { MULTIPLIER, outcomeLabel, QUESTION_LABELS, QUESTIONS } from "#shared/pr
  * phone, one-handed, in the dark. What this is is where the Locks can be read
  * back afterwards: each Bout says how it came to be locked and when, which is
  * the answer to a fan who thinks theirs closed too early.
+ *
+ * The result form is the most consequential control in the product, and it is
+ * deliberately the plainest thing on the page. Entering a result grades every
+ * Entry riding on the Bout and pays the Rewards, in one transaction, and none
+ * of that is taken back by pressing anything: a result entered wrong is
+ * corrected by reversing what it settled and grading again (#16). So a Bout
+ * that has been settled shows what was entered and offers no form at all.
  *
  * Nothing here decides who may price a card: `server/middleware/admin.ts`
  * refused everyone else before this page was rendered at all.
@@ -97,8 +114,9 @@ function cornersOf(bout: (typeof bouts.value)[number]) {
   return { red: bout.redName, blue: bout.blueName };
 }
 
-/** Where a Bout is: unpriced, priced, taking Predictions, or done taking them. */
+/** Where a Bout is: unpriced, priced, taking Predictions, done, or settled. */
 function stateOf(bout: (typeof bouts.value)[number]): string {
+  if (bout.status === "settled") return "Settled";
   if (bout.status === "locked") return "Locked";
   if (bout.status === "open") return "Open for predictions";
 
@@ -159,6 +177,79 @@ async function openBout(bout: (typeof bouts.value)[number]) {
     done.value =
       `Bout ${bout.cardOrder} is open for predictions. The card can no longer ` +
       "be re-imported: fans hold Coins against these Bouts from now on.";
+
+    await refresh();
+  } catch (failure) {
+    problem.value = problemFrom(failure);
+  } finally {
+    working.value = "";
+  }
+}
+
+/**
+ * What is currently chosen in each Bout's result form, keyed by Bout.
+ *
+ * The round only goes with a finish, so the control for it is offered only
+ * alongside one, and nothing is sent for it otherwise. `parseResult` refuses
+ * that pairing regardless, and Postgres refuses it under that — this is so an
+ * admin is not left looking at a control that means nothing.
+ *
+ * Kept across a refresh rather than rebuilt from the answer, unlike the
+ * Multipliers above: a result refused for its round is one an admin still has
+ * most of right, and clearing it would make them enter the whole thing again.
+ */
+const entered = ref<
+  Record<string, { winner: Corner | ""; method: Method | ""; round: number | "" }>
+>({});
+
+watch(
+  bouts,
+  (card) => {
+    entered.value = Object.fromEntries(
+      card.map((bout) => [
+        bout.id,
+        entered.value[bout.id] ?? { winner: "", method: "", round: "" },
+      ]),
+    );
+  },
+  { immediate: true },
+);
+
+/** Whether a round can be named alongside the method chosen so far. */
+function endsInARound(boutId: string): boolean {
+  const method = entered.value[boutId]?.method;
+
+  return method === "ko_tko" || method === "submission";
+}
+
+/** The rounds this Bout could have ended in, which are the ones it offered. */
+function roundsOf(bout: (typeof bouts.value)[number]): number[] {
+  return Array.from({ length: bout.scheduledRounds }, (_, index) => index + 1);
+}
+
+/** What was entered, as the admin reads it back on a settled Bout. */
+function settledAs(bout: (typeof bouts.value)[number]): string | null {
+  return bout.result ? resultLabel(bout.result, cornersOf(bout)) : null;
+}
+
+async function enterResult(bout: (typeof bouts.value)[number]) {
+  const answered = entered.value[bout.id];
+
+  working.value = bout.id;
+  problem.value = "";
+  done.value = "";
+
+  try {
+    const { settlement } = await $fetch(`/api/admin/bouts/${bout.id}/result`, {
+      method: "POST",
+      body: {
+        winner: answered?.winner || null,
+        method: answered?.method || null,
+        round: endsInARound(bout.id) ? (answered?.round ?? null) || null : null,
+      },
+    });
+
+    done.value = RESULT_MESSAGES.settled(settlement.graded, settlement.paid);
 
     await refresh();
   } catch (failure) {
@@ -235,6 +326,9 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
 
         <p class="mt-2 text-sm font-bold">{{ stateOf(bout) }}</p>
         <p v-if="lockOf(bout)" class="mt-1 text-sm text-on-surface/70">{{ lockOf(bout) }}</p>
+        <p v-if="settledAs(bout)" class="mt-1 text-sm text-on-surface/70">
+          Result: {{ settledAs(bout) }}
+        </p>
 
         <div v-for="asked in questionsOf(bout)" :key="asked.question" class="mt-6">
           <h3 class="font-headline text-xs font-black uppercase tracking-widest">
@@ -260,6 +354,71 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               />
               <span v-if="!outcome.priced" class="text-xs text-on-surface/60">seeded</span>
             </label>
+          </div>
+        </div>
+
+        <div
+          v-if="bout.status === 'open' || bout.status === 'locked'"
+          class="mt-6 border-t border-outline-variant/20 pt-6"
+        >
+          <h3 class="font-headline text-xs font-black uppercase tracking-widest">Result</h3>
+
+          <p class="mt-2 text-sm text-on-surface/70">
+            Entering this grades every Entry on the Bout and pays the Rewards, in one go. It is not
+            taken back by entering it again: a result entered wrong is corrected by reversing what
+            it settled and grading afresh.
+          </p>
+
+          <div v-if="entered[bout.id]" class="mt-3 flex flex-wrap items-center gap-4 text-sm">
+            <label class="flex items-center gap-2">
+              <span>Winner</span>
+              <select
+                v-model="entered[bout.id]!.winner"
+                :aria-label="`Winner of Bout ${bout.cardOrder}`"
+                class="border border-outline-variant/40 bg-surface px-2 py-1"
+              >
+                <option value="">Choose</option>
+                <option value="red">{{ bout.redName }}</option>
+                <option value="blue">{{ bout.blueName }}</option>
+              </select>
+            </label>
+
+            <label class="flex items-center gap-2">
+              <span>Method</span>
+              <select
+                v-model="entered[bout.id]!.method"
+                :aria-label="`Method of victory in Bout ${bout.cardOrder}`"
+                class="border border-outline-variant/40 bg-surface px-2 py-1"
+              >
+                <option value="">Choose</option>
+                <option v-for="method in METHODS" :key="method" :value="method">
+                  {{ METHOD_LABELS[method] }}
+                </option>
+              </select>
+            </label>
+
+            <label v-if="endsInARound(bout.id)" class="flex items-center gap-2">
+              <span>Round</span>
+              <select
+                v-model.number="entered[bout.id]!.round"
+                :aria-label="`Round Bout ${bout.cardOrder} ended in`"
+                class="border border-outline-variant/40 bg-surface px-2 py-1"
+              >
+                <option value="">Choose</option>
+                <option v-for="round in roundsOf(bout)" :key="round" :value="round">
+                  Round {{ round }}
+                </option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              :disabled="working === bout.id"
+              class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
+              @click="enterResult(bout)"
+            >
+              Enter result and settle
+            </button>
           </div>
         </div>
 

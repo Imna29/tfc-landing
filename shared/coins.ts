@@ -7,6 +7,10 @@
  * because `test/unit/vocabulary.test.ts` reads this directory: the sentences
  * the ledger stores are held to `CONTEXT.md` like any other copy.
  */
+// A Multiplier is written one way wherever anybody reads one, the ledger
+// included: a Reward that says ×12.5 in the audit trail and ×12.50 on the card
+// is two numbers to whoever is comparing them.
+import { multiplierLabel } from "./predictions";
 
 /**
  * The Coins every fan starts a Season with.
@@ -44,6 +48,16 @@ export const COIN_REASONS = {
    */
   entryCommitted: (predictions: number) =>
     `Committed to an Entry of ${predictions} ${predictions === 1 ? "Prediction" : "Predictions"}`,
+  /**
+   * The Coins a winning Entry returned when its last Bout settled.
+   *
+   * The combined Multiplier is in the row because it is what a fan disputing a
+   * Reward is actually disputing, and because ADR-0013 makes it a number
+   * settlement worked out rather than one anybody can look up afterwards: the
+   * cap and the rounding are rules, so this row is the only record of what
+   * they came to on the day.
+   */
+  entryWon: (multiplier: number) => `Reward on a winning Entry at ${multiplierLabel(multiplier)}`,
 } as const;
 
 /**

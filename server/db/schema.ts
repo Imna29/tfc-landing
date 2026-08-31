@@ -33,6 +33,7 @@ import {
 // alias Nuxt provides. Type-only, so the import is erased before either sees
 // it — the values these name are spelled out again in the check constraints
 // below, where Postgres can hold them.
+import type { EntryStatus } from "../../shared/entries";
 import type { BoutStatus, Corner } from "../../shared/events";
 import type { LockKind } from "../../shared/locks";
 import type { Method, Question } from "../../shared/pricing";
@@ -218,13 +219,19 @@ export const seasons = pgTable(
  * What moved Coins. One kind per ticket that can move them, added by that
  * ticket's own migration.
  *
- * Two of them, and that is the point: Coins come into existence as a Season
- * grant and leave a Balance as an Entry's commitment, `coin_transactions_kind_known`
- * is what says so, and the ticket that adds a Reward or a refund has to say so
- * again in SQL that somebody reads. A kind permitted before anything writes it
- * is a kind nobody has thought about.
+ * Three of them, and the discipline is the point: Coins come into existence as
+ * a Season grant, leave a Balance as an Entry's commitment and come back as the
+ * Reward a winning Entry earned. `coin_transactions_kind_known` is what says
+ * so, and the ticket that adds the refund a cancellation returns (#13) or the
+ * reversal a corrected result writes (#16) has to say so again in SQL that
+ * somebody reads. A kind permitted before anything writes it is a kind nobody
+ * has thought about.
+ *
+ * Each of them is also held to a direction and a cause, because a Reward that
+ * took Coins away or pointed at a Season would be a Balance nobody could
+ * explain from the row that moved it. See the check constraints below.
  */
-export type CoinTransactionKind = "season_grant" | "entry_commitment";
+export type CoinTransactionKind = "season_grant" | "entry_commitment" | "entry_reward";
 
 /** What a Coin Transaction points at as the thing that caused it. */
 export type CoinTransactionCause = "season" | "entry";
@@ -291,11 +298,19 @@ export const coinTransactions = pgTable(
     uniqueIndex("coin_transactions_one_commitment_per_entry")
       .on(table.causeId)
       .where(sql`${table.kind} = 'entry_commitment'`),
+    // And one Reward per Entry, which is the last line of "settling the same
+    // Bout twice does not pay anybody twice". Settlement asks first — it grades
+    // only Entries still Open, and a Bout carries one Result — but the Coins
+    // this guards are the ones nobody would notice going out, so it is held
+    // here as well as asked about there.
+    uniqueIndex("coin_transactions_one_reward_per_entry")
+      .on(table.causeId)
+      .where(sql`${table.kind} = 'entry_reward'`),
     // Every Balance read and every rebuild groups by these two.
     index("coin_transactions_by_fan").on(table.seasonId, table.userId),
     check(
       "coin_transactions_kind_known",
-      sql`${table.kind} in ('season_grant', 'entry_commitment')`,
+      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward')`,
     ),
     check("coin_transactions_cause_known", sql`${table.cause} in ('season', 'entry')`),
     // A row that moves nothing is not a movement; it is a row somebody wrote
@@ -320,6 +335,16 @@ export const coinTransactions = pgTable(
       "coin_transactions_commitment_leaves_the_balance",
       sql`${table.kind} <> 'entry_commitment'
         or (${table.amount} < 0 and ${table.cause} = 'entry')`,
+    ),
+    // And a Reward returns Coins to it, for the Entry that earned them. The
+    // mirror of the rule above, and worth stating separately: these are the
+    // only two rows the ledger writes about an Entry, and a sign typed the
+    // wrong way round on either is Coins created or destroyed with no error
+    // anywhere.
+    check(
+      "coin_transactions_reward_returns_coins",
+      sql`${table.kind} <> 'entry_reward'
+        or (${table.amount} > 0 and ${table.cause} = 'entry')`,
     ),
   ],
 );
@@ -465,7 +490,7 @@ export const bouts = pgTable(
     uniqueIndex("bouts_one_main_event")
       .on(table.eventId)
       .where(sql`${table.mainEvent}`),
-    check("bouts_status_known", sql`${table.status} in ('closed', 'open', 'locked')`),
+    check("bouts_status_known", sql`${table.status} in ('closed', 'open', 'locked', 'settled')`),
     check("bouts_card_order_is_a_place", sql`${table.cardOrder} >= 1`),
     // Spelled out again in `SCHEDULED_ROUNDS` in `shared/events.ts`, which is
     // what the import refuses with and what the Prismic field is bounded by.
@@ -651,20 +676,73 @@ export const boutLocks = pgTable(
 );
 
 /**
- * Where an Entry is.
+ * What happened in a Bout: the Result an admin recorded, and the thing every
+ * Prediction on it is graded against.
  *
- * One value, and that is the point: everything an Entry can become is somebody
- * else's ticket, and each of them widens `entries_status_known` in a migration
- * that somebody reads. #13 adds `cancelled`, #14 the `won` and `lost` a
- * settled Entry ends at, and #15 the `refunded` an Entry of nothing but No
- * Results is made whole with. A status permitted before anything writes it is
- * a status nobody has thought about — see {@link CoinTransactionKind}, which is
- * careful for the same reason and about the same Coins.
+ * One row per Bout, which is what the primary key on `boutId` says. That is
+ * also the first of the three things standing between "settle this Bout" being
+ * pressed twice and a fan being paid twice: the second insert is refused by
+ * the key rather than by whichever route remembered to ask.
  *
- * Spelled out here and again in the check constraint below, rather than both
- * derived from one array, for the reason given on {@link Role}.
+ * **A Bout with a Result is `settled`, and a settled Bout has a Result.** The
+ * migration that creates this table holds it with a deferred constraint
+ * trigger, the same shape `locked_bouts_are_recorded` uses and for a sharper
+ * reason: a Result recorded with the Bout still taking Predictions is Coins
+ * moving on a fight whose ending is on the row beside it. Tying the two
+ * together is what makes that unreachable, because a settled Bout is refused a
+ * Prediction by `predictions_are_made_on_open_bouts`.
+ *
+ * There is no append-only trigger here, unlike {@link boutLocks}. A Lock is
+ * never undone, so a record of one never needs correcting; a Result is entered
+ * by a person watching a fight and can be entered wrong, which is the case
+ * ADR-0003 built the whole ledger around. #16 corrects one by reversing what it
+ * settled and grading again — and it needs this row to be the corrected
+ * Result afterwards.
+ *
+ * `enteredBy` and `enteredAt` are who said this is what happened and when,
+ * which is the question a corrected result asks first.
  */
-export type EntryStatus = "open";
+export const boutResults = pgTable(
+  "bout_results",
+  {
+    boutId: uuid("bout_id")
+      .primaryKey()
+      .references(() => bouts.id),
+    /** The corner that won, which every winner answer is graded against. */
+    winner: text("winner").$type<Corner>().notNull(),
+    method: text("method").$type<Method>().notNull(),
+    /** The round it ended in, or null where it went to a Decision. */
+    round: integer("round"),
+    enteredAt: timestamp("entered_at", { withTimezone: true }).notNull().defaultNow(),
+    enteredBy: uuid("entered_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    // The round it ended in is a round the Bout was offering, held by the same
+    // key a Prediction's round is (`outcomes_one_per_round`). A result naming
+    // round 4 of a three-round Bout is a fight that did not happen — and it
+    // would be graded against round answers no fan was ever offered.
+    foreignKey({
+      columns: [table.boutId, table.round],
+      foreignColumns: [outcomes.boutId, outcomes.round],
+      name: "bout_results_round_was_offered",
+    }),
+    check("bout_results_winner_known", sql`${table.winner} in ('red', 'blue')`),
+    check(
+      "bout_results_method_known",
+      sql`${table.method} in ('ko_tko', 'submission', 'decision')`,
+    ),
+    // The same impossibility `predictions_a_round_needs_a_finish` refuses, said
+    // both ways round because a Result is a statement of fact rather than a
+    // pick somebody may leave shallow: a Decision is the Bout going the
+    // distance and has no round, and a KO/TKO or a Submission happened in one.
+    check(
+      "bout_results_a_round_is_a_finish",
+      sql`(${table.round} is null) = (${table.method} = 'decision')`,
+    ),
+  ],
+);
 
 /**
  * The committed unit: between one and ten Predictions and an Amount of Coins.
@@ -711,7 +789,7 @@ export const entries = pgTable(
     // Every Entry a fan has in a Season, which is the profile history (#17)
     // and what settlement re-reads.
     index("entries_by_fan").on(table.seasonId, table.userId),
-    check("entries_status_known", sql`${table.status} in ('open')`),
+    check("entries_status_known", sql`${table.status} in ('open', 'won', 'lost')`),
     // Spelled out again in `AMOUNT` in `shared/entries.ts`, which is what the
     // page and the route refuse with. There is no ceiling here: the maximum is
     // the fan's whole Balance, and the ledger is the only thing that knows it.

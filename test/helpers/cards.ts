@@ -1,7 +1,8 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { inject } from "vitest";
-import type { Question } from "../../shared/pricing";
+import type { Corner } from "../../shared/events";
+import type { Method, Question } from "../../shared/pricing";
 import { bouts, outcomes, seasons } from "../../server/db/schema";
 import type { Card, CardBout, CardCorner } from "../../server/utils/cardImport";
 import { importCard, type Imported } from "../../server/utils/events";
@@ -178,6 +179,27 @@ export async function openBout(boutId: string, cookie: string): Promise<void> {
   const opened = await postJson(`/api/admin/bouts/${boutId}/open`, {}, cookie);
 
   if (!opened.ok) throw new Error(`Opening a Bout failed: ${await opened.text()}`);
+}
+
+/** Locks a Bout, as the button in the admin area does. */
+export async function lockBout(boutId: string, cookie: string): Promise<void> {
+  const locked = await postJson(`/api/admin/bouts/${boutId}/lock`, {}, cookie);
+
+  if (!locked.ok) throw new Error(`Locking a Bout failed: ${await locked.text()}`);
+}
+
+/**
+ * Enters the result of a Bout, the way the form in the admin area does.
+ *
+ * Hands the raw response back rather than throwing, because half the cases
+ * that use it are about a result being refused.
+ */
+export function enterResult(
+  boutId: string,
+  result: { winner: Corner; method: Method; round?: number | null },
+  cookie: string,
+): Promise<Response> {
+  return postJson(`/api/admin/bouts/${boutId}/result`, result, cookie);
 }
 
 /** The card an admin is pricing, as the admin area reads it. */

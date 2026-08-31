@@ -77,8 +77,14 @@ describe("where a Bout is, as a fan reads it", () => {
     );
   });
 
+  it("reads a settled Bout back, which is where one stops", () => {
+    expect(boutState({ status: "settled", locksAt: "2026-09-12T19:00:00.000Z" }, AFTER)).toBe(
+      "settled",
+    );
+  });
+
   it("tells a fan apart from one another in words, not only in colour", () => {
-    expect(new Set(Object.values(BOUT_STATE_LABELS)).size).toBe(3);
+    expect(new Set(Object.values(BOUT_STATE_LABELS)).size).toBe(4);
   });
 });
 

@@ -18,21 +18,27 @@ import type { OutcomeAnswer } from "./pricing";
 /**
  * Where a Bout is, as a fan reads it.
  *
- * The same three values `bouts.status` holds, and for two of them this is only
- * reading the column back. The third is the one worth having: a Bout locks at
+ * The same values `bouts.status` holds, and for three of them this is only
+ * reading the column back. The other is the one worth having: a Bout locks at
  * a moment the card decides, and the row saying so is written by the next
  * request to arrive (`applyAutomaticLocks` in `server/utils/locks.ts`) — so
  * between those two instants the column still says `open`. Working the state
  * out here rather than trusting the column means a countdown reaching zero and
  * the words beside it can never disagree.
+ *
+ * `settled` is told apart from `locked` for the same reason: they are two
+ * different pieces of news. A locked Bout is being fought, and a fan is waiting
+ * to find out; a settled Bout is over and their Entry has been graded against
+ * what happened.
  */
-export type BoutState = "closed" | "open" | "locked";
+export type BoutState = "closed" | "open" | "locked" | "settled";
 
 /** What each state is called wherever a fan reads one. */
 export const BOUT_STATE_LABELS = {
   closed: "Not open yet",
   open: "Open for predictions",
   locked: "Locked",
+  settled: "Result in",
 } as const satisfies Record<BoutState, string>;
 
 /**
@@ -130,4 +136,7 @@ export const PREDICTION_MESSAGES = {
     "weigh up on this one yet.",
   locksWhenReached: "This Bout locks when the card reaches it.",
   locked: "This Bout has locked. Nothing further can be predicted on it.",
+  settled:
+    "This Bout has been settled. Every Entry holding a Prediction on it has " +
+    "been graded against what happened.",
 } as const satisfies Record<string, string>;

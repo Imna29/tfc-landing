@@ -23,3 +23,7 @@ to win 240", legibility beat self-balancing.
   commitment, not a one-off setup task.
 - A Prediction stores its Multiplier as a value, never a reference to the Outcome's current
   Multiplier.
+- Those values are the whole of what is frozen. The combined Multiplier they multiply out to,
+  the cap on it and the Reward are worked out wherever one is needed rather than written down
+  — see [[adr-0013]], which decides that the cap is a rule of the game rather than part of
+  what a fan was offered.

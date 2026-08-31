@@ -64,6 +64,13 @@
       "when": 1788191945803,
       "tag": "0008_locking_bouts",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788196215073,
+      "tag": "0009_results_and_settlement",
+      "breakpoints": true
     }
   ]
 }

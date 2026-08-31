@@ -11,6 +11,7 @@
  */
 import type { BoutStatus, Corner } from "#shared/events";
 import type { BoutLock } from "#shared/locks";
+import type { BoutResult } from "#shared/results";
 import {
   defaultOutcomes,
   inAskedOrder,
@@ -24,6 +25,7 @@ import type { DatabaseTransaction } from "../db/client";
 import { bouts, events, outcomes, seasons } from "../db/schema";
 import { useDatabase } from "./db";
 import { locksOn } from "./locks";
+import { resultsOn } from "./results";
 
 /** The name of the trigger that refuses to open a Bout nobody has priced. */
 export const BOUTS_ARE_OPENED_ONLY_WHEN_PRICED = "bouts_are_opened_only_when_priced";
@@ -84,6 +86,15 @@ export interface BoutToPrice {
    * what answers them is who locked it and when, beside the fight it was.
    */
   lock: BoutLock | null;
+  /**
+   * What happened in it, or null while nobody has entered a result.
+   *
+   * Beside the Lock for the same reason the Lock is beside the fight: an admin
+   * works down a card, and what they need to see on each Bout is where it has
+   * got to. It is also what stops the result form offering to settle a Bout
+   * twice.
+   */
+  result: BoutResult | null;
   outcomes: OutcomeToPrice[];
 }
 
@@ -203,9 +214,9 @@ export async function openBout(boutId: string): Promise<boolean> {
  *
  * One query with a join rather than a query per Bout: a card is up to a dozen
  * Bouts of eight Outcomes each, and this is read on every save. The Lock
- * audit log is a second query rather than two more joins onto that one,
- * because it belongs to `server/utils/locks.ts` and because a card has at most
- * one Lock per Bout — a dozen rows, asked for once.
+ * audit log and the Results are separate queries rather than four more joins
+ * onto that one, because each belongs to the module that writes it and because
+ * a card has at most one of each per Bout — a dozen rows, asked for once.
  */
 async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   const rows = await useDatabase()
@@ -237,7 +248,13 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   const card = new Map<string, BoutToPrice>();
 
   for (const { outcome, ...bout } of rows) {
-    const priced = card.get(bout.id) ?? { ...bout, priced: false, lock: null, outcomes: [] };
+    const priced = card.get(bout.id) ?? {
+      ...bout,
+      priced: false,
+      lock: null,
+      result: null,
+      outcomes: [],
+    };
 
     card.set(bout.id, priced);
 
@@ -255,6 +272,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   }
 
   const locked = await locksOn([...card.keys()]);
+  const settled = await resultsOn([...card.keys()]);
 
   return [...card.values()].map((bout) => ({
     ...bout,
@@ -263,6 +281,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     // is re-imported rather than opened.
     priced: bout.outcomes.length > 0 && bout.outcomes.every((outcome) => outcome.priced),
     lock: locked.get(bout.id) ?? null,
+    result: settled.get(bout.id) ?? null,
     outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
   }));
 }

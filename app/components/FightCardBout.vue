@@ -83,6 +83,7 @@ const countdown = computed(() => {
  * open while its Lock is still ahead.
  */
 const lockNote = computed(() => {
+  if (state.value === "settled") return PREDICTION_MESSAGES.settled;
   if (state.value === "locked") return PREDICTION_MESSAGES.locked;
   if (state.value === "open" && !props.predictions?.locksAt) {
     return PREDICTION_MESSAGES.locksWhenReached;

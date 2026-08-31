@@ -27,8 +27,8 @@ export type Corner = "red" | "blue";
 export const SCHEDULED_ROUNDS = { minimum: 1, maximum: 12 } as const;
 
 /**
- * Where a Bout is: not yet taking Predictions, taking them, or done taking
- * them.
+ * Where a Bout is: not yet taking Predictions, taking them, done taking them,
+ * or graded against what happened in it.
  *
  * `closed` is where a Bout starts. An admin prices its Outcomes and opens it
  * (#9), and from that moment it is a Bout fans hold Coins against — which is
@@ -38,17 +38,23 @@ export const SCHEDULED_ROUNDS = { minimum: 1, maximum: 12 } as const;
  * `a_locked_bout_is_never_reopened` holds in Postgres rather than in whichever
  * route remembers to ask.
  *
- * `settled` arrives with #14, added by that ticket's own migration: a state
- * permitted before anything writes it is a state nobody has thought about.
+ * `settled` is where it stops: the Result is in and the Coins have moved. It
+ * is reached from `locked` and from nowhere else, and a Bout still open when a
+ * Result is entered is locked on the way through — a Result recorded beside a
+ * Bout still taking Predictions is the gap ADR-0006's backstops exist for. The
+ * two rules are held in Postgres by `a_locked_bout_is_never_reopened` and
+ * `results_are_entered_on_settled_bouts`.
+ *
  * Everything that asks whether a Bout is still untouched asks whether it is
- * `closed`, so it lands without changing what #9 decided — and `boutState` in
+ * `closed`, and everything that asks whether it takes Predictions asks whether
+ * it is `open`, so neither had to change when this arrived — and `boutState` in
  * `shared/predictions.ts` is what turns this into the word a fan reads.
  *
  * Shared rather than kept in the schema because the public card is the other
  * place that reads it: what a fan is told about a Bout is decided from the
  * same values Postgres holds.
  */
-export type BoutStatus = "closed" | "open" | "locked";
+export type BoutStatus = "closed" | "open" | "locked" | "settled";
 
 /** Everything importing a card says to the admin doing it. */
 export const EVENT_MESSAGES = {
