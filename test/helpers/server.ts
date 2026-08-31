@@ -6,25 +6,38 @@ import { inject } from "vitest";
 type SetupOptions = Parameters<typeof setup>[0];
 
 /**
- * Builds the app and boots the real Nitro server for a test file, pointed at
- * the test database.
+ * Boots the real Nitro server for a test file, pointed at the test database.
  *
- * Call it at the top of a `describe`, and know what it costs: this is a full
- * Nuxt build per file, so a new server test file adds one to every run. Prefer
- * adding cases to a file that already boots a server over adding another file,
- * unless the new file needs different configuration — which is the one thing
- * `overrides` is for.
+ * The app is built once for the whole run in `test/setup/build.ts`, and this
+ * starts a server from that build rather than making another one. What differs
+ * between test files — the database, the connection budget, the port, the
+ * mailbox to send to — is environment handed to the server process, so one
+ * build serves every file that does not ask for a different one.
+ *
+ * `nuxtConfig` is what asks for a different one, and it is the expensive thing
+ * to reach for: a file that passes it pays for a full Nuxt build of its own,
+ * and adds that to every run. Only `test/server/cache-boundary.test.ts` needs
+ * it, because the cache in front of the app is route rules and route rules are
+ * compiled in. Anything else that wants a different server should want a
+ * different environment instead.
  *
  * `env` is merged rather than replaced, so a file that needs one more variable
  * — a mailbox to send to, say — does not have to restate the database and the
  * connection budget to get it.
  */
 export async function setupTestServer({ env, ...overrides }: Partial<SetupOptions> = {}) {
+  // A file asking for its own configuration is asking for its own build; there
+  // is nothing the shared one could be that would also satisfy it.
+  const sharesTheBuild = overrides.nuxtConfig === undefined;
+
   await setup({
     // This helper is two directories deep, same as the test files themselves.
     rootDir: fileURLToPath(new URL("../..", import.meta.url)),
     server: true,
-    build: true,
+    build: !sharesTheBuild,
+    // `@nuxt/test-utils` derives the Nitro output it starts from `buildDir`,
+    // so pointing it at the shared build is all it takes to skip building.
+    ...(sharesTheBuild ? { buildDir: inject("buildDir") } : {}),
     env: {
       DATABASE_URL: inject("databaseUrl"),
       // Any value will do — it only has to be the same for the life of one

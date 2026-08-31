@@ -29,15 +29,16 @@ export default defineConfig({
           name: "server",
           include: ["test/server/**/*.test.ts"],
           environment: "node",
-          globalSetup: ["./test/setup/postgres.ts"],
+          globalSetup: ["./test/setup/postgres.ts", "./test/setup/build.ts"],
           setupFiles: ["./test/setup/database.ts"],
           testTimeout: 30_000,
-          // Building the Nuxt app and pulling the Postgres image both happen
-          // inside hooks, and the first run does them cold.
+          // The app is built and the Postgres image pulled in `globalSetup`,
+          // but a file that needs its own build still makes it in a hook, and
+          // the first run does it cold.
           hookTimeout: 300_000,
-          // One database for the whole project, but a Nitro server per file —
-          // every `setup()` is its own Nuxt build. Files run one at a time so
-          // they cannot interleave writes to the database they share.
+          // One database for the whole project, and one build, but a Nitro
+          // server per file. Files run one at a time so they cannot interleave
+          // writes to the database they share.
           fileParallelism: false,
         },
       },
