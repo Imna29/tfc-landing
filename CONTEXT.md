@@ -200,6 +200,11 @@ graded against a [[result]] and never pays a [[reward]], and is never cancelled 
 what happened is recorded rather than unwritten, the way the [[coin-transaction]] ledger
 records everything else ([[adr-0003]]).
 
+It counts towards no leaderboard either. Its Coins are back in the [[balance]] the
+standings are read from, so a ranking by Balance excludes it by arithmetic; a column
+counting Entries played has to exclude it by asking, because an Entry the fan took back
+is not one they played.
+
 Not a "withdrawal", which is money leaving an account somewhere, and never "voiding" an
 Entry.
 

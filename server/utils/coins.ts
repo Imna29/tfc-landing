@@ -87,9 +87,10 @@ export function grantOneFanTheirStartingCoins(
 }
 
 /**
- * What a fan holds, read so that nothing else can spend it until this
+ * What a fan holds, read so that nothing else can move it until this
  * transaction is done with it.
  *
+ * **Every transaction that writes a Coin Transaction takes this row first.**
  * The `for update` is what makes "an Amount above the fan's Balance is
  * refused" true of two requests arriving together. Without it, two submissions
  * in the same moment both read a hundred Coins, both find themselves within
@@ -97,6 +98,15 @@ export function grantOneFanTheirStartingCoins(
  * uncommitted ledger row, so no constraint on the ledger could catch it
  * either. Taking the row first means the second submission waits, and reads
  * the Balance the first one left behind.
+ *
+ * A cancellation takes it for a quieter reason, and takes it all the same.
+ * {@link materialiseBalances} recomputes a Balance from the ledger rather than
+ * adding to it, and a statement that begins before a concurrent transaction
+ * commits sums the ledger without its rows — so a refund and a submission
+ * overlapping would leave the cache saying a number neither of them meant.
+ * Nobody is over-credited by that, because the ledger is the Balance
+ * (ADR-0003); the cached copy just goes on being wrong until the next
+ * movement. Queueing on this row is what stops it.
  *
  * A fan with no row holds nothing. It is the row {@link balanceOf} answers
  * zero for — a fan whose account was created while no Season was open — and
@@ -106,7 +116,7 @@ export function grantOneFanTheirStartingCoins(
  * Takes the transaction to run inside because a lock outside one is released
  * the moment the statement ends, which is a lock that has held nothing.
  */
-export async function balanceToCommitFrom(
+export async function balanceToMoveFrom(
   tx: DatabaseTransaction,
   seasonId: string,
   userId: string,
@@ -139,7 +149,7 @@ function balanceRow(executor: Database | DatabaseTransaction, seasonId: string, 
  * The ledger row is the movement (ADR-0003): the Coins leave at submission,
  * not at settlement, and this is the only place that says so. It writes and
  * does not ask — whether the fan holds this many is
- * {@link balanceToCommitFrom}'s question, asked under a lock a moment earlier,
+ * {@link balanceToMoveFrom}'s question, asked under a lock a moment earlier,
  * and `entry_commitments_are_within_the_balance` is what refuses this
  * regardless.
  *
@@ -260,7 +270,9 @@ export async function creditRewards(
  * two events.
  *
  * Takes the transaction to run inside because a cancelled Entry whose refund
- * was not written is Coins destroyed with no error anywhere.
+ * was not written is Coins destroyed with no error anywhere — and that
+ * transaction must already hold the fan's Balance row through
+ * {@link balanceToMoveFrom}, for the reason written there.
  */
 export async function refundCoins(
   tx: DatabaseTransaction,

@@ -162,19 +162,24 @@ useSeoMeta({
             @submitted="submitted"
           />
         </div>
-
-        <SubmittedEntries
-          v-if="committed"
-          :entries="committed.entries"
-          :answered-at="committed.answeredAt"
-          class="mt-16"
-          @cancelled="refreshCommitted"
-        />
       </template>
 
       <p v-else class="text-on-surface/70 max-w-2xl leading-relaxed">
         {{ PREDICTION_MESSAGES.noCard }}
       </p>
+
+      <!--
+        Outside the card, deliberately. An Entry outlives the card it was built
+        on: between Events there is nothing to pick and a fan still has Entries
+        to read, and one of them may still be theirs to cancel.
+      -->
+      <SubmittedEntries
+        v-if="committed"
+        :entries="committed.entries"
+        :answered-at="committed.answeredAt"
+        class="mt-16"
+        @cancelled="refreshCommitted"
+      />
     </div>
   </section>
 </template>

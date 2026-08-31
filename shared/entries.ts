@@ -203,12 +203,16 @@ export interface CommittedEntries {
   entries: CommittedEntry[];
 }
 
-/** Whether an Entry can still be taken back, and the reason where it cannot. */
-export interface Cancellation {
-  cancellable: boolean;
-  /** Why not, in the words the fan reads, or empty where they may. */
-  reason: string;
-}
+/**
+ * Whether an Entry can still be taken back, and the reason where it cannot.
+ *
+ * A union rather than a flag beside an always-present sentence, like every
+ * other yes-or-why-not in this directory: "cancellable, and here is why not"
+ * is not a state anything should have to read past.
+ */
+export type Cancellation =
+  | { cancellable: true; reason?: undefined }
+  | { cancellable: false; reason: string };
 
 /** What an Entry returns if every Prediction in it lands. */
 export interface PotentialReward {
@@ -441,7 +445,7 @@ export function cancellationOf(
 
   const closed = entry.predictions.some((prediction) => boutState(prediction, now) !== "open");
 
-  return closed ? no(CANCELLATION_MESSAGES.boutLocked) : { cancellable: true, reason: "" };
+  return closed ? no(CANCELLATION_MESSAGES.boutLocked) : { cancellable: true };
 }
 
 function no(reason: string): Cancellation {

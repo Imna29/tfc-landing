@@ -227,6 +227,12 @@ export const seasons = pgTable(
  * so again in SQL that somebody reads. A kind permitted before anything writes
  * it is a kind nobody has thought about.
  *
+ * `entry_refund` is the row a cancellation writes and, when #15 lands, the row
+ * an Entry of nothing but No Results writes as well: the same movement for the
+ * same reason, the Amount back in full. What has to widen for that is
+ * `cancelled_entries_are_refunded`, which today ties a refund to a cancelled
+ * Entry and only to one.
+ *
  * Each of them is also held to a direction and a cause, because a Reward that
  * took Coins away or pointed at a Season would be a Balance nobody could
  * explain from the row that moved it. See the check constraints below.

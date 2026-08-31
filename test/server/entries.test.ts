@@ -987,6 +987,34 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(written).toContain(CANCELLED_ENTRIES_ARE_REFUNDED);
     });
 
+    it("refuses an Entry written straight into cancelled, refund or no refund", async () => {
+      // Nothing writes one, and that is why the rule has to hold here too: an
+      // Entry inserted already cancelled would otherwise carry no refund and
+      // meet no rule saying so.
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const written = await testDatabase()
+        .transaction(async (tx) => {
+          const rows = await tx.execute<{ id: string }>(
+            sql`insert into entries (season_id, user_id, amount, status)
+                select id, ${fan.id}::uuid, 10, 'cancelled' from seasons where status = 'open'
+                returning id`,
+          );
+
+          await tx.execute(
+            sql`insert into predictions (entry_id, bout_id, corner, winner_multiplier)
+                values (${rows[0]!.id}::uuid, ${card.bouts[0]!.id}::uuid, 'red', 2.00)`,
+          );
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(CANCELLED_ENTRIES_ARE_REFUNDED);
+    });
+
     it("refuses a refund of less than the Amount, even written by hand", async () => {
       const card = await twoBoutCard();
       const fan = await fanWithCoins();

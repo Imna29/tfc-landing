@@ -117,4 +117,62 @@ describe("two requests in the same moment", async () => {
       balance: STARTING_BALANCE,
     });
   });
+
+  it("leaves the Balance saying what the ledger says when a submission and a cancellation cross", async () => {
+    // The quieter of the two races, and the one no constraint could catch.
+    // `materialiseBalances` recomputes a Balance from the ledger rather than
+    // adding to it, so a statement that began before the other transaction
+    // committed sums the ledger without its rows — and writes a cached number
+    // neither request meant. Nobody is over-credited by that, because the
+    // ledger is the Balance (ADR-0003); the header just goes on being wrong.
+    // Both transactions taking the Balance row first is what stops it.
+    const card = await cardInTheGame({
+      scheduledStart: new Date(Date.now() + 120 * 60_000),
+      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+    });
+
+    const signedUp = await signUp();
+
+    await confirmEmail(signedUp.details.email);
+
+    const fan = await fanId(signedUp.details.email);
+
+    const first = await postJson(
+      "/api/predictions/entries",
+      { amount: 20, predictions: [{ boutId: card.bouts[0]!.id, corner: "red" }] },
+      signedUp.cookie,
+    );
+
+    expect(first.status).toBe(201);
+
+    const { entry } = (await first.json()) as { entry: { id: string } };
+
+    // One Entry cancelled while another is being committed, both for the same
+    // fan, in the same moment.
+    const [cancelled, submitted] = await Promise.all([
+      postJson(`/api/predictions/entries/${entry.id}/cancel`, {}, signedUp.cookie),
+      postJson(
+        "/api/predictions/entries",
+        { amount: 30, predictions: [{ boutId: card.bouts[1]!.id, corner: "blue" }] },
+        signedUp.cookie,
+      ),
+    ]);
+
+    expect([cancelled.status, submitted.status]).toEqual([200, 201]);
+
+    const ledger = await testDatabase()
+      .select()
+      .from(coinTransactions)
+      .where(eq(coinTransactions.userId, fan));
+
+    // 100 granted, 20 committed and returned, 30 committed: 70 either way you
+    // count it, and the materialised copy has to agree with the rows.
+    const held = ledger.reduce((total, row) => total + row.amount, 0);
+
+    expect(held).toBe(STARTING_BALANCE - 30);
+    expect(await $fetch("/api/coins/balance", { headers: { cookie: signedUp.cookie } })).toEqual({
+      season: { name: "Season 1" },
+      balance: held,
+    });
+  });
 });

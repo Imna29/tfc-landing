@@ -28,13 +28,12 @@ import {
   type EntryStatus,
   type PredictedBout,
 } from "#shared/entries";
-import { automaticLock } from "#shared/locks";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
 import { bouts, entries, events, predictions } from "../db/schema";
-import { balanceOf, refundCoins } from "./coins";
+import { balanceOf, balanceToMoveFrom, refundCoins } from "./coins";
 import { looksLikeId, refusedByConstraint, useDatabase } from "./db";
-import type { EntryRefusal } from "./entries";
+import { firstOnTheCard, lockMomentOf, type AsAt } from "./locks";
 
 /** The name of the trigger that refuses a cancellation once a Bout has locked. */
 export const ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN =
@@ -49,10 +48,26 @@ export const CANCELLED_ENTRIES_ARE_REFUNDED = "cancelled_entries_are_refunded";
 /** The index that holds a cancelled Entry to one refund. */
 export const ONE_REFUND_PER_ENTRY = "coin_transactions_one_refund_per_entry";
 
+/**
+ * Why an Entry was not cancelled, in the words the fan reads and the status
+ * the route answers with.
+ *
+ * The same shape `EntryRefusal` has in `server/utils/entries.ts`, and declared
+ * here rather than shared with it because the statuses are this module's own:
+ * 404 is an Entry that is not this fan's — or is nobody's — and 409 is one the
+ * card, or the fan's own earlier request, has moved on from. Nothing here can
+ * be refused for what it was made of, which is the whole of what a 422 would
+ * mean.
+ */
+export interface CancellationRefusal {
+  problem: string;
+  status: number;
+}
+
 /** An Entry the fan took back, and the Balance it left behind. */
 export type Cancelled =
   | { entry: CancelledEntry; balance: number; refusal?: undefined }
-  | { entry?: undefined; balance?: undefined; refusal: EntryRefusal };
+  | { entry?: undefined; balance?: undefined; refusal: CancellationRefusal };
 
 /** A cancelled Entry, as the fan who cancelled it is shown it back. */
 export interface CancelledEntry {
@@ -60,12 +75,6 @@ export interface CancelledEntry {
   status: EntryStatus;
   /** The Coins returned, which are all of the ones it committed. */
   amount: number;
-}
-
-/** The moment a card is read against, and how long its last backstop is. */
-export interface AsAt {
-  now: Date;
-  sweepAfter: number;
 }
 
 /**
@@ -111,11 +120,8 @@ export async function committedEntries(
       blueName: bouts.blueName,
       scheduledStart: events.scheduledStart,
       // The Bout fought first on this card, which is the one that locks with
-      // the card itself (ADR-0006). Aliased so that the `event_id` in its
-      // `where` is unmistakably its own.
-      firstOnTheCard: sql<number>`(
-        select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
-      )`.mapWith(Number),
+      // the card itself (ADR-0006).
+      firstOnTheCard,
     })
     .from(entries)
     .innerJoin(predictions, eq(predictions.entryId, entries.id))
@@ -150,12 +156,7 @@ export async function committedEntries(
       cardOrder: row.cardOrder,
       corners: { red: row.redName, blue: row.blueName },
       status: row.boutStatus,
-      locksAt: automaticLock(
-        row.cardOrder,
-        row.firstOnTheCard,
-        row.scheduledStart.toISOString(),
-        at.sweepAfter,
-      ).at,
+      locksAt: lockMomentOf(row, at.sweepAfter).at,
     });
   }
 
@@ -172,7 +173,10 @@ export async function committedEntries(
  * would read `open`, both would find every Bout open, and the fan would be
  * refunded twice — with `coin_transactions_one_refund_per_entry` the only
  * thing left to notice, after one of the two transactions had already told a
- * fan it worked.
+ * fan it worked. The fan's Balance row is taken next, for the quieter reason
+ * {@link balanceToMoveFrom} gives: a cancellation and a submission overlapping
+ * would otherwise leave the materialised Balance saying a number neither of
+ * them meant.
  *
  * The Season is the Entry's own rather than the one being played. An Entry
  * belongs to the competition it was made in and the Coins it moves are that
@@ -216,6 +220,14 @@ export async function cancelEntry(
         .for("update");
 
       if (!entry) throw new Refused(404, CANCELLATION_MESSAGES.notYours);
+
+      // Taken before anything is written and after the Entry itself, which is
+      // the order settlement takes them in: every transaction that moves a
+      // fan's Coins queues on this row, so that the recomputed Balance a
+      // refund leaves behind cannot be written from a snapshot taken before a
+      // submission committed. The number it answers is not needed here — what
+      // a cancellation returns is the Amount, whatever the Balance was.
+      await balanceToMoveFrom(tx, entry.seasonId, fanId);
 
       const { cancellable, reason } = cancellationOf(
         { status: entry.status, predictions: await boutsBehind(tx, entry.id, at.sweepAfter) },
@@ -270,9 +282,7 @@ async function boutsBehind(
       cardOrder: bouts.cardOrder,
       boutStatus: bouts.status,
       scheduledStart: events.scheduledStart,
-      firstOnTheCard: sql<number>`(
-        select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
-      )`.mapWith(Number),
+      firstOnTheCard,
     })
     .from(predictions)
     .innerJoin(bouts, eq(bouts.id, predictions.boutId))
@@ -281,12 +291,7 @@ async function boutsBehind(
 
   return held.map((bout) => ({
     status: bout.boutStatus,
-    locksAt: automaticLock(
-      bout.cardOrder,
-      bout.firstOnTheCard,
-      bout.scheduledStart.toISOString(),
-      sweepAfter,
-    ).at,
+    locksAt: lockMomentOf(bout, sweepAfter).at,
   }));
 }
 

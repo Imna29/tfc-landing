@@ -24,13 +24,13 @@ import {
   type PricedPrediction,
 } from "#shared/entries";
 import type { Corner } from "#shared/events";
-import { automaticLock } from "#shared/locks";
 import { boutState } from "#shared/predictions";
 import { MULTIPLIER, type Method } from "#shared/pricing";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { bouts, entries, events, outcomes, predictions } from "../db/schema";
-import { balanceOf, balanceToCommitFrom, commitCoins } from "./coins";
+import { balanceOf, balanceToMoveFrom, commitCoins } from "./coins";
 import { looksLikeId, refusedByConstraint, useDatabase } from "./db";
+import { firstOnTheCard, lockMomentOf, type AsAt } from "./locks";
 
 /** The name of the trigger that refuses a Prediction on a Bout that is not open. */
 export const PREDICTIONS_ARE_MADE_ON_OPEN_BOUTS = "predictions_are_made_on_open_bouts";
@@ -131,7 +131,7 @@ export type Submission =
  */
 export async function priceAnswers(
   answers: readonly PredictionAnswer[],
-  within: { seasonId: string; now: Date; sweepAfter: number },
+  within: { seasonId: string } & AsAt,
 ): Promise<PricedAnswers> {
   const boutIds = answers.map((answer) => answer.boutId);
 
@@ -148,12 +148,8 @@ export async function priceAnswers(
       seasonId: events.seasonId,
       scheduledStart: events.scheduledStart,
       // The Bout fought first on this card, which is the one that locks with
-      // the card itself (ADR-0006). The inner `bouts` is aliased so that the
-      // `event_id` in its `where` is unmistakably its own, and `events.id` is
-      // the outer row it is correlated against.
-      firstOnTheCard: sql<number>`(
-        select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
-      )`.mapWith(Number),
+      // the card itself (ADR-0006).
+      firstOnTheCard,
     })
     .from(bouts)
     .innerJoin(events, eq(events.id, bouts.eventId))
@@ -195,12 +191,7 @@ export async function priceAnswers(
     // `applyAutomaticLocks` writes those rows at the top of this request, so
     // the second half is a fraction of a second wide — and it is asked anyway,
     // because the Bout this is about is the one being fought right now.
-    const automatic = automaticLock(
-      bout.cardOrder,
-      bout.firstOnTheCard,
-      bout.scheduledStart.toISOString(),
-      within.sweepAfter,
-    );
+    const automatic = lockMomentOf(bout, within.sweepAfter);
 
     if (
       boutState({ status: bout.status, locksAt: automatic.at }, within.now.getTime()) !== "open"
@@ -233,7 +224,7 @@ export async function priceAnswers(
  *
  * The Balance is read under a lock and the Amount checked against it inside
  * the transaction. That is the only arrangement that answers two submissions
- * arriving together: see {@link balanceToCommitFrom}.
+ * arriving together: see {@link balanceToMoveFrom}.
  *
  * Every refusal below is also a rule Postgres holds, and the second `catch` is
  * where those come back. A route that only asked first would be right until
@@ -249,7 +240,7 @@ export async function submitEntry(submission: {
 
   try {
     return await useDatabase().transaction(async (tx) => {
-      const held = await balanceToCommitFrom(tx, seasonId, fanId);
+      const held = await balanceToMoveFrom(tx, seasonId, fanId);
 
       if (amount > held) throw new Refused(422, ENTRY_MESSAGES.notEnoughCoins(held));
 

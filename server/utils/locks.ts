@@ -22,6 +22,8 @@
  */
 import {
   type AttributedLockKind,
+  automaticLock,
+  type AutomaticLock,
   type BoutLock,
   type CardLockKind,
   SWEEP_AFTER,
@@ -68,6 +70,55 @@ export function sweepWindow(): number {
   }
 
   return hours * 60 * 60 * 1000;
+}
+
+/**
+ * The moment a card is read against, and how long its last backstop is.
+ *
+ * The two travel together everywhere a Bout's state is worked out, and they
+ * are separate answers to the same question — when is this Lock due? `now` is
+ * one moment for a whole request, so a Bout cannot be open for the first
+ * Prediction of an Entry and locked for the fourth. `sweepAfter` is
+ * configuration, read from {@link sweepWindow} at the edge and passed inwards,
+ * so that the modules deciding what a fan is told do not read the environment.
+ */
+export interface AsAt {
+  now: Date;
+  sweepAfter: number;
+}
+
+/**
+ * The smallest card order on the Bout's own card, which is what
+ * {@link automaticLock} compares a Bout against.
+ *
+ * A fragment rather than three copies of the same correlated subquery: every
+ * reader of a Bout's Lock moment needs it, and it is the kind of SQL that goes
+ * subtly wrong when it is retyped. The inner `bouts` is aliased so the
+ * `event_id` in its `where` is unmistakably its own, and `events.id` is the
+ * outer row it is correlated against — so a query using this must have joined
+ * `events`.
+ */
+export const firstOnTheCard = sql<number>`(
+  select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
+)`.mapWith(Number);
+
+/**
+ * When this Bout locks by itself, from the three columns every reader of one
+ * selects.
+ *
+ * `automaticLock` in `shared/locks.ts` is the rule; this is the shape it is
+ * asked in on the server, where a Bout arrives as rows rather than as a card.
+ */
+export function lockMomentOf(
+  bout: { cardOrder: number; firstOnTheCard: number; scheduledStart: Date },
+  sweepAfter: number,
+): AutomaticLock {
+  return automaticLock(
+    bout.cardOrder,
+    bout.firstOnTheCard,
+    bout.scheduledStart.toISOString(),
+    sweepAfter,
+  );
 }
 
 /** A Bout the card locked on its own, and the record it left behind. */

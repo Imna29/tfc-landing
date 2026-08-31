@@ -451,7 +451,7 @@ describe("the Entry a fan takes back", () => {
       predictions: [held({ cardOrder: 1 }), held({ boutId: ANOTHER_BOUT, cardOrder: 2 })],
     });
 
-    expect(cancellationOf(chained, NOW)).toEqual({ cancellable: true, reason: "" });
+    expect(cancellationOf(chained, NOW)).toEqual({ cancellable: true });
   });
 
   it("refuses once one Bout in it has locked, whatever the others are doing", () => {

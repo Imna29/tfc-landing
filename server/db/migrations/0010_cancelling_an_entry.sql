@@ -93,6 +93,16 @@ CREATE TRIGGER entries_are_cancelled_while_every_bout_is_open
 -- A constraint trigger, deferred to the end of the transaction, because
 -- neither end can be checked while it is being written: the status and the
 -- refund are two writes and one of them is second.
+--
+-- On `insert` as well as `update`, unlike the two triggers above. Nothing
+-- writes an Entry that is already cancelled and nothing ever should, which is
+-- exactly why the rule has to hold there too: a row inserted straight into
+-- `cancelled` would otherwise carry no refund and meet no rule saying so.
+--
+-- One more status returns an Amount in full, and it is not written yet: #15's
+-- Refunded, for an Entry whose every Prediction was a No Result. It widens
+-- `entries_status_known` and this condition together, in a migration somebody
+-- reads — the same discipline every other status has been added under.
 CREATE FUNCTION refuse_a_cancellation_apart_from_its_refund() RETURNS trigger AS $$
 DECLARE
   entry uuid;
@@ -131,7 +141,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;--> statement-breakpoint
 CREATE CONSTRAINT TRIGGER cancelled_entries_are_refunded
-  AFTER UPDATE ON "entries"
+  AFTER INSERT OR UPDATE ON "entries"
   DEFERRABLE INITIALLY DEFERRED
   FOR EACH ROW WHEN (new.status = 'cancelled')
   EXECUTE FUNCTION refuse_a_cancellation_apart_from_its_refund();--> statement-breakpoint
