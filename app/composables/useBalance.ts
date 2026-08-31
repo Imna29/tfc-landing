@@ -11,8 +11,8 @@
  *
  * The value is shared state rather than a ref inside the header, because the
  * header outlives every page: it is mounted once and never again, so signing
- * in, signing out and — when #11 lands — submitting an Entry are the moments
- * that have to say the answer has changed.
+ * in, signing out and submitting an Entry are the moments that have to say the
+ * answer has changed.
  *
  * Hence three verbs rather than one. {@link Balance.load} is "make sure we
  * know", for a component appearing and wanting something to render;

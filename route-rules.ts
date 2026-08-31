@@ -91,8 +91,8 @@ export const routeRules = {
   // corrected. This is the easier of the two reasons to forget, which is why
   // it is written here rather than only in the page.
   //
-  // Building and submitting an Entry lands under here with #11, and that half
-  // does read a session — so this rule has to hold for both reasons.
+  // Building and submitting an Entry is under here too, and that half does
+  // read a session — so this rule holds for both reasons.
   ...section("/predictions", { ...uncached, ssr: true }),
 
   // ── Prismic slice simulator: a development tool, never cached ──

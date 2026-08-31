@@ -87,3 +87,18 @@ export async function fanId(email: string): Promise<string> {
 
   return fan.id;
 }
+
+/**
+ * Confirms a fan's email address, which is what a first Entry asks of them.
+ *
+ * The link that does it for real is `test/server/email.test.ts`'s subject, and
+ * reaching it needs a mailbox the server was pointed at when it started. A
+ * test about what a confirmed fan can do is not a test about how they became
+ * one, so this is the state they arrive in, written the way `better-auth`
+ * writes it.
+ */
+export async function confirmEmail(email: string): Promise<void> {
+  await testDatabase().execute(
+    sql`update users set email_verified = true where lower(email) = lower(${email})`,
+  );
+}

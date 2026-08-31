@@ -532,6 +532,98 @@ together. A record is the one thing on a corner that a published fighter may
 still be missing; like a fallback name's missing photo, that is a gap on the
 card rather than a card that cannot be imported.
 
+### Building and submitting an Entry
+
+The same page is where a fan plays. Picking an answer turns the card
+interactive — every Outcome on an open Bout is a button — and
+`app/components/EntryBuilder.vue` holds the Entry being built: the Predictions
+in it, the combined Multiplier, whether the ×100 cap has decided it, the Amount,
+and the Coins it returns if it lands. `POST /api/predictions/entries` commits
+it.
+
+**A Prediction is one compound answer for one Bout**: a required winner, and
+optionally a method and a round, whose Multipliers multiply onto the winner
+(ADR-0004). Chaining is across *different* Bouts. Deepening one Prediction and
+chaining another are the two different things they look like, and an Entry holds
+**at most one Prediction per Bout**.
+
+Three layers of the same rules, on purpose:
+
+- **`shared/entries.ts`** is every rule that can be answered without asking
+  anybody: what a Prediction may be made of, what the Entry returns, what the
+  Amount may be. The panel uses it so a fan is never offered something that
+  would be refused, and the route uses it on what actually arrives — the page is
+  not what the server is holding. `priceOf` is the one function both sides
+  price an answer with, so the Reward on the panel and the Reward in the
+  database cannot come to disagree.
+- **`server/utils/entries.ts`** adds everything only the database knows: is that
+  Bout open, is that round one it offers, and — under a row lock — does the fan
+  still hold the Coins.
+- **`0007_entries_and_predictions.sql`** holds the ones worth holding, because a
+  rule that lives only in a route handler is one refactor away from
+  disappearing:
+
+| Rule | Held by |
+| --- | --- |
+| One Prediction per Bout in an Entry (ADR-0004) | `predictions_one_per_bout_in_an_entry` |
+| Between one and ten Predictions | `entries_hold_one_to_ten_predictions`, a deferred constraint trigger on both tables |
+| The answer was one that Bout offered | `predictions_winner_is_offered`, `…_method_is_offered`, `…_round_is_offered` |
+| No round alongside a Decision | `predictions_a_round_needs_a_finish` |
+| The Bout is open | `predictions_are_made_on_open_bouts` |
+| An Amount of at least 1 Coin | `entries_amount_is_committed` |
+| No Coins a fan does not hold | `entry_commitments_are_within_the_balance` |
+| One commitment per Entry | `coin_transactions_one_commitment_per_entry` |
+
+The three `…_is_offered` keys are the interesting ones. A Prediction stores the
+answer it gives — `red`, `ko_tko`, round 2 — rather than a reference to the
+Outcome row, because settlement grades answers and a disqualification settles
+the winner while leaving the method and round ungradable (#15). Each answer
+still points at the Outcome that priced it, through a composite key on
+`(bout_id, corner)`, `(bout_id, method)` and `(bout_id, round)`. So "round 4 of
+a three-round Bout" is refused by Postgres, and the stored answer and the
+Outcome behind it can never drift apart. Postgres does not check a key whose
+columns include a null, which is exactly right for the two optional answers.
+
+**A round only goes with a KO/TKO or a Submission.** ADR-0004 says so about a
+Decision, and the same sentence rules out a round with no method at all: "it
+ended in round 2" and "it went the distance" are not answers to the same
+question, and nothing could grade the pair. The card disables the rounds until
+a finish is picked, and says why.
+
+**What is frozen, and what is worked out.** Each Prediction stores what each of
+its three answers paid at submission (ADR-0002) — three numbers, not the one
+they multiply out to, because they are graded separately. The Entry stores
+neither the combined Multiplier nor the Reward: both are the product of what is
+on its Predictions, and a stored copy would be a second answer to a question
+that already has one. `potentialReward` in `shared/entries.ts` is where they
+become a Reward, capped at ×100 and rounded to whole Coins, said once for the
+panel, the API and the settlement that will eventually pay it.
+
+**The Coins leave at submission**, as one `entry_commitment` row in the ledger
+written in the same transaction as the Entry (ADR-0003). The route reads the
+Balance `for update` first, which is what makes "an Amount above the fan's
+Balance is refused" true of two requests arriving together: without the lock
+both read a hundred Coins, both find themselves within it, and no constraint on
+the ledger can catch it, because neither transaction can see the other's
+uncommitted row. `test/server/entry-concurrency.test.ts` is the only file in
+the suite that raises `DATABASE_POOL_MAX`, and that is why.
+
+What a fan is told, and where: `ENTRY_MESSAGES` in `shared/entries.ts` is every
+sentence, so the panel and the API refuse in the same words. A signed-out
+visitor can build an Entry and is asked to sign in when they submit it; a fan
+whose email is not confirmed is told before they start, because being told at
+the last step, having built a Chained Entry, is the worst moment to learn it.
+
+How far the tests carry this. Every rule, every refusal and every Coin movement
+is driven through the API against a real Postgres in
+`test/server/entries.test.ts`, and the rules Postgres holds are also written by
+hand there so that a passing route is not the only evidence for them. What a
+fan clicks is held by the unit tests over `shared/entries.ts` — building a
+Prediction, the cap, the Reward — plus the server-rendered shell of the page;
+the reactivity between them is held by `vue-tsc` and by those functions being
+the same ones the server uses, because this repo still has no component-test
+setup (see the card display section above).
+
 ### Pushing the model
 
 `customtypes/event/` is the local copy of the model, written with the Prismic
@@ -633,7 +725,11 @@ run, so the documented way in and the tested way in cannot drift apart.
 
 The server suite runs with `DATABASE_POOL_MAX=1`, the connection budget a
 serverless function has, so code that needs a second connection while holding
-one deadlocks here rather than in production (ADR-0010).
+one deadlocks here rather than in production (ADR-0010). One file raises it and
+says why: `test/server/entry-concurrency.test.ts` submits two Entries at once,
+and on a single connection the driver would queue the second behind the first —
+which would make it pass whether or not the application had taken a lock at
+all.
 
 Email is not mocked either. `test/helpers/mailbox.ts` starts a stand-in for
 Resend on a local port and `test/server/email.test.ts` points the app at it, so

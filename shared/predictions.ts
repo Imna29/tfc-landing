@@ -64,7 +64,19 @@ export function boutState(
 export function locksAt(bout: FightCardBout, card: FightCard): string | null {
   const first = Math.min(...card.bouts.map((one) => one.cardOrder));
 
-  return bout.cardOrder === first ? card.scheduledStart : null;
+  return locksWithTheCard(bout.cardOrder, first) ? card.scheduledStart : null;
+}
+
+/**
+ * Whether the Bout in this place on the card is the one that locks with the
+ * card itself.
+ *
+ * The same rule {@link locksAt} states, for the callers that hold one Bout and
+ * the card's first place rather than the whole card — a submission names Bouts,
+ * not a card, and asks of each one whether it is still taking Predictions.
+ */
+export function locksWithTheCard(cardOrder: number, firstOnTheCard: number): boolean {
+  return cardOrder === firstOnTheCard;
 }
 
 /** One answer a fan can give, and what it pays. */
@@ -75,7 +87,7 @@ export interface OfferedOutcome extends OutcomeAnswer {
 
 /** What the game holds against one Bout of the card being shown. */
 export interface BoutPredictions {
-  /** The row a Prediction will point at when #11 lands. */
+  /** The row a Prediction points at, and an Entry is submitted against. */
   boutId: string;
   status: BoutStatus;
   /** When it locks by itself, or null for one an admin advances. */

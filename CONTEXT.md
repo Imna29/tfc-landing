@@ -110,6 +110,10 @@ An Entry holds **at most one Prediction per Bout** — deepening a Prediction wi
 round is how you increase its Multiplier, and chaining across different Bouts is how you
 combine. See [[adr-0004]].
 
+A round of victory only goes with a **KO/TKO or a Submission**: a Decision is the Bout going
+the distance, so there is no round it ends in, and "it ended in round 2" with no method named
+is not something a result could grade either way.
+
 ### Entry
 
 The committed unit: between one and ten Predictions plus an Amount of Coins. An Entry is

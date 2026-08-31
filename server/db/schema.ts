@@ -17,6 +17,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   numeric,
@@ -216,16 +217,16 @@ export const seasons = pgTable(
  * What moved Coins. One kind per ticket that can move them, added by that
  * ticket's own migration.
  *
- * Today there is exactly one, and that is the point: a Season grant is the
- * only way Coins come into existence, `coin_transactions_kind_known` is what
- * says so, and the ticket that adds a commitment or a Reward has to say so
+ * Two of them, and that is the point: Coins come into existence as a Season
+ * grant and leave a Balance as an Entry's commitment, `coin_transactions_kind_known`
+ * is what says so, and the ticket that adds a Reward or a refund has to say so
  * again in SQL that somebody reads. A kind permitted before anything writes it
  * is a kind nobody has thought about.
  */
-export type CoinTransactionKind = "season_grant";
+export type CoinTransactionKind = "season_grant" | "entry_commitment";
 
 /** What a Coin Transaction points at as the thing that caused it. */
-export type CoinTransactionCause = "season";
+export type CoinTransactionCause = "season" | "entry";
 
 /**
  * The Coin ledger: one append-only row per movement of Coins, and the source
@@ -241,10 +242,10 @@ export type CoinTransactionCause = "season";
  * what happened — which is the whole reason ADR-0003 chose a ledger.
  *
  * `seasonId` is the scope: which Season's Balance this row moves. `cause` and
- * `causeId` are the provenance: what caused it to be written. Today they are
- * the same Season, and they will not be for long — an Entry's commitment is
- * scoped to a Season and caused by an Entry. They are here from the first row
- * rather than added with the second kind because provenance cannot be
+ * `causeId` are the provenance: what caused it to be written. A Season grant is
+ * scoped to and caused by the same Season; an Entry's commitment is scoped to
+ * the Season being played and caused by the Entry. They were here from the
+ * first row rather than added with the second kind because provenance cannot be
  * back-filled: rows written before anyone recorded what caused them can never
  * be made to explain themselves.
  *
@@ -284,10 +285,18 @@ export const coinTransactions = pgTable(
     uniqueIndex("coin_transactions_one_grant_per_fan")
       .on(table.userId, table.seasonId)
       .where(sql`${table.kind} = 'season_grant'`),
+    // One commitment per Entry, so that a submission retried after a dropped
+    // connection cannot charge a fan twice for the Entry it already wrote.
+    uniqueIndex("coin_transactions_one_commitment_per_entry")
+      .on(table.causeId)
+      .where(sql`${table.kind} = 'entry_commitment'`),
     // Every Balance read and every rebuild groups by these two.
     index("coin_transactions_by_fan").on(table.seasonId, table.userId),
-    check("coin_transactions_kind_known", sql`${table.kind} in ('season_grant')`),
-    check("coin_transactions_cause_known", sql`${table.cause} in ('season')`),
+    check(
+      "coin_transactions_kind_known",
+      sql`${table.kind} in ('season_grant', 'entry_commitment')`,
+    ),
+    check("coin_transactions_cause_known", sql`${table.cause} in ('season', 'entry')`),
     // A row that moves nothing is not a movement; it is a row somebody wrote
     // by accident, and it makes the ledger longer without making it say more.
     check("coin_transactions_moves_coins", sql`${table.amount} <> 0`),
@@ -300,6 +309,16 @@ export const coinTransactions = pgTable(
       "coin_transactions_grant_is_the_starting_balance",
       sql`${table.kind} <> 'season_grant' or (${table.amount} = 100
         and ${table.cause} = 'season' and ${table.causeId} = ${table.seasonId})`,
+    ),
+    // Coins committed to an Entry leave the Balance, and they leave it for
+    // that Entry: a commitment that added Coins, or that pointed at anything
+    // else, would be a Balance nobody could explain from the row that moved
+    // it. How many is the Entry's own business — the Amount is checked
+    // against what the fan holds by `entry_commitments_are_within_the_balance`.
+    check(
+      "coin_transactions_commitment_leaves_the_balance",
+      sql`${table.kind} <> 'entry_commitment'
+        or (${table.amount} < 0 and ${table.cause} = 'entry')`,
     ),
   ],
 );
@@ -564,6 +583,201 @@ export const outcomes = pgTable(
     check(
       "outcomes_priced_is_attributed",
       sql`(${table.pricedAt} is null) = (${table.pricedBy} is null)`,
+    ),
+  ],
+);
+
+/**
+ * Where an Entry is.
+ *
+ * One value, and that is the point: everything an Entry can become is somebody
+ * else's ticket, and each of them widens `entries_status_known` in a migration
+ * that somebody reads. #13 adds `cancelled`, #14 the `won` and `lost` a
+ * settled Entry ends at, and #15 the `refunded` an Entry of nothing but No
+ * Results is made whole with. A status permitted before anything writes it is
+ * a status nobody has thought about — see {@link CoinTransactionKind}, which is
+ * careful for the same reason and about the same Coins.
+ *
+ * Spelled out here and again in the check constraint below, rather than both
+ * derived from one array, for the reason given on {@link Role}.
+ */
+export type EntryStatus = "open";
+
+/**
+ * The committed unit: between one and ten Predictions and an Amount of Coins.
+ *
+ * An Entry is what a fan submits and what their history lists. Its Coins leave
+ * the Balance the moment it is written — as a Coin Transaction, in the same
+ * transaction as these rows (ADR-0003) — so there is no state anywhere in
+ * which an Entry exists and its Amount has not been committed.
+ *
+ * `seasonId` is which Season's Balance it moves and which leaderboard it
+ * counts towards. It is the Season being played when the Entry is submitted,
+ * and never changes: an Entry belongs to the competition it was made in.
+ *
+ * Deliberately without a combined Multiplier column, and without the Reward
+ * one. Both are the product of what is on {@link predictions}, and a stored
+ * copy would be a second answer to a question that already has one — the shape
+ * ADR-0003 refuses for a Balance, for the same reason. What is frozen is what
+ * ADR-0002 says has to be: the Multiplier of each answer, on the Prediction
+ * that answered it. `potentialReward` in `shared/entries.ts` is where the two
+ * become a Reward, said once for the panel a fan confirms in, the answer the
+ * server sends back, and the settlement that eventually pays it.
+ *
+ * How many Predictions an Entry may hold is not something a column can say, so
+ * the migration that creates this table holds it with a deferred constraint
+ * trigger: an Entry is between one and ten Predictions when the transaction
+ * that wrote it commits, whatever wrote it.
+ */
+export const entries = pgTable(
+  "entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** The Coins committed to it, which have already left the Balance. */
+    amount: integer("amount").notNull(),
+    status: text("status").$type<EntryStatus>().notNull().default("open"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Every Entry a fan has in a Season, which is the profile history (#17)
+    // and what settlement re-reads.
+    index("entries_by_fan").on(table.seasonId, table.userId),
+    check("entries_status_known", sql`${table.status} in ('open')`),
+    // Spelled out again in `AMOUNT` in `shared/entries.ts`, which is what the
+    // page and the route refuse with. There is no ceiling here: the maximum is
+    // the fan's whole Balance, and the ledger is the only thing that knows it.
+    check("entries_amount_is_committed", sql`${table.amount} >= 1`),
+  ],
+);
+
+/**
+ * One compound answer for one Bout: a winner, and optionally how and when the
+ * Bout ends.
+ *
+ * **An Entry holds at most one Prediction per Bout** (ADR-0004), and
+ * `predictions_one_per_bout_in_an_entry` is what makes that true rather than
+ * intended. Winner, method and round overlap heavily — "A wins" and "A wins by
+ * KO" are nearly the same prediction — so chaining them as separate items
+ * would pay as though a fan had predicted two things, which is a systematic
+ * overpayment somebody would find and farm. Deepening is how a Prediction
+ * grows; chaining is across Bouts.
+ *
+ * The answer is stored as what it says rather than as a reference to the
+ * Outcome that offered it, and the three foreign keys are what keep the two
+ * from ever disagreeing: `(bout_id, corner)`, `(bout_id, method)` and
+ * `(bout_id, round)` each point at an Outcome row of that Bout, so an answer
+ * exists here only if the Bout was actually offering it — a three-round Bout
+ * has no round 4 to point at. Postgres does not check a foreign key whose
+ * columns include a null, which is exactly right for the two optional answers.
+ *
+ * Each answer carries what it paid at the moment of submission (ADR-0002).
+ * Three numbers rather than the one they multiply out to, because they are
+ * graded separately: a disqualification settles the winner and leaves the
+ * method and round with nothing to grade (#15).
+ *
+ * Neither foreign key cascades. A Bout fans hold Coins against is never
+ * deleted — the trigger in `0004_event_import.sql` already refuses to replace
+ * one that is not closed, and this is the same door locked from the other
+ * side — and an Entry is not deleted either, for the reason ADR-0003 gives
+ * about the ledger: what happened is not rewritten.
+ */
+export const predictions = pgTable(
+  "predictions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => entries.id),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id),
+    /** Which corner the fan says wins. A Prediction cannot do without one. */
+    corner: text("corner").$type<Corner>().notNull(),
+    /** How they say it ends, or null on a Prediction that does not say. */
+    method: text("method").$type<Method>(),
+    /** Which round they say it ends in, or null. */
+    round: integer("round"),
+    /**
+     * What each answer paid when the Entry was submitted.
+     *
+     * `numeric(5, 2)` like the Outcome it was copied from, so that the number
+     * a fan was shown is the number stored, to the place they saw it.
+     */
+    winnerMultiplier: numeric("winner_multiplier", {
+      precision: 5,
+      scale: 2,
+      mode: "number",
+    }).notNull(),
+    methodMultiplier: numeric("method_multiplier", { precision: 5, scale: 2, mode: "number" }),
+    roundMultiplier: numeric("round_multiplier", { precision: 5, scale: 2, mode: "number" }),
+  },
+  (table) => [
+    // ADR-0004, held by Postgres rather than by whichever route remembers to
+    // ask. A rule that lives only in a handler is one refactor away from
+    // disappearing, and this one is what stops the correlation exploit.
+    uniqueIndex("predictions_one_per_bout_in_an_entry").on(table.entryId, table.boutId),
+    // Everything settlement reads: every Prediction on a Bout that just got a
+    // result (#14).
+    index("predictions_by_bout").on(table.boutId),
+    // The answer was one the Bout was offering. Each of these points at the
+    // Outcome row that priced it, through the unique indexes `outcomes` already
+    // has — which is also what makes "that round does not exist in this Bout"
+    // a refusal from the database rather than only from a route.
+    foreignKey({
+      name: "predictions_winner_is_offered",
+      columns: [table.boutId, table.corner],
+      foreignColumns: [outcomes.boutId, outcomes.corner],
+    }),
+    foreignKey({
+      name: "predictions_method_is_offered",
+      columns: [table.boutId, table.method],
+      foreignColumns: [outcomes.boutId, outcomes.method],
+    }),
+    foreignKey({
+      name: "predictions_round_is_offered",
+      columns: [table.boutId, table.round],
+      foreignColumns: [outcomes.boutId, outcomes.round],
+    }),
+    check("predictions_corner_known", sql`${table.corner} in ('red', 'blue')`),
+    check(
+      "predictions_method_known",
+      sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
+    ),
+    check(
+      "predictions_round_is_a_round",
+      sql`${table.round} is null or ${table.round} between 1 and 12`,
+    ),
+    // ADR-0004's impossible Prediction: a Decision is the Bout going the
+    // distance, so there is no round it ends in — and a round with no method
+    // at all is a Prediction nothing could grade, because "it ended in round
+    // 2" and "it went to a Decision" are not answers to the same question.
+    check(
+      "predictions_a_round_needs_a_finish",
+      sql`${table.round} is null or ${table.method} in ('ko_tko', 'submission')`,
+    ),
+    // An answer nobody priced, or a price for an answer nobody gave. Either
+    // way it is a Prediction whose Reward cannot be worked out.
+    check(
+      "predictions_answers_are_priced",
+      sql`(${table.method} is null) = (${table.methodMultiplier} is null)
+        and (${table.round} is null) = (${table.roundMultiplier} is null)`,
+    ),
+    // The same bounds an Outcome's Multiplier is held to, copied here because
+    // this is a copy of one: a Prediction paying ×1 or less returns a fan who
+    // was right their own Coins back or fewer.
+    check(
+      "predictions_multipliers_pay",
+      sql`${table.winnerMultiplier} > 1 and ${table.winnerMultiplier} <= 100
+        and (${table.methodMultiplier} is null
+          or (${table.methodMultiplier} > 1 and ${table.methodMultiplier} <= 100))
+        and (${table.roundMultiplier} is null
+          or (${table.roundMultiplier} > 1 and ${table.roundMultiplier} <= 100))`,
     ),
   ],
 );

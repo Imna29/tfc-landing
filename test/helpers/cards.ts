@@ -1,9 +1,14 @@
+import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { inject } from "vitest";
+import type { OutcomeAnswer, Question } from "../../shared/pricing";
 import { bouts, outcomes, seasons } from "../../server/db/schema";
 import type { Card, CardBout, CardCorner } from "../../server/utils/cardImport";
 import { importCard, type Imported } from "../../server/utils/events";
+import type { BoutToPrice, CardToPrice, OutcomeToPrice } from "../../server/utils/pricing";
+import { postJson, signUpAdmin } from "./accounts";
 import { testDatabase } from "./database";
+import { fanId } from "./users";
 
 /**
  * Arranging an imported fight card, the way the admin route does it.
@@ -113,4 +118,128 @@ export function boutOutcomes(boutId: string) {
     .from(outcomes)
     .where(eq(outcomes.boutId, boutId))
     .orderBy(outcomes.question, outcomes.corner, outcomes.method, outcomes.round);
+}
+
+/**
+ * Arranging a card fans can actually play on, the way an admin prepares one:
+ * a Season open, the card imported, every Outcome priced, every Bout opened.
+ *
+ * Over HTTP from the pricing step onwards, because those routes exist and are
+ * the seam this suite tests at. Import is the one step that cannot be driven
+ * that way — its route reads the real Prismic — so it goes through
+ * {@link importTestCard} above.
+ */
+
+/** The admin who prepares a card, and the session they do it in. */
+export interface CardAdmin {
+  id: string;
+  cookie: string;
+  email: string;
+}
+
+/** A signed-in admin with a Season open, ready to import a card into. */
+export async function adminWithASeason(name = "Season 1"): Promise<CardAdmin> {
+  const signedUp = await signUpAdmin();
+  const opened = await postJson("/api/admin/seasons", { name }, signedUp.cookie);
+
+  if (!opened.ok) throw new Error(`Opening ${name} was refused: ${await opened.text()}`);
+
+  return {
+    id: await fanId(signedUp.details.email),
+    cookie: signedUp.cookie,
+    email: signedUp.details.email,
+  };
+}
+
+/** What each answer on a Bout pays, unless a test says otherwise. */
+export const TEST_MULTIPLIERS: Record<Question, number> = { winner: 2, method: 2.5, round: 3 };
+
+/** Prices every Outcome on a Bout, by the Question it answers. */
+export async function priceBout(
+  bout: BoutToPrice,
+  cookie: string,
+  multipliers: Record<Question, number> = TEST_MULTIPLIERS,
+): Promise<void> {
+  const priced = await postJson(
+    `/api/admin/bouts/${bout.id}/multipliers`,
+    {
+      multipliers: Object.fromEntries(
+        bout.outcomes.map((outcome) => [outcome.id, multipliers[outcome.question]]),
+      ),
+    },
+    cookie,
+  );
+
+  if (!priced.ok) throw new Error(`Pricing Bout ${bout.cardOrder} failed: ${await priced.text()}`);
+}
+
+/** Opens a Bout for predictions, as the button in the admin area does. */
+export async function openBout(boutId: string, cookie: string): Promise<void> {
+  const opened = await postJson(`/api/admin/bouts/${boutId}/open`, {}, cookie);
+
+  if (!opened.ok) throw new Error(`Opening a Bout failed: ${await opened.text()}`);
+}
+
+/** The card an admin is pricing, as the admin area reads it. */
+export function cardToPrice(eventId: string, cookie: string): Promise<CardToPrice> {
+  return $fetch<CardToPrice>(`/api/admin/events/${eventId}`, { headers: { cookie } });
+}
+
+/** A card in the game, with what a test needs to predict on it. */
+export interface CardInTheGame {
+  admin: CardAdmin;
+  eventId: string;
+  /** Every Bout in card order, with the Outcome ids and Multipliers on it. */
+  bouts: BoutToPrice[];
+}
+
+/**
+ * A card imported, priced and open for predictions.
+ *
+ * `open: false` stops after pricing, which is the state a Bout nobody has
+ * opened is in — the one a fan is refused a Prediction on.
+ */
+export async function cardInTheGame(
+  options: {
+    admin?: CardAdmin;
+    /** Relative to now, so that "the upcoming Event" stays this one. */
+    scheduledStart?: Date;
+    bouts?: CardBout[];
+    multipliers?: Record<Question, number>;
+    open?: boolean;
+  } = {},
+): Promise<CardInTheGame> {
+  const admin = options.admin ?? (await adminWithASeason());
+
+  const imported = await importTestCard(admin.id, {
+    ...(options.scheduledStart ? { scheduledStart: options.scheduledStart } : {}),
+    ...(options.bouts ? { bouts: options.bouts } : {}),
+  });
+
+  const priced = await cardToPrice(imported.id, admin.cookie);
+
+  for (const bout of priced.bouts) {
+    await priceBout(bout, admin.cookie, options.multipliers);
+
+    if (options.open !== false) await openBout(bout.id, admin.cookie);
+  }
+
+  return {
+    admin,
+    eventId: imported.id,
+    bouts: (await cardToPrice(imported.id, admin.cookie)).bouts,
+  };
+}
+
+/** The Outcome on a Bout that answers one Question one way. */
+export function outcomeOn(bout: BoutToPrice, answer: Partial<OutcomeAnswer>): OutcomeToPrice {
+  const found = bout.outcomes.find((outcome) =>
+    Object.entries(answer).every(
+      ([field, value]) => outcome[field as keyof OutcomeAnswer] === value,
+    ),
+  );
+
+  if (!found) throw new Error(`Bout ${bout.cardOrder} offers no ${JSON.stringify(answer)}.`);
+
+  return found;
 }

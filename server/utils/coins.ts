@@ -87,6 +87,79 @@ export function grantOneFanTheirStartingCoins(
 }
 
 /**
+ * What a fan holds, read so that nothing else can spend it until this
+ * transaction is done with it.
+ *
+ * The `for update` is what makes "an Amount above the fan's Balance is
+ * refused" true of two requests arriving together. Without it, two submissions
+ * in the same moment both read a hundred Coins, both find themselves within
+ * it, and a fan commits two hundred: neither transaction can see the other's
+ * uncommitted ledger row, so no constraint on the ledger could catch it
+ * either. Taking the row first means the second submission waits, and reads
+ * the Balance the first one left behind.
+ *
+ * A fan with no row holds nothing. It is the row {@link balanceOf} answers
+ * zero for — a fan whose account was created while no Season was open — and
+ * locking nothing is right for them: they can afford no Entry at all, so there
+ * is nothing to serialise.
+ *
+ * Takes the transaction to run inside because a lock outside one is released
+ * the moment the statement ends, which is a lock that has held nothing.
+ */
+export async function balanceToCommitFrom(
+  tx: DatabaseTransaction,
+  seasonId: string,
+  userId: string,
+): Promise<number> {
+  const [held] = await tx
+    .select({ balance: balanceCache.balance })
+    .from(balanceCache)
+    .where(and(eq(balanceCache.seasonId, seasonId), eq(balanceCache.userId, userId)))
+    .limit(1)
+    .for("update");
+
+  return held?.balance ?? 0;
+}
+
+/**
+ * Takes the Coins an Entry commits out of a fan's Balance, and brings the
+ * materialised copy of it in step.
+ *
+ * The ledger row is the movement (ADR-0003): the Coins leave at submission,
+ * not at settlement, and this is the only place that says so. It writes and
+ * does not ask — whether the fan holds this many is
+ * {@link balanceToCommitFrom}'s question, asked under a lock a moment earlier,
+ * and `entry_commitments_are_within_the_balance` is what refuses this
+ * regardless.
+ *
+ * Takes the transaction to run inside: an Entry that exists without its
+ * commitment is Coins a fan is playing with twice.
+ */
+export async function commitCoins(
+  tx: DatabaseTransaction,
+  commitment: {
+    seasonId: string;
+    userId: string;
+    entryId: string;
+    amount: number;
+    reason: string;
+  },
+): Promise<void> {
+  await tx.insert(coinTransactions).values({
+    seasonId: commitment.seasonId,
+    userId: commitment.userId,
+    kind: "entry_commitment",
+    // Signed, like every row in the ledger: Coins leaving are negative.
+    amount: -commitment.amount,
+    reason: commitment.reason,
+    cause: "entry",
+    causeId: commitment.entryId,
+  });
+
+  await materialiseBalances(tx, commitment.seasonId, [commitment.userId]);
+}
+
+/**
  * Writes what the ledger says these fans' Balances are into `balance_cache`.
  *
  * `forFans` is the fans whose rows just moved. Passing nothing recomputes the

@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import {
+  canAnswer,
+  ENTRY_MESSAGES,
+  isAnswered,
+  isFinish,
+  pickAnswered,
+  type BoutPick,
+} from "#shared/entries";
 import { boutHeadline, roundsLabel, type FightCardBout } from "#shared/fightCard";
 import {
   boutState,
@@ -7,7 +15,7 @@ import {
   PREDICTION_MESSAGES,
   type BoutPredictions,
 } from "#shared/predictions";
-import { outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
+import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
 
 /**
  * One Bout on a card: the two fighters, the weight class, how many rounds —
@@ -17,6 +25,11 @@ import { outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
  * concerned, and it is optional. Left off, this renders a fight: two names,
  * two records, a division and a number of rounds, which is what a Bout is
  * anywhere it is shown. See `shared/fightCard.ts`.
+ *
+ * `picking` is the layer above that, and optional in the same way: with it,
+ * every answer on an open Bout is a button and the Prediction the fan is
+ * building comes back through `update:pick`. Without it, the answers are
+ * numbers to read.
  */
 const props = defineProps<{
   bout: FightCardBout;
@@ -29,9 +42,27 @@ const props = defineProps<{
    * started in the browser would disagree with the HTML it was hydrating.
    */
   now: number;
+  /**
+   * Whether this card is one an Entry is being built on.
+   *
+   * The third layer, and optional like the second: a lineup, then what the
+   * game holds against it, then somewhere for a fan to answer. Left off, every
+   * answer renders as what it pays and nothing more — which is the card on a
+   * marketing page, and the card of an Event that has been and gone.
+   */
+  picking?: boolean;
+  /** What the fan has answered on this Bout so far, or null for nothing. */
+  pick?: BoutPick | null;
 }>();
 
+const emit = defineEmits<{ "update:pick": [BoutPick | null] }>();
+
 const state = computed(() => (props.predictions ? boutState(props.predictions, props.now) : null));
+
+/** Answers one of this Bout's Questions, and hands the Prediction upwards. */
+function answer(outcome: OutcomeAnswer) {
+  emit("update:pick", pickAnswered(props.pick ?? null, outcome));
+}
 
 /** How long until this Bout locks, while there is a Lock to count down to. */
 const countdown = computed(() => {
@@ -55,6 +86,26 @@ const lockNote = computed(() => {
   if (state.value === "locked") return PREDICTION_MESSAGES.locked;
   if (state.value === "open" && !props.predictions?.locksAt) {
     return PREDICTION_MESSAGES.locksWhenReached;
+  }
+
+  return null;
+});
+
+/**
+ * Whether a fan can answer this Bout right now.
+ *
+ * Picking is offered to a signed-out visitor as well: they can build an Entry
+ * and are asked to sign in when they submit it, which is a better path into
+ * the game than a card that does nothing until they have an account.
+ */
+const answering = computed(() => props.picking === true && state.value === "open");
+
+/** Why some of the answers cannot be given yet, while any of them cannot. */
+const answeringNote = computed(() => {
+  if (!answering.value) return null;
+  if (!props.pick) return ENTRY_MESSAGES.pickAWinnerFirst;
+  if (props.pick.method !== null && !isFinish(props.pick.method)) {
+    return ENTRY_MESSAGES.roundNeedsAFinish;
   }
 
   return null;
@@ -128,19 +179,45 @@ const questions = computed(() => {
           </h4>
 
           <ul class="mt-3 flex flex-col gap-2">
-            <li
-              v-for="outcome in asked.outcomes"
-              :key="outcome.id"
-              class="flex items-baseline justify-between gap-3 border-b border-outline-variant/10 pb-2 text-sm"
-            >
-              <span>{{ outcomeLabel(outcome, corners) }}</span>
-              <span class="font-bold tabular-nums">{{ multiplierLabel(outcome.multiplier) }}</span>
+            <li v-for="outcome in asked.outcomes" :key="outcome.id">
+              <button
+                v-if="answering"
+                type="button"
+                :disabled="!canAnswer(pick ?? null, outcome)"
+                :aria-pressed="isAnswered(pick ?? null, outcome)"
+                class="flex w-full items-baseline justify-between gap-3 border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                :class="
+                  isAnswered(pick ?? null, outcome)
+                    ? 'border-primary bg-primary-container/20'
+                    : 'border-outline-variant/20 enabled:hover:border-primary/60'
+                "
+                @click="answer(outcome)"
+              >
+                <span>{{ outcomeLabel(outcome, corners) }}</span>
+                <span class="font-bold tabular-nums">{{
+                  multiplierLabel(outcome.multiplier)
+                }}</span>
+              </button>
+
+              <span
+                v-else
+                class="flex items-baseline justify-between gap-3 border-b border-outline-variant/10 pb-2 text-sm"
+              >
+                <span>{{ outcomeLabel(outcome, corners) }}</span>
+                <span class="font-bold tabular-nums">{{
+                  multiplierLabel(outcome.multiplier)
+                }}</span>
+              </span>
             </li>
           </ul>
         </div>
       </div>
 
-      <p v-else class="mt-4 text-sm text-on-surface/60">{{ PREDICTION_MESSAGES.notOpenYet }}</p>
+      <p v-if="answeringNote" class="mt-4 text-xs text-on-surface/60">{{ answeringNote }}</p>
+
+      <p v-if="questions.length === 0" class="mt-4 text-sm text-on-surface/60">
+        {{ PREDICTION_MESSAGES.notOpenYet }}
+      </p>
     </div>
   </article>
 </template>

@@ -34,6 +34,16 @@ export const STARTING_BALANCE = 100;
 export const COIN_REASONS = {
   seasonOpened: (season: string) => `${season} opened`,
   joinedSeason: (season: string) => `Joined ${season}`,
+  /**
+   * The Coins an Entry took out of a Balance at submission.
+   *
+   * How many Predictions it held is in the row because it is the first thing
+   * asked about an Entry somebody is disputing — a chain of eight is a
+   * different conversation from a single winner pick — and reading it here
+   * costs no second query.
+   */
+  entryCommitted: (predictions: number) =>
+    `Committed to an Entry of ${predictions} ${predictions === 1 ? "Prediction" : "Predictions"}`,
 } as const;
 
 /**
