@@ -269,6 +269,32 @@ describe("what a Prediction says, in words", () => {
   });
 });
 
+describe("what the panel tells a fan", () => {
+  // The panel itself is held by `vue-tsc` and by these functions being the
+  // ones it renders from — this repo has no component-test setup, and adding
+  // one is a bigger decision than #11. What can be checked here is that the
+  // sentences it shows say the thing the criterion asks for.
+  it("names the cap when the cap is what decided the Reward", () => {
+    expect(ENTRY_MESSAGES.capped).toContain(String(COMBINED_MULTIPLIER_CAP));
+  });
+
+  it("confirms an accepted Entry with the Coins committed and the Coins returned", () => {
+    expect(ENTRY_MESSAGES.accepted(20, 240)).toContain("20 Coins");
+    expect(ENTRY_MESSAGES.accepted(20, 240)).toContain("240 Coins");
+    expect(ENTRY_MESSAGES.accepted(1, 2)).toContain("1 Coin ");
+  });
+
+  it("says how many Coins a fan holds when they commit more than that", () => {
+    expect(ENTRY_MESSAGES.notEnoughCoins(7)).toContain("7 Coins");
+  });
+
+  it("says what an Entry is missing before it can be submitted", () => {
+    expect(ENTRY_MESSAGES.nothingPicked).toMatch(/winner/i);
+    expect(ENTRY_MESSAGES.amount).toMatch(new RegExp(String(AMOUNT.minimum)));
+    expect(ENTRY_MESSAGES.tooManyPredictions).toContain(String(ENTRY_PREDICTIONS.maximum));
+  });
+});
+
 describe("the Entry a fan sends", () => {
   /** An Entry as the page posts one. */
   function submitted(overrides: Record<string, unknown> = {}) {

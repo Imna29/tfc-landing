@@ -471,6 +471,22 @@ describe("submitting an Entry", async () => {
       expect(written).toMatch(/entry_commitments_are_within_the_balance/);
     });
 
+    it("refuses a Bout named as something that is not an id at all", async () => {
+      // Not pedantry: casting it inside the query would raise halfway down and
+      // answer the fan a 500 rather than a sentence.
+      const fan = await fanWithCoins();
+
+      await upcomingCard();
+
+      const response = await submit(
+        { amount: 10, predictions: [{ boutId: "the main event", corner: "red" }] },
+        fan.cookie,
+      );
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.boutNotOnTheCard);
+    });
+
     it("refuses a Bout nobody has opened", async () => {
       const card = await upcomingCard({ open: false });
       const fan = await fanWithCoins();

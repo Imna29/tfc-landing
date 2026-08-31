@@ -24,12 +24,12 @@ import {
   type PricedPrediction,
 } from "#shared/entries";
 import type { Corner } from "#shared/events";
-import { boutState, locksWithTheCard } from "#shared/predictions";
+import { boutState, lockMoment } from "#shared/predictions";
 import { MULTIPLIER, type Method } from "#shared/pricing";
 import { eq, inArray, sql } from "drizzle-orm";
 import { bouts, entries, events, outcomes, predictions } from "../db/schema";
 import { balanceOf, balanceToCommitFrom, commitCoins } from "./coins";
-import { refusedByConstraint, useDatabase } from "./db";
+import { looksLikeId, refusedByConstraint, useDatabase } from "./db";
 
 /** The name of the trigger that refuses a Prediction on a Bout that is not open. */
 export const PREDICTIONS_ARE_MADE_ON_OPEN_BOUTS = "predictions_are_made_on_open_bouts";
@@ -68,14 +68,14 @@ export interface EntryRefusal {
   status: number;
 }
 
-/** A Prediction priced and ready to be written, with where its Bout sits. */
-export interface PricedOnTheCard extends PricedPrediction {
+/** A Prediction priced and ready to be written, with where its Bout is fought. */
+export interface PlacedPrediction extends PricedPrediction {
   cardOrder: number;
 }
 
 /** Predictions carrying what they pay, or the reason they carry nothing. */
 export type PricedAnswers =
-  | { predictions: PricedOnTheCard[]; refusal?: undefined }
+  | { predictions: PlacedPrediction[]; refusal?: undefined }
   | { predictions?: undefined; refusal: EntryRefusal };
 
 /** One Prediction of an Entry that has been accepted. */
@@ -131,6 +131,11 @@ export async function priceAnswers(
 ): Promise<PricedAnswers> {
   const boutIds = answers.map((answer) => answer.boutId);
 
+  // Asked before the query rather than after it: an id that is not one is not
+  // a Bout anybody has, and casting it inside the `where` below raises a 500
+  // halfway down a query instead of answering the fan (see `looksLikeId`).
+  if (!boutIds.every(looksLikeId)) return refuse(409, ENTRY_MESSAGES.boutNotOnTheCard);
+
   const rows = await useDatabase()
     .select({
       id: bouts.id,
@@ -139,8 +144,9 @@ export async function priceAnswers(
       seasonId: events.seasonId,
       scheduledStart: events.scheduledStart,
       // The Bout fought first on this card, which is the one that locks with
-      // the card itself (ADR-0006). Aliased, so the `events` row it is
-      // correlated against is the outer one and not this subquery's own.
+      // the card itself (ADR-0006). The inner `bouts` is aliased so that the
+      // `event_id` in its `where` is unmistakably its own, and `events.id` is
+      // the outer row it is correlated against.
       firstOnTheCard: sql<number>`(
         select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
       )`.mapWith(Number),
@@ -172,7 +178,7 @@ export async function priceAnswers(
     offeredOn.set(outcome.boutId, [...(offeredOn.get(outcome.boutId) ?? []), outcome]);
   }
 
-  const priced: PricedOnTheCard[] = [];
+  const priced: PlacedPrediction[] = [];
 
   for (const answer of answers) {
     const bout = onTheCard.get(answer.boutId);
@@ -184,9 +190,11 @@ export async function priceAnswers(
     // has passed without anybody writing a row to say so. #12 makes the second
     // a status of its own, and `boutState` keeps answering the same way when
     // it does.
-    const locksAt = locksWithTheCard(bout.cardOrder, bout.firstOnTheCard)
-      ? bout.scheduledStart.toISOString()
-      : null;
+    const locksAt = lockMoment(
+      bout.cardOrder,
+      bout.firstOnTheCard,
+      bout.scheduledStart.toISOString(),
+    );
 
     if (boutState({ status: bout.status, locksAt }, within.now.getTime()) !== "open") {
       return refuse(409, ENTRY_MESSAGES.boutNotOpen);
@@ -227,7 +235,7 @@ export async function submitEntry(submission: {
   fanId: string;
   seasonId: string;
   amount: number;
-  predictions: readonly PricedOnTheCard[];
+  predictions: readonly PlacedPrediction[];
 }): Promise<Submission> {
   const { fanId, seasonId, amount } = submission;
 

@@ -50,6 +50,14 @@ export const AMOUNT = { minimum: 1 } as const;
  * the chain stops paying more at ×100 however far it is taken. The cap is
  * shown to the fan the moment it starts deciding their Reward: a number that
  * quietly stopped growing would read as a game that had stopped working.
+ *
+ * **Changing this number changes what every unsettled Entry pays.** An Entry
+ * freezes what each of its answers paid (ADR-0002) and nothing else: the cap
+ * and the rounding are rules, applied wherever a Reward is worked out, so an
+ * Entry submitted under ×100 would settle under whatever this says by then.
+ * That is a decision to take between Seasons rather than during one — and the
+ * reason it is a constant somebody edits in a reviewed change rather than a
+ * setting somebody can type.
  */
 export const COMBINED_MULTIPLIER_CAP = 100;
 

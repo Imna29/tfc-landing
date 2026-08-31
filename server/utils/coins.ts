@@ -111,14 +111,25 @@ export async function balanceToCommitFrom(
   seasonId: string,
   userId: string,
 ): Promise<number> {
-  const [held] = await tx
+  const [held] = await balanceRow(tx, seasonId, userId).for("update");
+
+  return held?.balance ?? 0;
+}
+
+/**
+ * The one query behind both ways of reading a Balance: the materialised row,
+ * or nothing for a fan who has none.
+ *
+ * Written once because the two callers differ in one word — the `for update`
+ * one of them adds — and two copies of the same `where` is two places for the
+ * Season and the fan to come apart.
+ */
+function balanceRow(executor: Database | DatabaseTransaction, seasonId: string, userId: string) {
+  return executor
     .select({ balance: balanceCache.balance })
     .from(balanceCache)
     .where(and(eq(balanceCache.seasonId, seasonId), eq(balanceCache.userId, userId)))
-    .limit(1)
-    .for("update");
-
-  return held?.balance ?? 0;
+    .limit(1);
 }
 
 /**
@@ -220,11 +231,7 @@ export function rebuildBalanceCache(database: Database, seasonId: string): Promi
  * while no Season was open and who has not been granted anything since.
  */
 export async function balanceOf(seasonId: string, userId: string): Promise<number> {
-  const [held] = await useDatabase()
-    .select({ balance: balanceCache.balance })
-    .from(balanceCache)
-    .where(and(eq(balanceCache.seasonId, seasonId), eq(balanceCache.userId, userId)))
-    .limit(1);
+  const [held] = await balanceRow(useDatabase(), seasonId, userId);
 
   return held?.balance ?? 0;
 }

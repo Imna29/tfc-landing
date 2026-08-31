@@ -64,19 +64,23 @@ export function boutState(
 export function locksAt(bout: FightCardBout, card: FightCard): string | null {
   const first = Math.min(...card.bouts.map((one) => one.cardOrder));
 
-  return locksWithTheCard(bout.cardOrder, first) ? card.scheduledStart : null;
+  return lockMoment(bout.cardOrder, first, card.scheduledStart);
 }
 
 /**
- * Whether the Bout in this place on the card is the one that locks with the
- * card itself.
+ * The same answer as {@link locksAt}, for a caller holding one place on the
+ * card rather than the whole card.
  *
- * The same rule {@link locksAt} states, for the callers that hold one Bout and
- * the card's first place rather than the whole card — a submission names Bouts,
- * not a card, and asks of each one whether it is still taking Predictions.
+ * A submission names Bouts rather than a card and asks of each one whether it
+ * is still taking Predictions, so the rule is written here — once — and
+ * {@link locksAt} is the card-shaped way of asking it.
  */
-export function locksWithTheCard(cardOrder: number, firstOnTheCard: number): boolean {
-  return cardOrder === firstOnTheCard;
+export function lockMoment(
+  cardOrder: number,
+  firstOnTheCard: number,
+  scheduledStart: string,
+): string | null {
+  return cardOrder === firstOnTheCard ? scheduledStart : null;
 }
 
 /** One answer a fan can give, and what it pays. */

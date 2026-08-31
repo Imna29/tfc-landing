@@ -597,7 +597,12 @@ neither the combined Multiplier nor the Reward: both are the product of what is
 on its Predictions, and a stored copy would be a second answer to a question
 that already has one. `potentialReward` in `shared/entries.ts` is where they
 become a Reward, capped at ×100 and rounded to whole Coins, said once for the
-panel, the API and the settlement that will eventually pay it.
+panel, the API and the settlement that will eventually pay it. The cost of that
+is worth stating: the cap and the rounding are *rules*, applied wherever a
+Reward is worked out, rather than numbers frozen onto the Entry — so changing
+either changes what every unsettled Entry pays. That is a decision to take
+between Seasons rather than during one, and `COMBINED_MULTIPLIER_CAP` says so
+where somebody would change it.
 
 **The Coins leave at submission**, as one `entry_commitment` row in the ledger
 written in the same transaction as the Entry (ADR-0003). The route reads the

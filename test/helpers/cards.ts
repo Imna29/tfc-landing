@@ -1,11 +1,11 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { inject } from "vitest";
-import type { OutcomeAnswer, Question } from "../../shared/pricing";
+import type { Question } from "../../shared/pricing";
 import { bouts, outcomes, seasons } from "../../server/db/schema";
 import type { Card, CardBout, CardCorner } from "../../server/utils/cardImport";
 import { importCard, type Imported } from "../../server/utils/events";
-import type { BoutToPrice, CardToPrice, OutcomeToPrice } from "../../server/utils/pricing";
+import type { BoutToPrice, CardToPrice } from "../../server/utils/pricing";
 import { postJson, signUpAdmin } from "./accounts";
 import { testDatabase } from "./database";
 import { fanId } from "./users";
@@ -229,17 +229,4 @@ export async function cardInTheGame(
     eventId: imported.id,
     bouts: (await cardToPrice(imported.id, admin.cookie)).bouts,
   };
-}
-
-/** The Outcome on a Bout that answers one Question one way. */
-export function outcomeOn(bout: BoutToPrice, answer: Partial<OutcomeAnswer>): OutcomeToPrice {
-  const found = bout.outcomes.find((outcome) =>
-    Object.entries(answer).every(
-      ([field, value]) => outcome[field as keyof OutcomeAnswer] === value,
-    ),
-  );
-
-  if (!found) throw new Error(`Bout ${bout.cardOrder} offers no ${JSON.stringify(answer)}.`);
-
-  return found;
 }

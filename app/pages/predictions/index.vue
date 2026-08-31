@@ -49,8 +49,8 @@ function answer(boutId: string, pick: BoutPick | null) {
   picks.value = answered;
 }
 
-/** Every Bout the game is holding something against, by its id. */
-const bouts = computed(() =>
+/** Every Bout the game is offering answers on, with what they pay. */
+const boutsInTheGame = computed(() =>
   (card.value?.bouts ?? []).flatMap((bout) => {
     const held = predictions.value?.bouts[bout.cardOrder];
 
@@ -76,7 +76,7 @@ const bouts = computed(() =>
  * re-import, and the server refuses the Entry either way.
  */
 const draft = computed<DraftPrediction[]>(() =>
-  bouts.value.flatMap((bout) => {
+  boutsInTheGame.value.flatMap((bout) => {
     const pick = picks.value[bout.id];
     const price = pick && priceOf(pick, bout.outcomes);
 

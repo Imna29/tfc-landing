@@ -749,6 +749,10 @@ export const predictions = pgTable(
       "predictions_method_known",
       sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
     ),
+    // The bounds `bouts_rounds_are_scheduled` puts on a Bout, and `SCHEDULED_ROUNDS`
+    // in `shared/events.ts` on an import. That the round is one *this* Bout is
+    // scheduled for is `predictions_round_is_offered`'s to say, because only
+    // the Outcome rows know it.
     check(
       "predictions_round_is_a_round",
       sql`${table.round} is null or ${table.round} between 1 and 12`,
