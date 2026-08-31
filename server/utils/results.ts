@@ -1,6 +1,6 @@
 /**
- * Settlement: recording what happened in a Bout, grading every Entry riding on
- * it, and moving the Coins — as one transaction.
+ * Settlement: recording how a Bout ended, grading every Entry riding on it, and
+ * moving the Coins — as one transaction.
  *
  * **This is the only place in the application where Coins can be created or
  * destroyed by accident.** Everything else that moves them either takes an
@@ -13,31 +13,45 @@
  *
  * What is decided here is only what the database knows: which Entries this Bout
  * touches, which of their other Bouts have settled, and what the Coins are
- * doing. Whether a Prediction landed and where an Entry now stands is
- * `shared/results.ts`, and what a winning Entry returns is `potentialReward` in
- * `shared/entries.ts` — the same function that priced the panel the fan
- * confirmed in, which is what ADR-0013 means by the cap being a rule rather
- * than a number anybody was quoted.
+ * doing. Whether a Prediction landed, where an Entry now stands and what each
+ * of its answers ended up paying is `shared/results.ts`, and what a winning
+ * Entry returns is `potentialReward` in `shared/entries.ts` — the same function
+ * that priced the panel the fan confirmed in, which is what ADR-0013 means by
+ * the cap being a rule rather than a number anybody was quoted.
+ *
+ * A Bout that produced nothing gradable settles through exactly this path
+ * (ADR-0005). It is not a lesser kind of settlement: it locks the Bout, records
+ * what happened, grades every Entry riding on it, and moves Coins — the
+ * difference is only that the Coins it moves are Amounts coming back rather
+ * than Rewards going out.
  *
  * Three separate things stop a Bout settled twice from paying twice, and they
  * are deliberately not one: the `bout_results` primary key refuses a second
  * Result, only Entries still Open are graded, and
  * `coin_transactions_one_reward_per_entry` refuses a second Reward for an Entry
- * whatever asked for it. The first is what an admin actually meets, and is the
- * one turned back into a sentence below. The other two are underneath it, and
- * reaching either means something is wrong rather than merely refused — so they
- * are left to fail loudly rather than dressed up as a refusal an admin could
- * read and shrug at.
+ * whatever asked for it — with `coin_transactions_one_refund_per_entry` saying
+ * the same of a refund. The first is what an admin actually meets, and is the
+ * one turned back into a sentence below. The others are underneath it, and
+ * reaching any of them means something is wrong rather than merely refused — so
+ * they are left to fail loudly rather than dressed up as a refusal an admin
+ * could read and shrug at.
  */
 import { COIN_REASONS } from "#shared/coins";
 import { potentialReward, type EntryStatus, type PricedPrediction } from "#shared/entries";
 import type { Corner } from "#shared/events";
-import type { Method } from "#shared/pricing";
-import { RESULT_MESSAGES, gradeEntry, type BoutResult } from "#shared/results";
+import {
+  RESULT_MESSAGES,
+  gradeEntry,
+  settledPrice,
+  type BoutEnding,
+  type NoResultReason,
+  type RecordedMethod,
+  type Settlement,
+} from "#shared/results";
 import { and, eq, inArray } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
 import { boutResults, bouts, entries, predictions } from "../db/schema";
-import { creditRewards, type Reward } from "./coins";
+import { creditRewards, refundEntries, type CoinsReturned } from "./coins";
 import { refusedByConstraint, useDatabase } from "./db";
 import { lockBout } from "./locks";
 
@@ -52,6 +66,9 @@ export const RESULTS_ARE_ENTERED_ON_SETTLED_BOUTS = "results_are_entered_on_sett
 
 /** The key holding a Result's round to one the Bout was offering. */
 export const A_RESULTS_ROUND_WAS_OFFERED = "bout_results_round_was_offered";
+
+/** The check holding a row to a Result or a No Result, and never half of either. */
+export const A_RESULT_OR_A_NO_RESULT = "bout_results_is_a_result_or_no_result";
 
 /** The index that holds an Entry to one Reward. */
 export const ONE_REWARD_PER_ENTRY = "coin_transactions_one_reward_per_entry";
@@ -69,34 +86,13 @@ export interface ResultRefusal {
   status: number;
 }
 
-/**
- * What entering a Result did, as the admin who entered it is told.
- *
- * Counted rather than listed. An admin entering the result of a main event
- * needs to know that it landed and roughly how big it was; who won what is the
- * fans' own history (#17), and a list of five hundred usernames on a phone at
- * cageside is not an answer to anything.
- */
-export interface Settlement {
-  /** Entries holding a Prediction on this Bout that were still Open. */
-  graded: number;
-  /** Of those, the ones this Result finished: every Prediction landed. */
-  won: number;
-  /** Of those, the ones this Result ended, Bouts still to come or not. */
-  lost: number;
-  /** Of those, the ones still alive: correct so far, with Bouts left. */
-  stillOpen: number;
-  /** The Coins the Rewards returned. */
-  paid: number;
-}
-
 /** A Bout settled and what that did, or the reason it was not. */
 export type Settled =
   | { settlement: Settlement; refusal?: undefined }
   | { settlement?: undefined; refusal: ResultRefusal };
 
 /**
- * Records the Result, settles the Bout and grades every Entry riding on it.
+ * Records how the Bout ended, settles it and grades every Entry riding on it.
  *
  * The order of the writes is the argument, so it is worth reading as one:
  *
@@ -105,13 +101,15 @@ export type Settled =
  *    certainty, and this is the door ADR-0006's backstops do not watch. It is
  *    `lockBout`'s `result` kind, attributed to the admin, because what they
  *    decided to do was enter a result.
- * 2. **Write the Result**, which the primary key on `bout_results` allows once.
+ * 2. **Write what happened**, which the primary key on `bout_results` allows
+ *    once — a Result, or the No Result the Bout produced instead.
  * 3. **Settle the Bout**, which `results_are_entered_on_settled_bouts` holds to
  *    step 2 at commit — neither is ever written without the other.
- * 4. **Take the Entries** this Result decides, under a row lock, before reading
+ * 4. **Take the Entries** this decides, under a row lock, before reading
  *    anything about them. See below for what that lock is actually for.
  * 5. **Grade, then write once each**: the Entries this ended, the Entries it
- *    finished, and their Rewards.
+ *    finished, the Entries it left with nothing gradable, and the Coins all of
+ *    that moves.
  *
  * The row lock in step 4 is not about two admins settling the same Bout — the
  * primary key answers that one. It is about two Bouts of the *same Entry*
@@ -123,7 +121,7 @@ export type Settled =
  */
 export async function settleBout(
   bout: { id: string; scheduledRounds: number },
-  result: BoutResult,
+  ending: BoutEnding,
   by: string,
 ): Promise<Settled> {
   try {
@@ -137,9 +135,10 @@ export async function settleBout(
 
       await tx.insert(boutResults).values({
         boutId: bout.id,
-        winner: result.winner,
-        method: result.method,
-        round: result.round,
+        winner: ending.result?.winner ?? null,
+        method: ending.result?.method ?? null,
+        round: ending.result?.round ?? null,
+        noResult: ending.noResult ?? null,
         enteredBy: by,
       });
 
@@ -160,9 +159,10 @@ export async function settleBout(
 }
 
 /**
- * Grades every Entry this Bout's Result decides, and pays the ones it finishes.
+ * Grades every Entry this Bout decides, pays the ones it finishes and returns
+ * the Amounts of the ones it left with nothing to grade.
  *
- * Two reads and at most three writes, whatever the card's attendance: a
+ * Two reads and at most five writes, whatever the card's attendance: a
  * settlement is one shape of work whether it touches four Entries or four
  * thousand, and a query per Entry would hold the transaction open across the
  * whole of it.
@@ -173,9 +173,10 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
     .from(entries)
     .where(
       and(
-        // An Entry already Won or Lost is not graded again. It is the second of
-        // the three guards against a Bout settled twice paying twice, and the
-        // one that also covers a chain whose earlier Bout already ended it.
+        // An Entry already Won, Lost or Refunded is not graded again. It is the
+        // second of the three guards against a Bout settled twice paying twice,
+        // and the one that also covers a chain whose earlier Bout already
+        // ended it.
         eq(entries.status, "open"),
         inArray(
           entries.id,
@@ -194,7 +195,7 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
   // Every Entry on this Bout was decided by an earlier one, or nobody
   // predicted on it at all. Either way there is nothing to read and nothing to
   // write — an admin settling an undercard Bout late on a card sees this.
-  if (riding.length === 0) return { graded: 0, won: 0, lost: 0, stillOpen: 0, paid: 0 };
+  if (riding.length === 0) return NOTHING_TO_SETTLE;
 
   // A second statement rather than a `for update` on the join above, and that
   // is the point of it: in read committed a statement that waited on a row lock
@@ -217,6 +218,7 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
       resultRound: boutResults.round,
+      resultNoResult: boutResults.noResult,
     })
     .from(entries)
     .innerJoin(predictions, eq(predictions.entryId, entries.id))
@@ -249,21 +251,23 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
       winnerMultiplier: row.winnerMultiplier,
       methodMultiplier: row.methodMultiplier,
       roundMultiplier: row.roundMultiplier,
-      result: resultFrom(row),
+      ending: endingFrom(row),
     });
   }
 
   const lost: SettlingEntry[] = [];
   const won: SettlingEntry[] = [];
+  const refunded: SettlingEntry[] = [];
   let stillOpen = 0;
 
   for (const entry of settling.values()) {
     const standing = gradeEntry(
-      entry.predictions.map((prediction) => ({ prediction, result: prediction.result })),
+      entry.predictions.map((prediction) => ({ prediction, ending: prediction.ending })),
     );
 
     if (standing === "lost") lost.push(entry);
     else if (standing === "won") won.push(entry);
+    else if (standing === "refunded") refunded.push(entry);
     else stillOpen += 1;
   }
 
@@ -272,26 +276,48 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
   // and nothing else. Writing a row here would take the Coins a second time.
   if (lost.length > 0) await markEntries(tx, "lost", lost);
   if (won.length > 0) await markEntries(tx, "won", won);
+  if (refunded.length > 0) await markEntries(tx, "refunded", refunded);
 
   const paid = await creditRewards(tx, won.map(rewardFor));
+  const returned = await refundEntries(tx, refunded.map(refundFor));
 
-  return { graded: settling.size, won: won.length, lost: lost.length, stillOpen, paid };
+  return {
+    graded: settling.size,
+    won: won.length,
+    lost: lost.length,
+    refunded: refunded.length,
+    stillOpen,
+    paid,
+    returned,
+  };
 }
+
+/** A settlement that found nothing left to decide, which is a common one. */
+const NOTHING_TO_SETTLE: Settlement = {
+  graded: 0,
+  won: 0,
+  lost: 0,
+  refunded: 0,
+  stillOpen: 0,
+  paid: 0,
+  returned: 0,
+};
 
 /**
  * One Prediction being settled: what it was worth, and how its Bout went.
  *
- * A `PricedPrediction` with the Result beside it, rather than two collections
- * to keep in step. It is both of the things settlement needs of a Prediction
- * and it is one object: `potentialReward` reads the Multipliers off it, and
- * `gradeEntry` reads the answers and the Result off the same row.
+ * A `PricedPrediction` with the Bout's ending beside it, rather than two
+ * collections to keep in step. It is both of the things settlement needs of a
+ * Prediction and it is one object: `gradeEntry` reads the answers and the
+ * ending off the same row, and `settledPrice` reads the Multipliers and the
+ * ending off it to work out what the answer actually pays.
  */
 interface SettlingPrediction extends PricedPrediction {
-  /** The Result of its Bout, or null while that Bout has not settled. */
-  result: BoutResult | null;
+  /** How its Bout ended, or null while that Bout has not settled. */
+  ending: BoutEnding | null;
 }
 
-/** One Entry this Result decides, with everything needed to grade and pay it. */
+/** One Entry this decides, with everything needed to grade and pay it. */
 interface SettlingEntry {
   id: string;
   seasonId: string;
@@ -304,12 +330,17 @@ interface SettlingEntry {
  * What a winning Entry returns, worked out by the function that told the fan
  * what it would.
  *
- * ADR-0013 is the whole of this line: the combined Multiplier and the ×100 cap
- * are worked out here from the Multipliers on the Predictions, rather than read
- * back from a number written at submission. There is nothing to disagree with.
+ * ADR-0013 and ADR-0005 in three lines: the combined Multiplier and the ×100
+ * cap are worked out here from the Multipliers on the Predictions rather than
+ * read back from a number written at submission, and each Prediction is priced
+ * at what it *ended up* paying — a No Result at ×1.0, a disqualification at its
+ * winner alone. There is nothing to disagree with.
  */
-function rewardFor(entry: SettlingEntry): Reward {
-  const { multiplier, reward } = potentialReward(entry.amount, entry.predictions);
+function rewardFor(entry: SettlingEntry): CoinsReturned {
+  const { multiplier, reward } = potentialReward(
+    entry.amount,
+    entry.predictions.map((prediction) => settledPrice(prediction, prediction.ending)),
+  );
 
   return {
     seasonId: entry.seasonId,
@@ -317,6 +348,26 @@ function rewardFor(entry: SettlingEntry): Reward {
     entryId: entry.id,
     amount: reward,
     reason: COIN_REASONS.entryWon(multiplier),
+  };
+}
+
+/**
+ * What an Entry of nothing but No Results returns: the Amount, in full.
+ *
+ * Read off the Entry rather than worked out from its Predictions, though the
+ * two agree by arithmetic — every Prediction in it contributes ×1.0, so
+ * `potentialReward` would answer the Amount as well. The Amount is what
+ * `entries_are_refunded_in_full` checks against, and a refund is the one
+ * movement in this file that is not allowed to be a Multiplier's opinion of
+ * anything.
+ */
+function refundFor(entry: SettlingEntry): CoinsReturned {
+  return {
+    seasonId: entry.seasonId,
+    userId: entry.userId,
+    entryId: entry.id,
+    amount: entry.amount,
+    reason: COIN_REASONS.entryNoResult,
   };
 }
 
@@ -337,15 +388,31 @@ async function markEntries(
     );
 }
 
-/** The Result joined onto a Prediction's Bout, or null where it has none. */
-function resultFrom(row: {
+/** The four columns a `bout_results` row is read back through. */
+export interface RecordedEnding {
   resultWinner: Corner | null;
-  resultMethod: Method | null;
+  resultMethod: RecordedMethod | null;
   resultRound: number | null;
-}): BoutResult | null {
+  resultNoResult: NoResultReason | null;
+}
+
+/**
+ * How a Bout ended, joined onto whatever is being read beside it, or null where
+ * it has not settled.
+ *
+ * The one place the four nullable columns are turned back into the union
+ * `shared/results.ts` grades against, so that nothing else has to know which
+ * combinations of them are possible. `bout_results_is_a_result_or_no_result`
+ * is what makes the half-filled row this would have to guess about
+ * unwriteable.
+ */
+export function endingFrom(row: RecordedEnding): BoutEnding | null {
+  if (row.resultNoResult !== null) return { noResult: row.resultNoResult };
   if (row.resultWinner === null || row.resultMethod === null) return null;
 
-  return { winner: row.resultWinner, method: row.resultMethod, round: row.resultRound };
+  return {
+    result: { winner: row.resultWinner, method: row.resultMethod, round: row.resultRound },
+  };
 }
 
 /**
@@ -373,29 +440,36 @@ function refusalBehind(error: unknown, bout: { scheduledRounds: number }): Resul
 }
 
 /**
- * The Result on each of these Bouts, by Bout id, for the ones that have one.
+ * How each of these Bouts ended, by Bout id, for the ones that have settled.
  *
  * Read for a whole card at once rather than a Bout at a time, the way
  * `locksOn` is and for the same reason: an admin looks at a card down the
  * card, and so does everything that shows one.
  */
-export async function resultsOn(boutIds: readonly string[]): Promise<Map<string, BoutResult>> {
+export async function endingsOn(boutIds: readonly string[]): Promise<Map<string, BoutEnding>> {
   if (boutIds.length === 0) return new Map();
 
   const recorded = await useDatabase()
     .select({
       boutId: boutResults.boutId,
-      winner: boutResults.winner,
-      method: boutResults.method,
-      round: boutResults.round,
+      resultWinner: boutResults.winner,
+      resultMethod: boutResults.method,
+      resultRound: boutResults.round,
+      resultNoResult: boutResults.noResult,
     })
     .from(boutResults)
     .where(inArray(boutResults.boutId, boutIds));
 
-  return new Map(
-    recorded.map((entered) => [
-      entered.boutId,
-      { winner: entered.winner, method: entered.method, round: entered.round },
-    ]),
-  );
+  const endings = new Map<string, BoutEnding>();
+
+  for (const row of recorded) {
+    const ending = endingFrom(row);
+
+    // A row that is neither a Result nor a No Result cannot be written, so
+    // this drops nothing — it is how the union stays the only shape anything
+    // downstream has to read.
+    if (ending) endings.set(row.boutId, ending);
+  }
+
+  return endings;
 }

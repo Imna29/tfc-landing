@@ -37,6 +37,7 @@ import type { EntryStatus } from "../../shared/entries";
 import type { BoutStatus, Corner } from "../../shared/events";
 import type { LockKind } from "../../shared/locks";
 import type { Method, Question } from "../../shared/pricing";
+import type { NoResultReason, RecordedMethod } from "../../shared/results";
 
 /**
  * What a user is allowed to do: play, or also run the game.
@@ -730,6 +731,14 @@ export const boutLocks = pgTable(
  *
  * `enteredBy` and `enteredAt` are who said this is what happened and when,
  * which is the question a corrected result asks first.
+ *
+ * **A Bout that produced nothing gradable is recorded here too**, as a row
+ * naming the reason and no winner (ADR-0005). One table rather than two,
+ * because the thing being recorded is the same thing — an admin saying how a
+ * Bout ended — and everything that asks "has this Bout been settled?" asks it
+ * of one row either way, `results_are_entered_on_settled_bouts` included. The
+ * two shapes are held apart by `bout_results_is_a_result_or_no_result`: a row
+ * names a winner and a method, or it names the reason there is neither.
  */
 export const boutResults = pgTable(
   "bout_results",
@@ -737,11 +746,26 @@ export const boutResults = pgTable(
     boutId: uuid("bout_id")
       .primaryKey()
       .references(() => bouts.id),
-    /** The corner that won, which every winner answer is graded against. */
-    winner: text("winner").$type<Corner>().notNull(),
-    method: text("method").$type<Method>().notNull(),
-    /** The round it ended in, or null where it went to a Decision. */
+    /**
+     * The corner that won, which every winner answer is graded against, or
+     * null on a Bout that decided none (ADR-0005).
+     */
+    winner: text("winner").$type<Corner>(),
+    /**
+     * How it ended, or null on a Bout that produced nothing gradable.
+     *
+     * `RecordedMethod` rather than `Method`: a disqualification is a way a
+     * Bout ends and is not one of the three answers the game offers, so it
+     * settles the winner Question and turns the other two into No Results.
+     */
+    method: text("method").$type<RecordedMethod>(),
+    /** The round it ended in, or null where it did not end inside one. */
     round: integer("round"),
+    /**
+     * Why the Bout produced nothing gradable, or null where it produced a
+     * Result. The four ADR-0005 names: cancelled, withdrawal, draw, no contest.
+     */
+    noResult: text("no_result").$type<NoResultReason>(),
     enteredAt: timestamp("entered_at", { withTimezone: true }).notNull().defaultNow(),
     enteredBy: uuid("entered_by")
       .notNull()
@@ -757,18 +781,41 @@ export const boutResults = pgTable(
       foreignColumns: [outcomes.boutId, outcomes.round],
       name: "bout_results_round_was_offered",
     }),
-    check("bout_results_winner_known", sql`${table.winner} in ('red', 'blue')`),
+    check(
+      "bout_results_winner_known",
+      sql`${table.winner} is null
+        or ${table.winner} in ('red', 'blue')`,
+    ),
+    // One value wider than `outcomes_method_known` and `predictions_method_known`,
+    // and that is ADR-0005's whole point: a Bout can end by disqualification,
+    // and no fan was ever offered it as an answer.
     check(
       "bout_results_method_known",
-      sql`${table.method} in ('ko_tko', 'submission', 'decision')`,
+      sql`${table.method} is null
+        or ${table.method} in ('ko_tko', 'submission', 'decision', 'disqualification')`,
+    ),
+    check(
+      "bout_results_no_result_known",
+      sql`${table.noResult} is null
+        or ${table.noResult} in ('cancelled', 'withdrawal', 'draw', 'no_contest')`,
+    ),
+    // A row records a Result or a No Result, and never half of either. A row
+    // naming a reason and a winner would be two accounts of one Bout with
+    // nothing to say which of them every Prediction on it is graded against,
+    // and a row naming neither would settle a Bout while saying nothing at all.
+    check(
+      "bout_results_is_a_result_or_no_result",
+      sql`(${table.noResult} is null) = (${table.winner} is not null
+        and ${table.method} is not null)`,
     ),
     // The same impossibility `predictions_a_round_needs_a_finish` refuses, said
     // both ways round because a Result is a statement of fact rather than a
-    // pick somebody may leave shallow: a Decision is the Bout going the
-    // distance and has no round, and a KO/TKO or a Submission happened in one.
+    // pick somebody may leave shallow: a KO/TKO and a Submission happened in a
+    // round, and a Decision, a disqualification and a No Result did not.
     check(
       "bout_results_a_round_is_a_finish",
-      sql`(${table.round} is null) = (${table.method} = 'decision')`,
+      sql`(${table.round} is not null) = (${table.method} is not null
+        and ${table.method} in ('ko_tko', 'submission'))`,
     ),
   ],
 );
@@ -801,13 +848,22 @@ export const boutResults = pgTable(
  *
  * **Cancelling is three more rules a column cannot hold**, and
  * `0010_cancelling_an_entry.sql` holds each of them: an Entry reaches
- * `cancelled` out of `open` and never leaves it
- * (`an_entry_is_cancelled_once_out_of_open`), only while every Bout in it is
- * still open (`entries_are_cancelled_while_every_bout_is_open`), and never
- * apart from the refund that returns its whole Amount
- * (`cancelled_entries_are_refunded`). The last is the shape
+ * `cancelled` out of `open` and never leaves it, only while every Bout in it
+ * is still open (`entries_are_cancelled_while_every_bout_is_open`), and never
+ * apart from the refund that returns its whole Amount. The first and the last
+ * are named `an_entry_returns_its_coins_once_out_of_open` and
+ * `entries_are_refunded_in_full`, and are dropped and rewritten under those
+ * names by `0011_no_result_and_disqualification.sql`, which widens both to the
+ * second status that returns an Amount. The last is the shape
  * `results_are_entered_on_settled_bouts` uses and the same kind of promise: a
  * status and a Coin movement that are only ever true together.
+ *
+ * **`refunded` is held by the first and the last of those as well**, because
+ * an Entry of nothing but No Results returns exactly the same Amount by
+ * exactly the same movement (ADR-0005) — the difference is whose decision it
+ * was, not what the Coins did. What it is deliberately not held by is the
+ * middle one: it is settlement that writes it, on a card that has not only
+ * started but finished.
  */
 export const entries = pgTable(
   "entries",
@@ -828,7 +884,10 @@ export const entries = pgTable(
     // Every Entry a fan has in a Season, which is the profile history (#17)
     // and what settlement re-reads.
     index("entries_by_fan").on(table.seasonId, table.userId),
-    check("entries_status_known", sql`${table.status} in ('open', 'won', 'lost', 'cancelled')`),
+    check(
+      "entries_status_known",
+      sql`${table.status} in ('open', 'won', 'lost', 'cancelled', 'refunded')`,
+    ),
     // Spelled out again in `AMOUNT` in `shared/entries.ts`, which is what the
     // page and the route refuse with. There is no ceiling here: the maximum is
     // the fan's whole Balance, and the ledger is the only thing that knows it.

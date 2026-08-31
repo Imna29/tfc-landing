@@ -30,20 +30,26 @@ import {
 } from "#shared/entries";
 import { and, desc, eq } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
-import { bouts, entries, events, predictions } from "../db/schema";
-import { balanceOf, balanceToMoveFrom, refundCoins } from "./coins";
+import { boutResults, bouts, entries, events, predictions } from "../db/schema";
+import { balanceOf, balanceToMoveFrom, refundEntries } from "./coins";
 import { looksLikeId, refusedByConstraint, useDatabase } from "./db";
 import { firstOnTheCard, lockMomentOf, type AsAt } from "./locks";
+import { endingFrom } from "./results";
 
 /** The name of the trigger that refuses a cancellation once a Bout has locked. */
 export const ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN =
   "entries_are_cancelled_while_every_bout_is_open";
 
-/** The name of the trigger that holds an Entry to one cancellation, out of Open. */
-export const AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN = "an_entry_is_cancelled_once_out_of_open";
+/**
+ * The name of the trigger that holds an Entry to one return of its Coins, out
+ * of Open — a cancellation, or the refund an Entry of nothing but No Results is
+ * made whole with (ADR-0005).
+ */
+export const AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN =
+  "an_entry_returns_its_coins_once_out_of_open";
 
-/** The name of the constraint trigger tying a cancellation to its refund. */
-export const CANCELLED_ENTRIES_ARE_REFUNDED = "cancelled_entries_are_refunded";
+/** The name of the constraint trigger tying either of those to its refund. */
+export const ENTRIES_ARE_REFUNDED_IN_FULL = "entries_are_refunded_in_full";
 
 /** The index that holds a cancelled Entry to one refund. */
 export const ONE_REFUND_PER_ENTRY = "coin_transactions_one_refund_per_entry";
@@ -119,6 +125,13 @@ export async function committedEntries(
       redName: bouts.redName,
       blueName: bouts.blueName,
       scheduledStart: events.scheduledStart,
+      // How the Bout ended, for the Predictions whose Bouts have settled. A No
+      // Result has to say why it was one where the fan reads it (ADR-0005),
+      // and it is what reprices the answer to the ×1.0 it now contributes.
+      resultWinner: boutResults.winner,
+      resultMethod: boutResults.method,
+      resultRound: boutResults.round,
+      resultNoResult: boutResults.noResult,
       // The Bout fought first on this card, which is the one that locks with
       // the card itself (ADR-0006).
       firstOnTheCard,
@@ -127,6 +140,7 @@ export async function committedEntries(
     .innerJoin(predictions, eq(predictions.entryId, entries.id))
     .innerJoin(bouts, eq(bouts.id, predictions.boutId))
     .innerJoin(events, eq(events.id, bouts.eventId))
+    .leftJoin(boutResults, eq(boutResults.boutId, predictions.boutId))
     .where(and(eq(entries.userId, fan.fanId), eq(entries.seasonId, fan.seasonId)))
     // Newest Entry first, and inside each one the order the Bouts are fought:
     // the two orders a fan reads their own Entries in.
@@ -157,6 +171,7 @@ export async function committedEntries(
       corners: { red: row.redName, blue: row.blueName },
       status: row.boutStatus,
       locksAt: lockMomentOf(row, at.sweepAfter).at,
+      ending: endingFrom(row),
     });
   }
 
@@ -238,13 +253,15 @@ export async function cancelEntry(
 
       await tx.update(entries).set({ status: "cancelled" }).where(eq(entries.id, entry.id));
 
-      await refundCoins(tx, {
-        seasonId: entry.seasonId,
-        userId: fanId,
-        entryId: entry.id,
-        amount: entry.amount,
-        reason: COIN_REASONS.entryCancelled,
-      });
+      await refundEntries(tx, [
+        {
+          seasonId: entry.seasonId,
+          userId: fanId,
+          entryId: entry.id,
+          amount: entry.amount,
+          reason: COIN_REASONS.entryCancelled,
+        },
+      ]);
 
       return {
         entry: { id: entry.id, status: "cancelled" as const, amount: entry.amount },

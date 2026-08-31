@@ -70,9 +70,14 @@ Recorded once per Bout and only after it has locked — entering one locks a Bou
 travels: closed, open, locked, settled. A Result entered wrong is corrected rather than
 deleted (#16), the way a Coin Transaction is ([[adr-0003]]).
 
+A Result may record one more method than the game offers: a **disqualification**. It is
+how a Bout ends and it is not one of the three answers any fan was shown, so it settles
+the winner Question and turns the other two into [[no-result]]s.
+
 Not a "score" and not an "outcome": an [[outcome]] is an answer the game offered, and a
 Result is what actually happened. A [[bout]] that produced nothing gradable is a
-[[no-result]] rather than a Result of its own.
+[[no-result]] rather than a Result of its own. Both are recorded the same way and in the
+same place, and a Bout is **settled** either way.
 
 ### Settlement
 
@@ -299,9 +304,18 @@ mutable balance column [[adr-0003]] rules out.
 
 ### No Result
 
-A Bout that produced nothing gradable: cancelled, a fighter withdrew, a draw, or a no
-contest. Its Prediction contributes a Multiplier of ×1.0 and the rest of the Chained Entry
-plays on; if every Prediction in an Entry is No Result, the Amount is refunded in full.
+A Bout that produced nothing gradable, and which of four it was: **cancelled**,
+**withdrawal**, **draw**, or **no contest**. Its Prediction contributes a Multiplier of
+×1.0 and the rest of the Chained Entry plays on; if every Prediction in an Entry is No
+Result, the Amount is refunded in full.
+
+The reason is recorded and shown, because a fan told their Prediction counted for nothing
+and not why is reading an outcome that looks arbitrary.
+
+It is also what a single Question becomes where the Bout answered the others. A
+disqualification settles the winner and leaves the method and round Questions No Results —
+so a No Result is a thing that happens to a Question, and a Bout that produced nothing is
+the case where it happens to all three.
 
 Never "void". See [[adr-0005]].
 

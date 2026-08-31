@@ -11,7 +11,7 @@
  */
 import type { BoutStatus, Corner } from "#shared/events";
 import type { BoutLock } from "#shared/locks";
-import type { BoutResult } from "#shared/results";
+import type { BoutEnding } from "#shared/results";
 import {
   defaultOutcomes,
   inAskedOrder,
@@ -25,7 +25,7 @@ import type { DatabaseTransaction } from "../db/client";
 import { bouts, events, outcomes, seasons } from "../db/schema";
 import { useDatabase } from "./db";
 import { locksOn } from "./locks";
-import { resultsOn } from "./results";
+import { endingsOn } from "./results";
 
 /** The name of the trigger that refuses to open a Bout nobody has priced. */
 export const BOUTS_ARE_OPENED_ONLY_WHEN_PRICED = "bouts_are_opened_only_when_priced";
@@ -87,14 +87,15 @@ export interface BoutToPrice {
    */
   lock: BoutLock | null;
   /**
-   * What happened in it, or null while nobody has entered a result.
+   * How it ended, or null while nobody has entered anything about it — the
+   * Result it produced, or the No Result it produced instead (ADR-0005).
    *
    * Beside the Lock for the same reason the Lock is beside the fight: an admin
    * works down a card, and what they need to see on each Bout is where it has
    * got to. It is also what stops the result form offering to settle a Bout
    * twice.
    */
-  result: BoutResult | null;
+  ending: BoutEnding | null;
   outcomes: OutcomeToPrice[];
 }
 
@@ -252,7 +253,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
       ...bout,
       priced: false,
       lock: null,
-      result: null,
+      ending: null,
       outcomes: [],
     };
 
@@ -272,7 +273,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   }
 
   const locked = await locksOn([...card.keys()]);
-  const settled = await resultsOn([...card.keys()]);
+  const settled = await endingsOn([...card.keys()]);
 
   return [...card.values()].map((bout) => ({
     ...bout,
@@ -281,7 +282,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     // is re-imported rather than opened.
     priced: bout.outcomes.length > 0 && bout.outcomes.every((outcome) => outcome.priced),
     lock: locked.get(bout.id) ?? null,
-    result: settled.get(bout.id) ?? null,
+    ending: settled.get(bout.id) ?? null,
     outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
   }));
 }

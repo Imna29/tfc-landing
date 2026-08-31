@@ -1,8 +1,8 @@
 import { PRICING_MESSAGES } from "#shared/pricing";
-import { RESULT_MESSAGES, parseResult } from "#shared/results";
+import { RESULT_MESSAGES, parseEnding } from "#shared/results";
 
 /**
- * Entering the result of a Bout: the moment Coins move.
+ * Entering how a Bout ended: the moment Coins move.
  *
  * The highest-consequence button in the product. Everything behind it happens
  * in one transaction — the Bout locks if it is still open, the Result is
@@ -18,6 +18,13 @@ import { RESULT_MESSAGES, parseResult } from "#shared/results";
  * Result on a Bout nobody opened, and by the key holding its round to one the
  * Bout offered — because two admins at cageside can press this in the same
  * second.
+ *
+ * A Bout that produced nothing gradable comes through here too, as a No Result
+ * naming which of ADR-0005's four it was. It settles by exactly the same path
+ * and for the same reason: every Prediction on it contributes ×1.0 rather than
+ * losing, and an Entry left with nothing else to decide has its Amount
+ * returned in full — which is Coins moving, so it belongs in the one
+ * transaction with the rest of it.
  *
  * A Bout still open is settled rather than refused, and locked on the way
  * through. That is #12's last criterion and it lands here: an admin who reaches
@@ -43,14 +50,17 @@ export default defineEventHandler(async (event) => {
   if (!bout) throw refuse(404, PRICING_MESSAGES.boutNotFound);
   if (bout.status === "settled") throw refuse(409, RESULT_MESSAGES.alreadySettled);
   // A Bout nobody opened took no Predictions, so there is nothing for a result
-  // to decide — and settling it would close the door on ever opening it.
+  // to decide — and settling it would close the door on ever opening it. That
+  // holds for a No Result too, cancellation included: a Bout that never opened
+  // is taken off the card by re-importing it (ADR-0001), which is the door
+  // this refusal is keeping open rather than the one it is shutting.
   if (bout.status === "closed") throw refuse(409, RESULT_MESSAGES.boutNotOpened);
 
-  const { result, problem } = parseResult(await readBody(event), bout);
+  const { ending, problem } = parseEnding(await readBody(event), bout);
 
   if (problem !== undefined) throw refuse(422, problem);
 
-  const settled = await settleBout(bout, result, admin.id);
+  const settled = await settleBout(bout, ending, admin.id);
 
   if (settled.refusal) throw refuse(settled.refusal.status, settled.refusal.problem);
 

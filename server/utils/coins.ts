@@ -180,54 +180,112 @@ export async function commitCoins(
   await materialiseBalances(tx, commitment.seasonId, [commitment.userId]);
 }
 
-/** One Entry's Reward, as settlement worked it out. */
-export interface Reward {
+/**
+ * Coins coming back to a Balance about one Entry.
+ *
+ * The two ways that happens are the same movement in every respect the ledger
+ * can see — a Reward a winning Entry earned, and the Amount an Entry that was
+ * cancelled or left with nothing gradable is made whole with — so they are the
+ * same shape, told apart by the `kind` the row is written with and by the
+ * `reason` beside it.
+ */
+export interface CoinsReturned {
   /** The Season whose Balance it moves, which is the Entry's own. */
   seasonId: string;
   userId: string;
   entryId: string;
-  /** The Coins it returns, which is the Amount at the combined Multiplier. */
+  /** The Coins it returns, which is what its `kind` says it should be. */
   amount: number;
   reason: string;
 }
 
 /**
  * Returns the Coins a winning Entry earned, and brings the materialised copy of
- * every Balance it moved in step.
+ * every Balance it moved in step. Answers how many Coins that was.
  *
  * One of the two ends of {@link commitCoins}: the Amount left the Balance at
  * submission, and this is what a winning Entry puts back into one — the other
- * being {@link refundCoins}, which puts back exactly what was taken. It
+ * being {@link refundEntries}, which puts back exactly what was taken. It
  * writes and does not ask — whether these Entries won is settlement's question,
  * asked of the Results under a row lock — and
  * `coin_transactions_one_reward_per_entry` is what refuses a second Reward for
  * an Entry regardless of what asked for it.
+ */
+export function creditRewards(
+  tx: DatabaseTransaction,
+  rewards: readonly CoinsReturned[],
+): Promise<number> {
+  return returnCoins(tx, "entry_reward", rewards);
+}
+
+/**
+ * Returns the Amount an Entry committed, and brings the materialised copy of
+ * every Balance it moved in step. Answers how many Coins that was.
  *
- * Every Reward of one settlement in one statement rather than a row each,
+ * The third way Coins move about an Entry, and the only one that puts back
+ * exactly what was taken: the Amount, in full, as one row each. Two things
+ * reach it and neither of them is a Reward — a fan cancelling an Entry while
+ * every Bout in it is still open, and settlement finding an Entry in which
+ * every Prediction turned out to be a No Result (ADR-0005). The Coins do the
+ * same thing either way; which of the two it was is the `reason` on the row.
+ *
+ * It writes and does not ask. Whether an Entry may be cancelled at all is
+ * `cancelEntry`'s question in `server/utils/cancellation.ts`, and whether one
+ * has been left with nothing gradable is `gradeEntry`'s — both asked under a
+ * row lock — and `coin_transactions_one_refund_per_entry` refuses a second
+ * refund for an Entry whatever asked for it, with `entries_are_refunded_in_full`
+ * holding the row and the Entry's status to each other at commit.
+ *
+ * The commitment is left where it is rather than being unwritten. The ledger
+ * is append-only (ADR-0003) and it is the record of what happened: the Coins
+ * were committed, and then they came back, which is two rows because it was
+ * two events.
+ */
+export function refundEntries(
+  tx: DatabaseTransaction,
+  refunds: readonly CoinsReturned[],
+): Promise<number> {
+  return returnCoins(tx, "entry_refund", refunds);
+}
+
+/**
+ * The one statement behind both of the above: the rows, then the Balances they
+ * moved.
+ *
+ * Written once because a Reward and a refund differ in the `kind` column and in
+ * nothing else, and two copies of this would be two places for the sign, the
+ * cause or the Season grouping to be typed the wrong way round — which is
+ * ADR-0003's "Coins created or destroyed with no error anywhere" in its
+ * quietest form. What each of them *means* is on the two functions above,
+ * where a caller reads it.
+ *
+ * Every movement of one settlement in one statement rather than a row each,
  * because a Bout on a well-attended card decides hundreds of Entries and a
  * round trip apiece would hold the transaction open for as long as the card has
- * fans. Nothing is written at all for a settlement that paid nobody, which is
+ * fans. Nothing is written at all for a settlement that moved nothing, which is
  * every Bout an admin enters a result for before the chains on it are finished.
  *
  * Takes the transaction to run inside because an Entry marked Won whose Reward
- * was not written is Coins destroyed with no error anywhere (ADR-0003).
+ * was not written, or Refunded without its Amount, is Coins destroyed with no
+ * error anywhere (ADR-0003).
  */
-export async function creditRewards(
+async function returnCoins(
   tx: DatabaseTransaction,
-  rewards: readonly Reward[],
+  kind: "entry_reward" | "entry_refund",
+  returned: readonly CoinsReturned[],
 ): Promise<number> {
-  if (rewards.length === 0) return 0;
+  if (returned.length === 0) return 0;
 
   await tx.insert(coinTransactions).values(
-    rewards.map((reward) => ({
-      seasonId: reward.seasonId,
-      userId: reward.userId,
-      kind: "entry_reward" as const,
+    returned.map((movement) => ({
+      seasonId: movement.seasonId,
+      userId: movement.userId,
+      kind,
       // Signed, like every row in the ledger: Coins arriving are positive.
-      amount: reward.amount,
-      reason: reward.reason,
+      amount: movement.amount,
+      reason: movement.reason,
       cause: "entry" as const,
-      causeId: reward.entryId,
+      causeId: movement.entryId,
     })),
   );
 
@@ -237,65 +295,18 @@ export async function creditRewards(
   // silently write half a Season's Balances if they ever were not.
   const fansBySeason = new Map<string, Set<string>>();
 
-  for (const reward of rewards) {
-    const fans = fansBySeason.get(reward.seasonId) ?? new Set<string>();
+  for (const movement of returned) {
+    const fans = fansBySeason.get(movement.seasonId) ?? new Set<string>();
 
-    fans.add(reward.userId);
-    fansBySeason.set(reward.seasonId, fans);
+    fans.add(movement.userId);
+    fansBySeason.set(movement.seasonId, fans);
   }
 
   for (const [seasonId, fans] of fansBySeason) {
     await materialiseBalances(tx, seasonId, [...fans]);
   }
 
-  return rewards.reduce((coins, reward) => coins + reward.amount, 0);
-}
-
-/**
- * Returns the Coins a cancelled Entry committed, and brings the materialised
- * copy of the fan's Balance in step.
- *
- * The third way Coins move about an Entry, and the only one that puts back
- * exactly what was taken: the Amount, in full, as one row. It writes and does
- * not ask — whether this Entry may be cancelled at all is
- * `cancelEntry`'s question in `server/utils/cancellation.ts`, asked of the
- * Entry and of every Bout in it under a row lock — and
- * `coin_transactions_one_refund_per_entry` refuses a second refund for an
- * Entry whatever asked for it, with `cancelled_entries_are_refunded` holding
- * the row and the Entry's status to each other at commit.
- *
- * The commitment is left where it is rather than being unwritten. The ledger
- * is append-only (ADR-0003) and it is the record of what happened: the Coins
- * were committed, and then they came back, which is two rows because it was
- * two events.
- *
- * Takes the transaction to run inside because a cancelled Entry whose refund
- * was not written is Coins destroyed with no error anywhere — and that
- * transaction must already hold the fan's Balance row through
- * {@link balanceToMoveFrom}, for the reason written there.
- */
-export async function refundCoins(
-  tx: DatabaseTransaction,
-  refund: {
-    seasonId: string;
-    userId: string;
-    entryId: string;
-    amount: number;
-    reason: string;
-  },
-): Promise<void> {
-  await tx.insert(coinTransactions).values({
-    seasonId: refund.seasonId,
-    userId: refund.userId,
-    kind: "entry_refund",
-    // Signed, like every row in the ledger: Coins arriving are positive.
-    amount: refund.amount,
-    reason: refund.reason,
-    cause: "entry",
-    causeId: refund.entryId,
-  });
-
-  await materialiseBalances(tx, refund.seasonId, [refund.userId]);
+  return returned.reduce((coins, movement) => coins + movement.amount, 0);
 }
 
 /**

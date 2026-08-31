@@ -69,6 +69,17 @@ export const COIN_REASONS = {
    * and what happened is that Coins were committed and then came back.
    */
   entryCancelled: "Returned in full on an Entry cancelled while every Bout in it was open",
+  /**
+   * The Coins an Entry returned because nothing in it turned out to be
+   * gradable.
+   *
+   * The same movement as a cancellation and for the same reason — the Amount
+   * back in full — but the game's decision rather than the fan's, so the row
+   * says which it was. ADR-0005: every Bout in the Entry was cancelled, lost a
+   * fighter, drew or was ruled a no contest, and no prediction could have
+   * anticipated any of it.
+   */
+  entryNoResult: "Returned in full on an Entry in which every Prediction was a No Result",
 } as const;
 
 /**

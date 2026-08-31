@@ -3,7 +3,17 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { STARTING_BALANCE } from "../../shared/coins";
 import { COMBINED_MULTIPLIER_CAP } from "../../shared/entries";
-import { gradePrediction, RESULT_MESSAGES } from "../../shared/results";
+import {
+  endingNote,
+  gradePrediction,
+  NO_RESULT_REASONS,
+  RESULT_MESSAGES,
+  type NoResultReason,
+  type RecordedMethod,
+  type Settlement,
+} from "../../shared/results";
+import type { Corner } from "../../shared/events";
+import type { CommittedEntries } from "../../shared/entries";
 import {
   balanceCache,
   boutLocks,
@@ -13,15 +23,20 @@ import {
   entries,
   predictions,
 } from "../../server/db/schema";
+import {
+  AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN,
+  ENTRIES_ARE_REFUNDED_IN_FULL,
+  ONE_REFUND_PER_ENTRY,
+} from "../../server/utils/cancellation";
 import { A_LOCKED_BOUT_IS_NEVER_REOPENED } from "../../server/utils/locks";
 import {
+  A_RESULT_OR_A_NO_RESULT,
   A_RESULTS_ROUND_WAS_OFFERED,
   ONE_RESULT_PER_BOUT,
   ONE_REWARD_PER_ENTRY,
   RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED,
   RESULTS_ARE_ENTERED_ON_SETTLED_BOUTS,
 } from "../../server/utils/results";
-import type { Settlement } from "../../server/utils/results";
 import { postJson, signUp } from "../helpers/accounts";
 import {
   cardBout,
@@ -113,11 +128,7 @@ describe("entering a result", async () => {
   async function settle(
     card: CardInTheGame,
     place: number,
-    result: {
-      winner?: "red" | "blue";
-      method?: "ko_tko" | "submission" | "decision";
-      round?: number | null;
-    },
+    result: { winner?: Corner; method?: RecordedMethod; round?: number | null },
   ) {
     const bout = card.bouts[place]!;
 
@@ -132,6 +143,35 @@ describe("entering a result", async () => {
     if (!entered.ok) throw new Error(`The result was not entered: ${await entered.text()}`);
 
     return (await entered.json()) as { settlement: Settlement };
+  }
+
+  /**
+   * Locks a Bout and records that it produced nothing gradable.
+   *
+   * The other half of {@link settle}, and deliberately a second helper rather
+   * than another shape {@link settle} can take: an admin entering a No Result
+   * sends no winner and no method at all, and a helper that merged one in
+   * would be testing a request the admin area never makes.
+   */
+  async function settleAsNoResult(
+    card: CardInTheGame,
+    place: number,
+    reason: NoResultReason = "draw",
+  ) {
+    const bout = card.bouts[place]!;
+
+    await lockBout(bout.id, card.admin.cookie);
+
+    const entered = await enterResult(bout.id, { noResult: reason }, card.admin.cookie);
+
+    if (!entered.ok) throw new Error(`The No Result was not entered: ${await entered.text()}`);
+
+    return (await entered.json()) as { settlement: Settlement };
+  }
+
+  /** The Entries a fan is holding, as their own listing shows them back. */
+  function listingFor(cookie: string) {
+    return $fetch<CommittedEntries>("/api/predictions/entries", { headers: { cookie } });
   }
 
   /** Where an Entry stands, read back from the row settlement wrote. */
@@ -548,7 +588,7 @@ describe("entering a result", async () => {
       await settle(card, 1, { winner: "red" });
 
       const settled = await cardToPrice(card.eventId, card.admin.cookie);
-      const results = new Map(settled.bouts.map((bout) => [bout.id, bout.result]));
+      const results = new Map(settled.bouts.map((bout) => [bout.id, bout.ending]));
 
       // Both Bouts carry a Result, including the one whose Entries were already
       // decided — so the second Prediction can still be graded and shown.
@@ -753,6 +793,499 @@ describe("entering a result", async () => {
         );
 
       expect(written).toMatch(new RegExp(A_RESULTS_ROUND_WAS_OFFERED));
+    });
+  });
+
+  /**
+   * The Bouts that do not produce a clean answer, which is more of them than
+   * anyone expects: a cancellation, a withdrawal, a draw, a no contest.
+   *
+   * ADR-0005 is the whole of this section, and the reason it is not a footnote
+   * on the cases above. Grading these as losses would punish fans for
+   * something no prediction could anticipate — and one withdrawn fighter would
+   * silently kill every Chained Entry containing them, which on a card whose
+   * main event falls through is most of the Entries on it.
+   */
+  describe("a Bout that produced nothing gradable", () => {
+    it("returns the Amount in full when it is the whole Entry", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [
+        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
+      ]);
+
+      const { settlement } = await settleAsNoResult(card, 0, "withdrawal");
+
+      expect(settlement).toMatchObject({
+        graded: 1,
+        won: 0,
+        lost: 0,
+        refunded: 1,
+        stillOpen: 0,
+        paid: 0,
+        returned: 20,
+      });
+      expect(await statusOf(entry.id)).toBe("refunded");
+
+      // Deepened to ×15 at submission and worth ×1.0 now: the Amount comes
+      // back and nothing else does. A refund rather than a Reward, because the
+      // Entry did not win — there was nothing there to win.
+      const ledger = await ledgerFor(fan.id);
+
+      expect(ledger.map((row) => [row.kind, row.amount])).toEqual([
+        ["season_grant", STARTING_BALANCE],
+        ["entry_commitment", -20],
+        ["entry_refund", 20],
+      ]);
+
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+
+    it("is entered for each of the four ways a Bout produces one", async () => {
+      const card = await upcomingCard(NO_RESULT_REASONS.length);
+
+      for (const [place, reason] of NO_RESULT_REASONS.entries()) {
+        await settleAsNoResult(card, place, reason);
+      }
+
+      const settled = await cardToPrice(card.eventId, card.admin.cookie);
+
+      expect(settled.bouts.map((bout) => bout.ending)).toEqual(
+        NO_RESULT_REASONS.map((reason) => ({ noResult: reason })),
+      );
+      expect(settled.bouts.map((bout) => bout.status)).toEqual(
+        NO_RESULT_REASONS.map(() => "settled"),
+      );
+    });
+
+    it("locks a Bout that was still open, the way a Result does", async () => {
+      const card = await upcomingCard(1);
+      const bout = card.bouts[0]!;
+
+      // A cancelled Bout is the case: nobody locked it, because nobody was
+      // ever at cageside for it.
+      const entered = await enterResult(bout.id, { noResult: "cancelled" }, card.admin.cookie);
+
+      expect(entered.status).toBe(200);
+
+      const [lock] = await testDatabase()
+        .select()
+        .from(boutLocks)
+        .where(eq(boutLocks.boutId, bout.id));
+
+      expect(lock).toMatchObject({ kind: "result", lockedBy: card.admin.id });
+
+      const [settled] = await testDatabase()
+        .select({ status: bouts.status })
+        .from(bouts)
+        .where(eq(bouts.id, bout.id));
+
+      expect(settled?.status).toBe("settled");
+    });
+
+    it("pays the winning Prediction's Multiplier only, chained beside one", async () => {
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [
+        { boutId: card.bouts[0]!.id, corner: "red" },
+        { boutId: card.bouts[1]!.id, corner: "red" },
+      ]);
+
+      const first = await settle(card, 0, { winner: "red" });
+
+      expect(first.settlement).toMatchObject({ stillOpen: 1, paid: 0 });
+
+      const second = await settleAsNoResult(card, 1, "cancelled");
+
+      // The chain played on and paid ×2, not the ×4 two winner picks were
+      // priced at: the neutral link contributes ×1.0 rather than its own
+      // Multiplier. It is a Reward and not a refund — the Entry won.
+      expect(second.settlement).toMatchObject({ won: 1, refunded: 0, paid: 40, returned: 0 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(
+        (await ledgerFor(fan.id))
+          .filter((row) => row.kind === "entry_reward")
+          .map((row) => row.amount),
+      ).toEqual([40]);
+    });
+
+    it("neither saves nor sinks a chain that has already lost one of its Bouts", async () => {
+      const card = await upcomingCard(3);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [
+        { boutId: card.bouts[0]!.id, corner: "red" },
+        { boutId: card.bouts[1]!.id, corner: "blue" },
+        { boutId: card.bouts[2]!.id, corner: "red" },
+      ]);
+
+      // A win, then the No Result, then the Bout that ends it: the order that
+      // makes the neutral link the one thing standing between the two.
+      expect((await settle(card, 0, { winner: "red" })).settlement).toMatchObject({ stillOpen: 1 });
+      expect((await settleAsNoResult(card, 2)).settlement).toMatchObject({ stillOpen: 1 });
+      expect(await statusOf(entry.id)).toBe("open");
+
+      const last = await settle(card, 1, { winner: "red" });
+
+      expect(last.settlement).toMatchObject({ lost: 1, won: 0, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+
+      // Lost is a status and nothing else, No Result in the chain or not: the
+      // Amount left the Balance at submission and does not come back.
+      expect((await ledgerFor(fan.id)).map((row) => row.kind)).toEqual([
+        "season_grant",
+        "entry_commitment",
+      ]);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+    });
+
+    it("refunds a chain in which every Prediction was one", async () => {
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 25, [
+        { boutId: card.bouts[0]!.id, corner: "red", method: "submission", round: 1 },
+        { boutId: card.bouts[1]!.id, corner: "blue" },
+      ]);
+
+      const first = await settleAsNoResult(card, 0, "draw");
+
+      // Nothing is refunded until the last Bout in the Entry has settled, for
+      // the reason nothing is paid until then: the Entry is not finished.
+      expect(first.settlement).toMatchObject({ refunded: 0, stillOpen: 1, returned: 0 });
+      expect(await statusOf(entry.id)).toBe("open");
+
+      const second = await settleAsNoResult(card, 1, "no_contest");
+
+      expect(second.settlement).toMatchObject({ refunded: 1, won: 0, returned: 25 });
+      expect(await statusOf(entry.id)).toBe("refunded");
+
+      const refunds = (await ledgerFor(fan.id)).filter((row) => row.kind === "entry_refund");
+
+      expect(refunds.map((row) => row.amount)).toEqual([25]);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+
+    it("says on the fan's own Prediction why the Bout produced no result", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await settleAsNoResult(card, 0, "withdrawal");
+
+      // Without this a fan reads a Prediction that counted for nothing and no
+      // reason for it, which is an outcome that looks arbitrary.
+      const listing = await listingFor(fan.cookie);
+
+      expect(listing.entries).toHaveLength(1);
+      expect(listing.entries[0]).toMatchObject({ status: "refunded", amount: 20 });
+      expect(listing.entries[0]?.predictions[0]?.ending).toEqual({ noResult: "withdrawal" });
+    });
+  });
+
+  /**
+   * The Bout somebody won by disqualification, which ADR-0005 deliberately
+   * handles differently from the four above: the DQ winner did win, so the
+   * winner Question settles normally, and only the method and round become No
+   * Results because "won by DQ" is not one of the three answers offered.
+   */
+  describe("a disqualification", () => {
+    it("settles the winner Question and pays the winner's Multiplier alone", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      // ×2 for the winner, ×2.5 for the method and ×3 for the round is the ×15
+      // this was priced at. Only the first of the three is graded.
+      const { entry } = await submit(fan, 10, [
+        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
+      ]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 1, refunded: 0, paid: 20 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(
+        (await ledgerFor(fan.id))
+          .filter((row) => row.kind === "entry_reward")
+          .map((row) => row.amount),
+      ).toEqual([20]);
+    });
+
+    it("is a loss for the fan who picked the fighter who was disqualified", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
+
+      expect(settlement).toMatchObject({ lost: 1, won: 0, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+    });
+
+    it("is recorded as the way the Bout ended, and reads as one", async () => {
+      const card = await upcomingCard(1);
+
+      await settle(card, 0, { winner: "blue", method: "disqualification" });
+
+      const settled = await cardToPrice(card.eventId, card.admin.cookie);
+
+      expect(settled.bouts[0]?.ending).toEqual({
+        result: { winner: "blue", method: "disqualification", round: null },
+      });
+    });
+
+    it("says on the fan's own Prediction what it did to their method and round", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 10, [
+        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
+      ]);
+
+      await settle(card, 0, { winner: "red", method: "disqualification" });
+
+      // Their Multiplier fell from ×15 to ×2 with the method they picked still
+      // printed beside it. Without the sentence that is the game appearing to
+      // take something away for no reason anybody gave.
+      const listing = await listingFor(fan.cookie);
+      const prediction = listing.entries[0]?.predictions[0];
+
+      expect(prediction?.ending).toEqual({
+        result: { winner: "red", method: "disqualification", round: null },
+      });
+      expect(endingNote(prediction!, prediction!.ending)).toContain("disqualification");
+    });
+
+    it("refuses a round beside it, which the Bout is not being recorded as having", async () => {
+      const card = await upcomingCard(1);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "disqualification", round: 2 },
+        card.admin.cookie,
+      );
+
+      expect(refused.status).toBe(422);
+      expect((await refused.json()).message).toBe(RESULT_MESSAGES.aDisqualificationHasNoRound);
+    });
+  });
+
+  describe("a No Result an admin cannot enter", () => {
+    it("refuses a reason no Bout produces nothing for", async () => {
+      const card = await upcomingCard(1);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(
+        card.bouts[0]!.id,
+        { noResult: "boring" as NoResultReason },
+        card.admin.cookie,
+      );
+
+      expect(refused.status).toBe(422);
+      expect((await refused.json()).message).toBe(RESULT_MESSAGES.noResultReasonNotChosen);
+    });
+
+    it("asks for the reason when the control was used and left empty", async () => {
+      const card = await upcomingCard(1);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      // What the page sends when an admin presses "Enter No Result and settle"
+      // with the reason still on "Choose": the field is there and empty, and
+      // being told to choose a winner would be the other form's answer.
+      const refused = await enterResult(card.bouts[0]!.id, { noResult: null }, card.admin.cookie);
+
+      expect(refused.status).toBe(422);
+      expect((await refused.json()).message).toBe(RESULT_MESSAGES.noResultReasonNotChosen);
+    });
+
+    it("refuses a Result and a No Result entered as one", async () => {
+      const card = await upcomingCard(1);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "decision", round: null, noResult: "draw" },
+        card.admin.cookie,
+      );
+
+      expect(refused.status).toBe(422);
+      expect((await refused.json()).message).toBe(RESULT_MESSAGES.aNoResultDecidedNothing);
+    });
+
+    it("refuses a second one on a Bout that has already settled", async () => {
+      const card = await upcomingCard(1);
+
+      await settleAsNoResult(card, 0, "draw");
+
+      const again = await enterResult(
+        card.bouts[0]!.id,
+        { noResult: "cancelled" },
+        card.admin.cookie,
+      );
+
+      expect(again.status).toBe(409);
+      expect((await again.json()).message).toBe(RESULT_MESSAGES.alreadySettled);
+    });
+  });
+
+  describe("the Balance the ledger says, once a card has No Results on it", () => {
+    it("reconciles a reduced Reward and a refund alike", async () => {
+      const card = await upcomingCard(2);
+      const paid = await fanWithCoins();
+      const madeWhole = await fanWithCoins();
+
+      // One chain that plays on past the No Result, and one Entry that is
+      // nothing but it: the two Coin movements this ticket adds, on one card.
+      await submit(paid, 30, [
+        { boutId: card.bouts[0]!.id, corner: "red" },
+        { boutId: card.bouts[1]!.id, corner: "red", method: "ko_tko", round: 3 },
+      ]);
+      await submit(madeWhole, 15, [{ boutId: card.bouts[1]!.id, corner: "blue" }]);
+
+      await settle(card, 0, { winner: "red" });
+      await settleAsNoResult(card, 1, "withdrawal");
+
+      const fans = [paid, madeWhole];
+      const cached = await testDatabase()
+        .select()
+        .from(balanceCache)
+        .where(
+          inArray(
+            balanceCache.userId,
+            fans.map((fan) => fan.id),
+          ),
+        );
+
+      for (const fan of fans) {
+        const ledger = await ledgerFor(fan.id);
+        const owed = ledger.reduce((coins, row) => coins + row.amount, 0);
+
+        expect(cached.find((row) => row.userId === fan.id)?.balance).toBe(owed);
+      }
+
+      // 30 Coins on a chain worth ×2 once the second link went neutral returns
+      // 60, not the ×30 it was priced at; 15 Coins on nothing gradable come
+      // back exactly.
+      expect(await balance(paid.cookie)).toMatchObject({ balance: STARTING_BALANCE - 30 + 60 });
+      expect(await balance(madeWhole.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+  });
+
+  describe("what Postgres holds about a No Result, whatever a route believed", () => {
+    it("refuses a row that is half a Result and half a No Result", async () => {
+      const card = await upcomingCard(1);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const both = await testDatabase()
+        .insert(boutResults)
+        .values({
+          boutId: card.bouts[0]!.id,
+          winner: "red",
+          method: "decision",
+          round: null,
+          noResult: "draw",
+          enteredBy: card.admin.id,
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(both).toMatch(new RegExp(A_RESULT_OR_A_NO_RESULT));
+
+      // And the other half of the same rule: a row that says nothing at all
+      // would settle a Bout with nothing for its Predictions to be graded
+      // against.
+      const neither = await testDatabase()
+        .insert(boutResults)
+        .values({
+          boutId: card.bouts[0]!.id,
+          winner: null,
+          method: null,
+          round: null,
+          noResult: null,
+          enteredBy: card.admin.id,
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(neither).toMatch(new RegExp(A_RESULT_OR_A_NO_RESULT));
+    });
+
+    it("refuses an Entry marked Refunded with no refund behind it", async () => {
+      // The rule that makes a Refunded Entry and its Coins one thing: an Entry
+      // marked refunded and never paid back is Coins destroyed with no error
+      // anywhere.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+
+      const written = await testDatabase()
+        .execute(sql`update entries set status = 'refunded' where id = ${entry.id}::uuid`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(ENTRIES_ARE_REFUNDED_IN_FULL);
+    });
+
+    it("refuses a second refund on an Entry it has already made whole", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+
+      await settleAsNoResult(card, 0, "draw");
+
+      const written = await testDatabase()
+        .insert(coinTransactions)
+        .values({
+          seasonId: await openedSeasonId(),
+          userId: fan.id,
+          kind: "entry_refund",
+          amount: 10,
+          reason: "A second refund for an Entry that already holds one",
+          cause: "entry",
+          causeId: entry.id,
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toMatch(new RegExp(ONE_REFUND_PER_ENTRY));
+    });
+
+    it("refuses an Entry refunded out of anything but Open", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+
+      await settle(card, 0, { winner: "red" });
+
+      // An Entry that won and was paid, asked to hand its Amount back as well.
+      const written = await testDatabase()
+        .execute(sql`update entries set status = 'refunded' where id = ${entry.id}::uuid`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN);
     });
   });
 

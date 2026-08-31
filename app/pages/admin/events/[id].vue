@@ -2,16 +2,19 @@
 import { isFinish } from "#shared/entries";
 import type { Corner } from "#shared/events";
 import { LOCK_KIND_LABELS } from "#shared/locks";
+import { MULTIPLIER, outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
 import {
-  METHODS,
-  METHOD_LABELS,
-  MULTIPLIER,
-  outcomeLabel,
-  QUESTIONS,
-  QUESTION_LABELS,
-  type Method,
-} from "#shared/pricing";
-import { RESULT_MESSAGES, resultLabel } from "#shared/results";
+  boutEndingLabel,
+  NO_RESULT_LABELS,
+  NO_RESULT_REASONS,
+  RECORDED_METHODS,
+  RECORDED_METHOD_LABELS,
+  RESULT_MESSAGES,
+  type EnteredEnding,
+  type NoResultReason,
+  type RecordedMethod,
+  type Settlement,
+} from "#shared/results";
 
 /**
  * Pricing one fight card, opening its Bouts for predictions, and locking them
@@ -42,6 +45,13 @@ import { RESULT_MESSAGES, resultLabel } from "#shared/results";
  * of that is taken back by pressing anything: a result entered wrong is
  * corrected by reversing what it settled and grading again (#16). So a Bout
  * that has been settled shows what was entered and offers no form at all.
+ *
+ * A Bout that produced nothing gradable is entered beside it rather than
+ * through it, as a No Result naming which of the four it was (ADR-0005). Two
+ * controls rather than one, because they are two different statements about
+ * the fight and an admin should not be able to slide from one to the other by
+ * leaving a select alone: a Result says who won, and a No Result says nobody
+ * did. Both settle the Bout, and only one of them can be entered.
  *
  * Nothing here decides who may price a card: `server/middleware/admin.ts`
  * refused everyone else before this page was rendered at all.
@@ -199,9 +209,7 @@ async function openBout(bout: (typeof bouts.value)[number]) {
  * Multipliers above: a result refused for its round is one an admin still has
  * most of right, and clearing it would make them enter the whole thing again.
  */
-const entered = ref<
-  Record<string, { winner: Corner | null; method: Method | null; round: number | null }>
->({});
+const entered = ref<Record<string, Required<EnteredEnding>>>({});
 
 watch(
   bouts,
@@ -209,12 +217,24 @@ watch(
     entered.value = Object.fromEntries(
       card.map((bout) => [
         bout.id,
-        entered.value[bout.id] ?? { winner: null, method: null, round: null },
+        entered.value[bout.id] ?? { winner: null, method: null, round: null, noResult: null },
       ]),
     );
   },
   { immediate: true },
 );
+
+/** The four reasons, with what each is called, for the No Result control. */
+const noResultReasons = NO_RESULT_REASONS.map((reason) => ({
+  reason,
+  label: NO_RESULT_LABELS[reason],
+}));
+
+/** The ways a Bout ends with a winner, disqualification included. */
+const recordedMethods = RECORDED_METHODS.map((method) => ({
+  method,
+  label: RECORDED_METHOD_LABELS[method],
+}));
 
 /** Whether a round can be named alongside the method chosen so far. */
 function endsInARound(boutId: string): boolean {
@@ -228,12 +248,51 @@ function roundsOf(bout: (typeof bouts.value)[number]): number[] {
 
 /** What was entered, as the admin reads it back on a settled Bout. */
 function settledAs(bout: (typeof bouts.value)[number]): string | null {
-  return bout.result ? resultLabel(bout.result, cornersOf(bout)) : null;
+  return bout.ending ? boutEndingLabel(bout.ending, cornersOf(bout)) : null;
 }
 
 async function enterResult(bout: (typeof bouts.value)[number]) {
   const answered = entered.value[bout.id];
 
+  await settle(bout, RESULT_MESSAGES.settled, {
+    winner: answered?.winner ?? null,
+    method: answered?.method ?? null,
+    // A round only means anything alongside a finish, so a Decision and a
+    // disqualification send none whatever is still sitting in the control
+    // behind them.
+    round: endsInARound(bout.id) ? (answered?.round ?? null) : null,
+  });
+}
+
+/**
+ * Enters the No Result the Bout produced, and nothing else.
+ *
+ * The reason is the whole body. Pressing this button is an unambiguous
+ * statement that nothing about the Bout can be graded, so whatever is left
+ * sitting in the result controls above is not part of it — refusing over a
+ * select an admin did not clear would be the page arguing with a decision they
+ * have already made.
+ *
+ * It is sent even when it is null, and that is the point: `parseEnding` reads
+ * the field being there as this control having been the one used, so an admin
+ * who has not said why is told to say why rather than to choose a winner.
+ */
+async function enterNoResult(bout: (typeof bouts.value)[number]) {
+  await settle(bout, RESULT_MESSAGES.noResultEntered, {
+    noResult: entered.value[bout.id]?.noResult ?? null,
+  });
+}
+
+/**
+ * The one request behind both, because they are the same button pressed about
+ * two different fights: the route settles the Bout, grades every Entry on it
+ * and moves the Coins, whichever of the two arrives.
+ */
+async function settle(
+  bout: (typeof bouts.value)[number],
+  said: (settlement: Settlement) => string,
+  body: EnteredEnding,
+) {
   working.value = bout.id;
   problem.value = "";
   done.value = "";
@@ -241,16 +300,10 @@ async function enterResult(bout: (typeof bouts.value)[number]) {
   try {
     const { settlement } = await $fetch(`/api/admin/bouts/${bout.id}/result`, {
       method: "POST",
-      body: {
-        winner: answered?.winner ?? null,
-        method: answered?.method ?? null,
-        // A round only means anything alongside a finish, so a Decision sends
-        // none whatever is still sitting in the control behind it.
-        round: endsInARound(bout.id) ? (answered?.round ?? null) : null,
-      },
+      body,
     });
 
-    done.value = RESULT_MESSAGES.settled(settlement.graded, settlement.paid);
+    done.value = said(settlement);
 
     await refresh();
   } catch (failure) {
@@ -392,8 +445,8 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
-                <option v-for="method in METHODS" :key="method" :value="method">
-                  {{ METHOD_LABELS[method] }}
+                <option v-for="ended in recordedMethods" :key="ended.method" :value="ended.method">
+                  {{ ended.label }}
                 </option>
               </select>
             </label>
@@ -419,6 +472,38 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               @click="enterResult(bout)"
             >
               Enter result and settle
+            </button>
+          </div>
+
+          <p class="mt-6 text-sm text-on-surface/70">
+            If the Bout produced nothing to grade — it was cancelled, a fighter withdrew, it was a
+            draw or a no contest — enter that instead. Every Prediction on it then counts as ×1.0
+            and the rest of each Entry plays on; an Entry with nothing else left to decide has its
+            Coins returned in full.
+          </p>
+
+          <div v-if="entered[bout.id]" class="mt-3 flex flex-wrap items-center gap-4 text-sm">
+            <label class="flex items-center gap-2">
+              <span>No Result</span>
+              <select
+                v-model="entered[bout.id]!.noResult"
+                :aria-label="`Why Bout ${bout.cardOrder} produced no result`"
+                class="border border-outline-variant/40 bg-surface px-2 py-1"
+              >
+                <option :value="null">Choose</option>
+                <option v-for="why in noResultReasons" :key="why.reason" :value="why.reason">
+                  {{ why.label }}
+                </option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              :disabled="working === bout.id"
+              class="border border-outline-variant/40 font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
+              @click="enterNoResult(bout)"
+            >
+              Enter No Result and settle
             </button>
           </div>
         </div>

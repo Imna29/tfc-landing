@@ -2,7 +2,8 @@ import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { inject } from "vitest";
 import type { Corner } from "../../shared/events";
-import type { Method, Question } from "../../shared/pricing";
+import type { Question } from "../../shared/pricing";
+import type { NoResultReason, RecordedMethod } from "../../shared/results";
 import { bouts, outcomes, seasons } from "../../server/db/schema";
 import type { Card, CardBout, CardCorner } from "../../server/utils/cardImport";
 import { importCard, type Imported } from "../../server/utils/events";
@@ -189,17 +190,26 @@ export async function lockBout(boutId: string, cookie: string): Promise<void> {
 }
 
 /**
- * Enters the result of a Bout, the way the form in the admin area does.
+ * Enters how a Bout ended, the way the form in the admin area does: the Result
+ * it produced, or the No Result it produced instead (ADR-0005).
+ *
+ * Every field optional and nothing defaulted, so that a case can send exactly
+ * what it means to — including the combinations the route refuses.
  *
  * Hands the raw response back rather than throwing, because half the cases
  * that use it are about a result being refused.
  */
 export function enterResult(
   boutId: string,
-  result: { winner: Corner; method: Method; round?: number | null },
+  ending: {
+    winner?: Corner | null;
+    method?: RecordedMethod | null;
+    round?: number | null;
+    noResult?: NoResultReason | null;
+  },
   cookie: string,
 ): Promise<Response> {
-  return postJson(`/api/admin/bouts/${boutId}/result`, result, cookie);
+  return postJson(`/api/admin/bouts/${boutId}/result`, ending, cookie);
 }
 
 /** The card an admin is pricing, as the admin area reads it. */

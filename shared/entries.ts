@@ -18,6 +18,9 @@
 import { coinsLabel } from "./coins";
 import type { BoutStatus, Corner } from "./events";
 import { boutState } from "./predictions";
+// Type-only, and so erased before anything runs: `shared/results.ts` reads the
+// Prediction types from here, and this reads the one type it adds.
+import type { BoutEnding, RecordedMethod } from "./results";
 import {
   isMethod,
   isRound,
@@ -80,17 +83,23 @@ export const COMBINED_MULTIPLIER_CAP = 100;
  *
  * Everything an Entry can become is somebody's ticket, and each of them widens
  * `entries_status_known` in a migration that somebody reads: #14 wrote the
- * `won` and `lost` a settled Entry ends at, #13 adds the `cancelled` a fan
+ * `won` and `lost` a settled Entry ends at, #13 the `cancelled` a fan
  * withdraws to, and #15 the `refunded` an Entry of nothing but No Results is
  * made whole with. A status permitted before anything writes it is a status
  * nobody has thought about.
+ *
+ * Cancelled and Refunded both return the Amount in full and are not the same
+ * thing: the first is the fan's decision, taken while every Bout in the Entry
+ * was still open, and the second is the game's, because nothing in the Entry
+ * turned out to be gradable (ADR-0005). Postgres holds them to that with one
+ * rule between them, `entries_are_refunded_in_full`.
  *
  * Shared rather than kept in the schema for the reason `BoutStatus` is: this
  * is what `gradeEntry` in `shared/results.ts` answers with, and what the
  * profile history reads back. Spelled out again in the check constraint, for
  * the reason given on `Role` in `server/db/schema.ts`.
  */
-export type EntryStatus = "open" | "won" | "lost" | "cancelled";
+export type EntryStatus = "open" | "won" | "lost" | "cancelled" | "refunded";
 
 /** What each status is called wherever a fan reads one of their Entries. */
 export const ENTRY_STATUS_LABELS = {
@@ -98,6 +107,7 @@ export const ENTRY_STATUS_LABELS = {
   won: "Won",
   lost: "Lost",
   cancelled: "Cancelled",
+  refunded: "Refunded",
 } as const satisfies Record<EntryStatus, string>;
 
 /**
@@ -170,8 +180,22 @@ export interface PredictedBout {
   locksAt: string;
 }
 
-/** One Prediction of an Entry a fan has submitted, as they read it back. */
-export interface CommittedPrediction extends DraftPrediction, PredictedBout {}
+/**
+ * One Prediction of an Entry a fan has submitted, as they read it back.
+ *
+ * Carries how its Bout ended, because a No Result has to say why it was one:
+ * a Prediction that quietly counted for nothing reads as the game losing
+ * track of it, and ADR-0005 costs a fan nothing only if they can see that it
+ * did. It is what `settledPrice` in `shared/results.ts` reprices the answer
+ * with, so the ×1.0 a No Result contributes is the number on the screen.
+ *
+ * This is not the graded history — that is #17's, goes back through every
+ * Season, and says of each Prediction whether it landed.
+ */
+export interface CommittedPrediction extends DraftPrediction, PredictedBout {
+  /** How its Bout ended, or null while that Bout has not settled. */
+  ending: BoutEnding | null;
+}
 
 /**
  * An Entry a fan has submitted, as their own listing shows it back to them.
@@ -229,8 +253,12 @@ export interface PotentialReward {
  *
  * The distinction ADR-0004 turns on: a KO/TKO and a Submission happen in a
  * round somebody can name, and a Decision is the Bout going the distance.
+ *
+ * Answers a {@link RecordedMethod} as well as the {@link Method} a fan may
+ * pick, because the admin entering a Result is choosing from one more: a
+ * disqualification, which records no round either (ADR-0005).
  */
-export function isFinish(method: Method | null): boolean {
+export function isFinish(method: RecordedMethod | null): boolean {
   return method === "ko_tko" || method === "submission";
 }
 
@@ -441,6 +469,9 @@ export function cancellationOf(
   now: number,
 ): Cancellation {
   if (entry.status === "cancelled") return no(CANCELLATION_MESSAGES.alreadyCancelled);
+  // Told apart from the two below it, because "graded against what happened"
+  // is the one thing that did not happen to a Refunded Entry (ADR-0005).
+  if (entry.status === "refunded") return no(CANCELLATION_MESSAGES.alreadyRefunded);
   if (entry.status !== "open") return no(CANCELLATION_MESSAGES.alreadyGraded);
 
   const closed = entry.predictions.some((prediction) => boutState(prediction, now) !== "open");
@@ -468,6 +499,9 @@ export const CANCELLATION_MESSAGES = {
   alreadyGraded:
     "This Entry has been graded against what happened, so there is nothing " +
     "left to cancel. How it went is on the Entry itself.",
+  alreadyRefunded:
+    "No Bout in this Entry produced a result to grade, so its Coins are " +
+    "already back in your Balance in full. There is nothing left to take back.",
   notYours:
     "That is not one of your Entries. An Entry belongs to the fan who " +
     "submitted it, and only they can cancel it.",

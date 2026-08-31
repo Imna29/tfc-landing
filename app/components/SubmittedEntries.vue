@@ -10,6 +10,7 @@ import {
   type CommittedEntry,
 } from "#shared/entries";
 import { multiplierLabel } from "#shared/predictions";
+import { endingNote, settledPrice } from "#shared/results";
 
 /**
  * The Entries a fan has committed on this Season, and the one thing they can
@@ -36,6 +37,15 @@ import { multiplierLabel } from "#shared/predictions";
  * are still Open, because that is where it is news. "There is nothing left to
  * cancel" under a settled Entry is a sentence about a button nobody was
  * looking for, and the status beside the Amount already says where it is.
+ *
+ * **A Prediction whose answers stopped counting says so, and says why.** It is
+ * the only place a fan finds out that a Bout was cancelled, lost a fighter,
+ * drew, was ruled a no contest, or ended in the disqualification that leaves
+ * their method and round with nothing to grade — and a Multiplier that quietly
+ * dropped to ×1.0 with no sentence beside it reads as the game having taken
+ * something away rather than as ADR-0005 protecting them from it. The sentence
+ * is `endingNote`'s and the number is `settledPrice`'s, so what the chain is
+ * worth here is what settlement will actually pay on it.
  */
 const props = defineProps<{
   /** Every Entry this fan holds this Season, newest first. */
@@ -54,13 +64,31 @@ const cancelling = ref("");
 const problem = ref("");
 const done = ref("");
 
-/** Each Entry with what it is worth and whether it can still be taken back. */
+/**
+ * Each Entry with what it is worth and whether it can still be taken back.
+ *
+ * Every Prediction is repriced against how its Bout ended before any of that is
+ * worked out: a No Result contributes ×1.0 and a disqualification pays its
+ * winner alone (ADR-0005), so a chain part-way through a card is shown what it
+ * is now riding on rather than what it was priced at on the day.
+ */
 const held = computed(() =>
-  props.entries.map((entry) => ({
-    entry,
-    returns: potentialReward(entry.amount, entry.predictions),
-    cancellation: cancellationOf(entry, now.value),
-  })),
+  props.entries.map((entry) => {
+    const settled = entry.predictions.map((prediction) =>
+      settledPrice(prediction, prediction.ending),
+    );
+
+    return {
+      entry,
+      predictions: entry.predictions.map((prediction, at) => ({
+        prediction,
+        multiplier: predictionMultiplier(settled[at]!),
+        note: endingNote(prediction, prediction.ending),
+      })),
+      returns: potentialReward(entry.amount, settled),
+      cancellation: cancellationOf(entry, now.value),
+    };
+  }),
 );
 
 /**
@@ -112,7 +140,7 @@ async function cancel(entryId: string) {
 
     <ol v-else class="mt-6 flex flex-col gap-4">
       <li
-        v-for="{ entry, returns, cancellation } in held"
+        v-for="{ entry, predictions, returns, cancellation } in held"
         :key="entry.id"
         class="border border-outline-variant/20 bg-surface-container-low p-6"
       >
@@ -128,20 +156,20 @@ async function cancel(entryId: string) {
         </div>
 
         <ol class="mt-4 flex flex-col gap-2">
-          <li
-            v-for="prediction in entry.predictions"
-            :key="prediction.boutId"
-            class="flex items-baseline justify-between gap-3 text-sm"
-          >
-            <span>
-              <span class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
-                Bout {{ prediction.cardOrder }}
+          <li v-for="{ prediction, multiplier, note } in predictions" :key="prediction.boutId">
+            <div class="flex items-baseline justify-between gap-3 text-sm">
+              <span>
+                <span class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
+                  Bout {{ prediction.cardOrder }}
+                </span>
+                — {{ predictionLabel(prediction, prediction.corners) }}
               </span>
-              — {{ predictionLabel(prediction, prediction.corners) }}
-            </span>
-            <span class="shrink-0 font-bold tabular-nums">
-              {{ multiplierLabel(predictionMultiplier(prediction)) }}
-            </span>
+              <span class="shrink-0 font-bold tabular-nums">
+                {{ multiplierLabel(multiplier) }}
+              </span>
+            </div>
+
+            <p v-if="note" class="mt-1 text-xs text-on-surface/70 leading-relaxed">{{ note }}</p>
           </li>
         </ol>
 
@@ -155,6 +183,14 @@ async function cancel(entryId: string) {
 
         <p v-else-if="entry.status === 'cancelled'" class="mt-4 text-sm text-on-surface/70">
           {{ coinsLabel(entry.amount) }} returned.
+        </p>
+
+        <p
+          v-else-if="entry.status === 'refunded'"
+          class="mt-4 text-sm text-on-surface/70 leading-relaxed"
+        >
+          {{ coinsLabel(entry.amount) }} returned in full. No Bout in this Entry produced a result
+          to grade, so there was nothing left for it to be right or wrong about.
         </p>
 
         <button

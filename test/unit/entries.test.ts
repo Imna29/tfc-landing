@@ -430,6 +430,9 @@ describe("the Entry a fan takes back", () => {
       status: "open",
       // An hour out, so the Bout is open until a case says otherwise.
       locksAt: new Date(NOW + AN_HOUR).toISOString(),
+      // Nothing has been entered about it, which is every Bout of an Entry a
+      // fan could still take back.
+      ending: null,
       ...overrides,
     };
   }
@@ -492,6 +495,16 @@ describe("the Entry a fan takes back", () => {
         reason: CANCELLATION_MESSAGES.alreadyGraded,
       });
     }
+  });
+
+  it("refuses an Entry the game has already made whole, and does not call it graded", () => {
+    // Every Bout in it produced nothing gradable, so "this Entry has been
+    // graded against what happened" is the one thing that did not happen to
+    // it (ADR-0005). Its Coins are back all the same.
+    expect(cancellationOf(committed({ status: "refunded" }), NOW)).toEqual({
+      cancellable: false,
+      reason: CANCELLATION_MESSAGES.alreadyRefunded,
+    });
   });
 
   it("says what cancelling returns, and that it returns all of it", () => {
