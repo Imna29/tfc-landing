@@ -308,6 +308,47 @@ export function boutEndingLabel(ending: BoutEnding, corners: Record<Corner, stri
 }
 
 /**
+ * One correction of a Bout's Result, as the admin area shows it: what the Bout
+ * used to be recorded as having produced, and who replaced it when.
+ *
+ * The answer to the question a corrected result raises and nothing else can
+ * settle — "what was my Entry graded against before?" — which is why it is
+ * shown beside the fight rather than kept for a query somebody would have to
+ * know to run. The row behind it holds more (who entered the statement being
+ * replaced, and when they entered it); this is the half that is read on a
+ * screen.
+ */
+export interface ResultCorrection {
+  /** What the Bout was recorded as having produced, until this correction. */
+  ending: BoutEnding;
+  /** When it was corrected. */
+  at: string;
+  /** The username of the admin who corrected it. */
+  by: string;
+}
+
+/**
+ * Whether these two are the same account of one Bout.
+ *
+ * Asked of a correction before anything is written, so that an admin who
+ * re-entered what was already there is told so rather than being handed a
+ * correction that reversed nothing, re-paid the identical Rewards and left a
+ * row in the audit log saying a Result was replaced with itself. Every answer
+ * has to match, the null ones included: a Decision has no round and a No
+ * Result has no winner, and "unanswered" is as much a part of what was
+ * recorded as the answers are.
+ */
+export function isTheSameEnding(one: BoutEnding, other: BoutEnding): boolean {
+  if (one.noResult || other.noResult) return one.noResult === other.noResult;
+
+  return (
+    one.result.winner === other.result.winner &&
+    one.result.method === other.result.method &&
+    one.result.round === other.result.round
+  );
+}
+
+/**
  * What how this Bout ended did to the answers this fan gave, where that needs
  * saying — and null where it does not.
  *
@@ -371,13 +412,55 @@ export interface Settlement {
   returned: number;
 }
 
-/** What a settlement moved, as the second half of the sentences below. */
-function whatItMoved(settlement: Settlement): string {
-  const graded = `${settlement.graded} ${settlement.graded === 1 ? "Entry" : "Entries"} graded`;
-  const paid = `${coinsLabel(settlement.paid)} returned in Rewards`;
-  const returned = `${coinsLabel(settlement.returned)} refunded in full`;
+/**
+ * What correcting a Result did, as the admin who corrected it is told.
+ *
+ * A {@link Settlement} read one moment later, and every field of it means what
+ * it meant with one word changed: this is where the Entries riding on the Bout
+ * stand *now*, rather than where this ending put them. `graded` is every Entry
+ * the correction looked at, which is every Entry on the Bout that was not
+ * cancelled — not only the ones it moved, because "nothing changed for the
+ * other four hundred" is the reassuring half of the answer.
+ *
+ * `paid` and `returned` are the Coins that went out on this grading, and
+ * {@link Correction.reversed} is what came back off the last one. They are
+ * separate numbers rather than one net figure, because a net figure would let
+ * a correction that reversed eight hundred Coins and paid eight hundred read
+ * as a correction that did nothing.
+ */
+export interface Correction extends Settlement {
+  /**
+   * The Coins the reversals took back, as a positive number: what the mistake
+   * had paid out and has now been undone.
+   */
+  reversed: number;
+}
 
-  return settlement.returned === 0 ? `${graded}, ${paid}.` : `${graded}, ${paid}, ${returned}.`;
+/**
+ * What a grading moved, as the second half of the sentences below.
+ *
+ * One sentence for both, because a correction moves Coins the same four ways a
+ * settlement does and reads them in the same order. What it adds is the
+ * reversal, and it is added at the front: an admin who has just taken Coins
+ * off fans who were told they won needs that number before any of the others.
+ * The verb changes with it — a correction re-grades Entries that were graded
+ * once already.
+ */
+function whatItMoved(moved: Settlement | Correction): string {
+  const correction = "reversed" in moved ? moved : null;
+  const entries = moved.graded === 1 ? "Entry" : "Entries";
+  const said = [`${moved.graded} ${entries} ${correction ? "re-graded" : "graded"}`];
+
+  if (correction) said.push(`${coinsLabel(correction.reversed)} reversed`);
+
+  said.push(`${coinsLabel(moved.paid)} returned in Rewards`);
+
+  // Left off entirely rather than said as zero, because a card with no No
+  // Results on it is the ordinary one and "0 Coins refunded in full" is a
+  // sentence about something that did not happen.
+  if (moved.returned !== 0) said.push(`${coinsLabel(moved.returned)} refunded in full`);
+
+  return `${said.join(", ")}.`;
 }
 
 /** Everything entering a Result says to the admin entering it. */
@@ -425,6 +508,14 @@ export const RESULT_MESSAGES = {
     "grading again, never by overwriting it.",
   settled: (settlement: Settlement) => `Result entered. ${whatItMoved(settlement)}`,
   noResultEntered: (settlement: Settlement) => `No Result entered. ${whatItMoved(settlement)}`,
+  notSettled:
+    "Nothing has been entered about this Bout yet, so there is no result to " +
+    "correct. Enter the result it produced, or the reason it produced none.",
+  alreadyTheResult:
+    "That is what this Bout is already recorded as having produced, so there " +
+    "is nothing to correct. Change an answer, or leave the result as it " +
+    "stands — every Entry on the Bout is already graded against it.",
+  corrected: (correction: Correction) => `Result corrected. ${whatItMoved(correction)}`,
 } as const;
 
 /**

@@ -1,9 +1,8 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { inject } from "vitest";
-import type { Corner } from "../../shared/events";
 import type { Question } from "../../shared/pricing";
-import type { NoResultReason, RecordedMethod } from "../../shared/results";
+import type { EnteredEnding } from "../../shared/results";
 import { bouts, outcomes, seasons } from "../../server/db/schema";
 import type { Card, CardBout, CardCorner } from "../../server/utils/cardImport";
 import { importCard, type Imported } from "../../server/utils/events";
@@ -137,6 +136,8 @@ export interface CardAdmin {
   id: string;
   cookie: string;
   email: string;
+  /** The only name TFC shows for anybody, admins included (`CONTEXT.md`). */
+  username: string;
 }
 
 /** A signed-in admin with a Season open, ready to import a card into. */
@@ -150,6 +151,7 @@ export async function adminWithASeason(name = "Season 1"): Promise<CardAdmin> {
     id: await fanId(signedUp.details.email),
     cookie: signedUp.cookie,
     email: signedUp.details.email,
+    username: signedUp.details.username,
   };
 }
 
@@ -199,17 +201,20 @@ export async function lockBout(boutId: string, cookie: string): Promise<void> {
  * Hands the raw response back rather than throwing, because half the cases
  * that use it are about a result being refused.
  */
-export function enterResult(
-  boutId: string,
-  ending: {
-    winner?: Corner | null;
-    method?: RecordedMethod | null;
-    round?: number | null;
-    noResult?: NoResultReason | null;
-  },
-  cookie: string,
-): Promise<Response> {
+export function enterResult(boutId: string, ending: EnteredEnding, cookie: string) {
   return postJson(`/api/admin/bouts/${boutId}/result`, ending, cookie);
+}
+
+/**
+ * Corrects the result on a Bout that has already settled, the way the second
+ * form in the admin area does: the same ending an admin enters, sent to the
+ * route that reverses what the first one settled and grades again.
+ *
+ * Hands the raw response back for the reason {@link enterResult} does — a
+ * correction is refused more ways than it is accepted.
+ */
+export function correctResult(boutId: string, ending: EnteredEnding, cookie: string) {
+  return postJson(`/api/admin/bouts/${boutId}/correction`, ending, cookie);
 }
 
 /** The card an admin is pricing, as the admin area reads it. */

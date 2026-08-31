@@ -80,6 +80,31 @@ export const COIN_REASONS = {
    * anticipated any of it.
    */
   entryNoResult: "Returned in full on an Entry in which every Prediction was a No Result",
+  /**
+   * The Reward taken back off a fan because the result it was paid on was
+   * wrong.
+   *
+   * The unhappiest row in the ledger, and the one ADR-0003 exists to make
+   * writable at all: a Reward a fan has already seen in their Balance, taken
+   * back as a movement of its own rather than by rewriting what they were
+   * paid. It says what was reversed and why, because it is read by somebody
+   * who noticed their Coins go down and wants to know what happened — and the
+   * corrected Result is on the Bout for them to read beside it.
+   */
+  rewardReversed: "Reward reversed: a result this Entry was graded against was corrected",
+  /** The same, for the Amount an Entry had been given back. */
+  refundReversed: "Refund reversed: a result this Entry was graded against was corrected",
+  /**
+   * What a movement says when it is a re-grade rather than a settlement.
+   *
+   * A Reward paid on a corrected result is a Reward like any other and says so
+   * the same way, down to the Multiplier it came to — with this on the end, so
+   * that a fan reading two Rewards on one Entry can see which one is the one
+   * that stands. Written as a suffix rather than as four more sentences,
+   * because what happened to the Coins is unchanged and only the occasion is
+   * different.
+   */
+  afterACorrection: (reason: string) => `${reason}, after a corrected result`,
 } as const;
 
 /**

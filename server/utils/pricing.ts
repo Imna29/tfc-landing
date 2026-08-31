@@ -11,7 +11,7 @@
  */
 import type { BoutStatus, Corner } from "#shared/events";
 import type { BoutLock } from "#shared/locks";
-import type { BoutEnding } from "#shared/results";
+import type { BoutEnding, ResultCorrection } from "#shared/results";
 import {
   defaultOutcomes,
   inAskedOrder,
@@ -23,6 +23,7 @@ import {
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
 import { bouts, events, outcomes, seasons } from "../db/schema";
+import { correctionsOn } from "./corrections";
 import { useDatabase } from "./db";
 import { locksOn } from "./locks";
 import { endingsOn } from "./results";
@@ -96,6 +97,17 @@ export interface BoutToPrice {
    * twice.
    */
   ending: BoutEnding | null;
+  /**
+   * Every time that ending has been corrected, oldest first, and empty for the
+   * Bouts nobody has had to correct — which is nearly all of them.
+   *
+   * Here for the reason the Lock is: it is the answer to a fan who is unhappy
+   * about one fight, and it belongs beside that fight rather than in a query
+   * somebody would have to know to run. A Bout with rows here is one where
+   * Coins moved twice, and an admin reading it back is usually reading it with
+   * a fan on the phone.
+   */
+  corrections: ResultCorrection[];
   outcomes: OutcomeToPrice[];
 }
 
@@ -214,10 +226,11 @@ export async function openBout(boutId: string): Promise<boolean> {
  * were asked and the Lock it has if it has one.
  *
  * One query with a join rather than a query per Bout: a card is up to a dozen
- * Bouts of eight Outcomes each, and this is read on every save. The Lock
- * audit log and the Results are separate queries rather than four more joins
- * onto that one, because each belongs to the module that writes it and because
- * a card has at most one of each per Bout — a dozen rows, asked for once.
+ * Bouts of eight Outcomes each, and this is read on every save. The Lock audit
+ * log, the Results and the corrections made to them are separate queries
+ * rather than more joins onto that one, because each belongs to the module
+ * that writes it and because a card holds few enough of each to ask for the
+ * whole card's worth at once.
  */
 async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   const rows = await useDatabase()
@@ -254,6 +267,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
       priced: false,
       lock: null,
       ending: null,
+      corrections: [],
       outcomes: [],
     };
 
@@ -274,6 +288,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
 
   const locked = await locksOn([...card.keys()]);
   const settled = await endingsOn([...card.keys()]);
+  const corrected = await correctionsOn([...card.keys()]);
 
   return [...card.values()].map((bout) => ({
     ...bout,
@@ -283,6 +298,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     priced: bout.outcomes.length > 0 && bout.outcomes.every((outcome) => outcome.priced),
     lock: locked.get(bout.id) ?? null,
     ending: settled.get(bout.id) ?? null,
+    corrections: corrected.get(bout.id) ?? [],
     outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
   }));
 }

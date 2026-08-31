@@ -1,4 +1,3 @@
-import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { STARTING_BALANCE } from "../../shared/coins";
@@ -9,48 +8,46 @@ import {
   NO_RESULT_REASONS,
   RESULT_MESSAGES,
   type NoResultReason,
-  type RecordedMethod,
-  type Settlement,
 } from "../../shared/results";
-import type { Corner } from "../../shared/events";
-import type { CommittedEntries } from "../../shared/entries";
 import {
   balanceCache,
   boutLocks,
   boutResults,
   bouts,
   coinTransactions,
-  entries,
   predictions,
 } from "../../server/db/schema";
-import {
-  AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN,
-  ENTRIES_ARE_REFUNDED_IN_FULL,
-  ONE_REFUND_PER_ENTRY,
-} from "../../server/utils/cancellation";
+import { ENTRIES_ARE_REFUNDED_IN_FULL } from "../../server/utils/cancellation";
 import { A_LOCKED_BOUT_IS_NEVER_REOPENED } from "../../server/utils/locks";
 import {
   A_RESULT_OR_A_NO_RESULT,
   A_RESULTS_ROUND_WAS_OFFERED,
   ONE_RESULT_PER_BOUT,
-  ONE_REWARD_PER_ENTRY,
   RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED,
   RESULTS_ARE_ENTERED_ON_SETTLED_BOUTS,
+  WON_ENTRIES_ARE_REWARDED_ONCE,
 } from "../../server/utils/results";
-import { postJson, signUp } from "../helpers/accounts";
 import {
-  cardBout,
   cardInTheGame,
   cardToPrice,
   enterResult,
   lockBout,
   openedSeasonId,
   TEST_MULTIPLIERS,
-  type CardInTheGame,
 } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
+import {
+  balance,
+  fanWithCoins,
+  ledgerFor,
+  listingFor,
+  settle,
+  settleAsNoResult,
+  statusOf,
+  submit,
+  upcomingCard,
+} from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
-import { confirmEmail, fanId } from "../helpers/users";
 
 /**
  * Entering a result, and the Coins that move behind it.
@@ -85,118 +82,6 @@ function resolvable() {
 
 describe("entering a result", async () => {
   await setupTestServer();
-
-  /** A fan who can play: a Season's Coins, and a confirmed address. */
-  async function fanWithCoins() {
-    const signedUp = await signUp();
-
-    await confirmEmail(signedUp.details.email);
-
-    return { ...signedUp, id: await fanId(signedUp.details.email) };
-  }
-
-  /** A card two hours out, which is a card every Bout on is still open. */
-  function upcomingCard(bouts: number) {
-    return cardInTheGame({
-      scheduledStart: new Date(Date.now() + 120 * 60_000),
-      bouts: Array.from({ length: bouts }, (_, place) =>
-        cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1 }),
-      ),
-    });
-  }
-
-  /** Submits an Entry the way the panel on the card does. */
-  async function submit(
-    fan: { cookie: string },
-    amount: number,
-    predictions: { boutId: string; corner?: "red" | "blue"; method?: string; round?: number }[],
-  ) {
-    const response = await postJson(
-      "/api/predictions/entries",
-      { amount, predictions: predictions.map((one) => ({ corner: "red", ...one })) },
-      fan.cookie,
-    );
-
-    if (response.status !== 201) {
-      throw new Error(`The Entry was not accepted: ${await response.text()}`);
-    }
-
-    return (await response.json()) as { entry: { id: string }; balance: number };
-  }
-
-  /** Locks a Bout and enters its result, which is how a card is settled. */
-  async function settle(
-    card: CardInTheGame,
-    place: number,
-    result: { winner?: Corner; method?: RecordedMethod; round?: number | null },
-  ) {
-    const bout = card.bouts[place]!;
-
-    await lockBout(bout.id, card.admin.cookie);
-
-    const entered = await enterResult(
-      bout.id,
-      { winner: "red", method: "decision", round: null, ...result },
-      card.admin.cookie,
-    );
-
-    if (!entered.ok) throw new Error(`The result was not entered: ${await entered.text()}`);
-
-    return (await entered.json()) as { settlement: Settlement };
-  }
-
-  /**
-   * Locks a Bout and records that it produced nothing gradable.
-   *
-   * The other half of {@link settle}, and deliberately a second helper rather
-   * than another shape {@link settle} can take: an admin entering a No Result
-   * sends no winner and no method at all, and a helper that merged one in
-   * would be testing a request the admin area never makes.
-   */
-  async function settleAsNoResult(
-    card: CardInTheGame,
-    place: number,
-    reason: NoResultReason = "draw",
-  ) {
-    const bout = card.bouts[place]!;
-
-    await lockBout(bout.id, card.admin.cookie);
-
-    const entered = await enterResult(bout.id, { noResult: reason }, card.admin.cookie);
-
-    if (!entered.ok) throw new Error(`The No Result was not entered: ${await entered.text()}`);
-
-    return (await entered.json()) as { settlement: Settlement };
-  }
-
-  /** The Entries a fan is holding, as their own listing shows them back. */
-  function listingFor(cookie: string) {
-    return $fetch<CommittedEntries>("/api/predictions/entries", { headers: { cookie } });
-  }
-
-  /** Where an Entry stands, read back from the row settlement wrote. */
-  async function statusOf(entryId: string): Promise<string> {
-    const [entry] = await testDatabase()
-      .select({ status: entries.status })
-      .from(entries)
-      .where(eq(entries.id, entryId));
-
-    return entry?.status ?? "no such Entry";
-  }
-
-  /** Every Coin Transaction written about a fan, oldest first. */
-  function ledgerFor(userId: string) {
-    return testDatabase()
-      .select()
-      .from(coinTransactions)
-      .where(eq(coinTransactions.userId, userId))
-      .orderBy(coinTransactions.createdAt);
-  }
-
-  /** What the site header would show this fan. */
-  function balance(cookie: string) {
-    return $fetch<{ balance: number | null }>("/api/coins/balance", { headers: { cookie } });
-  }
 
   describe("a single Prediction", () => {
     it("returns the Amount at its Multiplier when it lands", async () => {
@@ -526,15 +411,27 @@ describe("entering a result", async () => {
 
       const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id }]);
 
-      await lockBout(card.bouts[0]!.id, card.admin.cookie);
-
+      // Deliberately not locked first, so that the Lock is one of the writes
+      // this settlement makes and one of the writes it has to take back.
+      //
       // A Reward this Entry already holds, which is a state nothing can
-      // actually reach — and exactly what `coin_transactions_one_reward_per_entry`
-      // is there to refuse. Planting it is how this test makes the write at the
-      // very end of settlement fail, with everything before it already done.
-      await testDatabase()
-        .insert(coinTransactions)
-        .values({
+      // actually reach: `won_entries_are_rewarded_once` refuses it from the
+      // ledger's side as it is written, because the Entry has not won.
+      //
+      // So it is planted with that half of the rule held aside for one
+      // statement. What this test needs is a settlement that fails at the very
+      // end, and this is now the strongest available version of that: the
+      // Entry side of the same rule refuses the transaction at *commit*, with
+      // every write in it — the Lock, the Result, the settled Bout, the graded
+      // Entry and the Reward — already made.
+      const held = testDatabase();
+
+      await held.execute(
+        sql`alter table coin_transactions disable trigger won_entries_are_rewarded_once`,
+      );
+
+      try {
+        await held.insert(coinTransactions).values({
           seasonId: await openedSeasonId(),
           userId: fan.id,
           kind: "entry_reward",
@@ -543,6 +440,11 @@ describe("entering a result", async () => {
           cause: "entry",
           causeId: entry.id,
         });
+      } finally {
+        await held.execute(
+          sql`alter table coin_transactions enable trigger won_entries_are_rewarded_once`,
+        );
+      }
 
       const entered = await enterResult(
         card.bouts[0]!.id,
@@ -552,8 +454,18 @@ describe("entering a result", async () => {
 
       expect(entered.ok).toBe(false);
 
-      // Nothing happened. Not the Result, not the settling of the Bout, not the
-      // grading of the Entry, and not a second Reward.
+      // Nothing happened. Not the Lock, not the Result, not the settling of the
+      // Bout, not the grading of the Entry, and not a second Reward — and the
+      // Bout is still taking Predictions, which is where it was.
+      expect(
+        (
+          await testDatabase()
+            .select()
+            .from(boutLocks)
+            .where(eq(boutLocks.boutId, card.bouts[0]!.id))
+        ).length,
+      ).toBe(0);
+
       expect(
         (
           await testDatabase()
@@ -568,7 +480,7 @@ describe("entering a result", async () => {
         .from(bouts)
         .where(eq(bouts.id, card.bouts[0]!.id));
 
-      expect(bout?.status).toBe("locked");
+      expect(bout?.status).toBe("open");
       expect(await statusOf(entry.id)).toBe("open");
       expect((await ledgerFor(fan.id)).filter((row) => row.kind === "entry_reward").length).toBe(1);
     });
@@ -753,7 +665,9 @@ describe("entering a result", async () => {
 
       // The last of the three guards against a Bout settled twice paying twice,
       // and the one that holds when the other two have been got past — by a
-      // correction written by hand, or by a route nobody has written yet.
+      // correction written by hand, or by a route nobody has written yet. What
+      // it counts is the Rewards *standing*, so a second one is refused while
+      // the first has not been reversed (#16).
       const written = await testDatabase()
         .insert(coinTransactions)
         .values({
@@ -770,7 +684,7 @@ describe("entering a result", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(written).toMatch(new RegExp(ONE_REWARD_PER_ENTRY));
+      expect(written).toMatch(new RegExp(WON_ENTRIES_ARE_REWARDED_ONCE));
     });
 
     it("refuses a Result naming a round the Bout never offered", async () => {
@@ -1266,10 +1180,10 @@ describe("entering a result", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(written).toMatch(new RegExp(ONE_REFUND_PER_ENTRY));
+      expect(written).toMatch(new RegExp(ENTRIES_ARE_REFUNDED_IN_FULL));
     });
 
-    it("refuses an Entry refunded out of anything but Open", async () => {
+    it("refuses an Entry that was paid a Reward being refunded as well", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
@@ -1278,6 +1192,9 @@ describe("entering a result", async () => {
       await settle(card, 0, { winner: "red" });
 
       // An Entry that won and was paid, asked to hand its Amount back as well.
+      // A correction may move an Entry to Refunded — that is #16's whole job —
+      // but only carrying the Coins that go with it: the refund written and
+      // the Reward reversed. This carries neither.
       const written = await testDatabase()
         .execute(sql`update entries set status = 'refunded' where id = ${entry.id}::uuid`)
         .then(
@@ -1285,7 +1202,7 @@ describe("entering a result", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(written).toContain(AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN);
+      expect(written).toContain(ENTRIES_ARE_REFUNDED_IN_FULL);
     });
   });
 

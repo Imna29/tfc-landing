@@ -724,8 +724,7 @@ holds the ones worth holding.
 | --- | --- |
 | Every Bout in the Entry is still open | `entries_are_cancelled_while_every_bout_is_open` |
 | An Entry is cancelled out of Open, once, and stays cancelled | `an_entry_is_cancelled_once_out_of_open` |
-| A cancelled Entry has been refunded, in full, and a refund belongs to a cancelled Entry | `cancelled_entries_are_refunded`, a deferred constraint trigger on both tables |
-| One refund per Entry | `coin_transactions_one_refund_per_entry` |
+| An Entry that was made whole has one refund standing, for its whole Amount, and one that was not has none | `entries_are_refunded_in_full`, a deferred constraint trigger on both tables |
 | A refund returns Coins, for an Entry | `coin_transactions_refund_returns_coins` |
 
 **Two requests cancelling the same Entry.** `cancelEntry` takes the Entry row
@@ -740,7 +739,79 @@ of the two had already told a fan it worked.
 A cancelled Entry is not deleted, and settlement never touches it: grading reads
 only Entries that are still `open`, so a Bout it once predicted on settles
 around it. It stays in the fan's listing with its status, because it is Coins
-that moved and a decision the fan made.
+that moved and a decision the fan made. A correction does not touch it either,
+for a stronger reason: nothing in it was ever graded against a result.
+
+### Correcting a result that was entered wrong
+
+Results are typed in by somebody watching a fight, and the fights are decided in
+a cage at one in the morning. By the time anybody notices the winner went down
+the wrong way round, Rewards are in Balances that fans have seen and some of
+those Coins are committed to other Entries. `POST
+/api/admin/bouts/:id/correction` is the fix, and it is the scenario ADR-0003
+built the whole ledger for: **it reverses the Coin Transactions the first result
+wrote and grades every Entry on the Bout again.** With a mutable balance column
+the only available fix would be quietly rewriting people's totals with nothing
+to say it happened, which is indefensible the first time a fan disputes theirs
+in public.
+
+Nothing is edited and nothing is deleted. A Reward paid on the wrong result
+stays where it is; an `entry_reversal` row stands beside it naming it and worth
+exactly the negative of it; the re-graded Reward stands beside that. A fan who
+saw 120 Coins and now sees 80 can be shown all three. The Bout is not re-opened,
+re-locked or unsettled — what was wrong is the record of the fight, not the fact
+that it is over.
+
+**Only what is no longer true moves.** An Entry whose grade has not changed is
+left exactly as it is, ledger rows included: reversing and re-paying an
+identical Reward would be two movements in a fan's history that add up to
+nothing having happened, and on a well-attended card that is several hundred
+fans. What is compared is the Reward the Entry would be paid *now* against the
+one standing beside it, not the status alone — a disqualification corrected to a
+KO/TKO leaves an Entry Won either way and pays a different number (ADR-0005).
+
+`bout_results` is updated rather than replaced: it is what every Prediction is
+graded against wherever one is shown, and a correction that removed the row
+would have to unsettle the Bout, which `a_locked_bout_is_never_reopened`
+refuses. What it used to say goes to `bout_result_corrections` — the ending, who
+entered it, who corrected it, and when — which is the answer to the fan whose
+Entry was Won yesterday and is Lost today. The admin area lists it under the
+fight.
+
+| Rule | Held by |
+| --- | --- |
+| A reversal is worth the negative of the movement it names, for the same fan and Entry | `a_reversal_undoes_the_row_it_names` |
+| Only a Reward or a refund is reversed, and a reversal takes Coins back | the same trigger, and `coin_transactions_reversal_takes_coins_back` |
+| A movement is taken back once | `coin_transactions_one_reversal_per_row` |
+| Only a reversal names another row, and every reversal names one | `coin_transactions_a_reversal_names_what_it_undoes` |
+| An Entry that has Won holds one Reward standing; every other Entry holds none | `won_entries_are_rewarded_once`, a deferred constraint trigger on both tables |
+| An Entry made whole holds one refund standing, for its whole Amount | `entries_are_refunded_in_full`, the same shape |
+| A Result that was changed says what it said before | `corrected_results_are_recorded` |
+| The log of what a Bout used to be recorded as is never rewritten | `bout_result_corrections_are_append_only` |
+
+#14's `coin_transactions_one_reward_per_entry` is gone, and its replacement is
+the interesting part of this ticket. It was a partial unique index — "one
+`entry_reward` row per Entry" — which is a proxy for the property that actually
+matters: an Entry cannot end up holding two Rewards. A correction meets that
+index the moment it re-grades an Entry it has just reversed the Reward of. So
+the property is now stated directly, as a rule counting the Rewards *standing* —
+the ones no reversal names — which an index cannot express and which says the
+other direction too: an Entry that is not Won holds no Reward at all. That is
+the failure a correction would otherwise leave behind: the status moved and the
+Coins forgotten.
+
+**A Balance can go below zero, and that is the correction working.** A fan paid
+on a wrong result may have committed those Coins to other Entries before anybody
+noticed; taking the Reward back leaves them owing. This is why
+`entry_commitments_are_within_the_balance` holds only *commitments* to the
+Balance rather than the ledger as a whole — so that a reversal is never the row
+refused. The alternative is leaving Coins in circulation that were never won.
+
+Two admins correcting the same Bout queue on the `bout_results` row, taken `for
+update` before anything is read; the Entries are taken under the same kind of
+lock settlement uses, and for the same reason. `test/server/corrections.test.ts`
+is the suite, and it asserts the ledger trail as hard as it asserts the
+statuses.
 
 ### Pushing the model
 

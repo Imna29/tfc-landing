@@ -62,6 +62,22 @@ describe("the admin area", async () => {
       );
       expect((await postJson(`/api/admin/bouts/${anyId}/open`, {}, cookie)).status).toBe(403);
       expect((await postJson(`/api/admin/bouts/${anyId}/open`, {})).status).toBe(401);
+
+      // Locking a Bout is #12's and entering a result is #14's; correcting one
+      // that was entered wrong is #16's, and what each does lives in
+      // `test/server/settlement.test.ts` and `test/server/corrections.test.ts`.
+      // These are the routes that move Coins: a fan who reached the last of
+      // them could reverse a Reward somebody else won and pay themselves one.
+      const ending = { winner: "red", method: "decision", round: null };
+
+      expect((await postJson(`/api/admin/bouts/${anyId}/lock`, {}, cookie)).status).toBe(403);
+      expect((await postJson(`/api/admin/bouts/${anyId}/lock`, {})).status).toBe(401);
+      expect((await postJson(`/api/admin/bouts/${anyId}/result`, ending, cookie)).status).toBe(403);
+      expect((await postJson(`/api/admin/bouts/${anyId}/result`, ending)).status).toBe(401);
+      expect((await postJson(`/api/admin/bouts/${anyId}/correction`, ending, cookie)).status).toBe(
+        403,
+      );
+      expect((await postJson(`/api/admin/bouts/${anyId}/correction`, ending)).status).toBe(401);
     });
 
     it("refuses a fan an admin page", async () => {

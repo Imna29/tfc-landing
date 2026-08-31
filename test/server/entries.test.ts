@@ -20,10 +20,9 @@ import {
   predictions,
 } from "../../server/db/schema";
 import {
-  AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN,
+  AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN,
   ENTRIES_ARE_REFUNDED_IN_FULL,
   ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN,
-  ONE_REFUND_PER_ENTRY,
 } from "../../server/utils/cancellation";
 import type { SubmittedEntry } from "../../server/utils/entries";
 import { postJson, signUp } from "../helpers/accounts";
@@ -1066,7 +1065,7 @@ describe("the Entry a fan commits, and takes back", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(written).toContain(ONE_REFUND_PER_ENTRY);
+      expect(written).toContain(ENTRIES_ARE_REFUNDED_IN_FULL);
     });
 
     it("refuses to put a cancelled Entry back, even written by hand", async () => {
@@ -1088,7 +1087,7 @@ describe("the Entry a fan commits, and takes back", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(written).toContain(AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN);
+      expect(written).toContain(AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN);
     });
 
     it("refuses to cancel an Entry whose Bout has locked, even written by hand", async () => {

@@ -27,6 +27,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 // Relative rather than `#shared/…`, unlike every other server module: this
 // file is also compiled by `drizzle-kit generate`, which knows nothing of the
@@ -220,19 +221,26 @@ export const seasons = pgTable(
  * What moved Coins. One kind per ticket that can move them, added by that
  * ticket's own migration.
  *
- * Four of them, and the discipline is the point: Coins come into existence as
+ * Five of them, and the discipline is the point: Coins come into existence as
  * a Season grant, leave a Balance as an Entry's commitment, come back as the
- * Reward a winning Entry earned, and come back untouched as the refund a
- * cancelled Entry returns. `coin_transactions_kind_known` is what says so, and
- * the ticket that adds the reversal a corrected result writes (#16) has to say
- * so again in SQL that somebody reads. A kind permitted before anything writes
- * it is a kind nobody has thought about.
+ * Reward a winning Entry earned, come back untouched as the refund a cancelled
+ * Entry returns, and go back where they came from as the reversal a corrected
+ * result writes. `coin_transactions_kind_known` is what says so, in SQL
+ * somebody reads. A kind permitted before anything writes it is a kind nobody
+ * has thought about.
  *
- * `entry_refund` is the row a cancellation writes and, when #15 lands, the row
- * an Entry of nothing but No Results writes as well: the same movement for the
- * same reason, the Amount back in full. What has to widen for that is
- * `cancelled_entries_are_refunded`, which today ties a refund to a cancelled
- * Entry and only to one.
+ * `entry_refund` is the row a cancellation writes and the row an Entry of
+ * nothing but No Results writes as well: the same movement for the same
+ * reason, the Amount back in full (ADR-0005). `entries_are_refunded_in_full`
+ * is what holds both to it.
+ *
+ * `entry_reversal` is the one that undoes rather than moves, and the one this
+ * whole ledger exists for (ADR-0003). It names the row it takes back in
+ * {@link coinTransactions.reverses} and is worth exactly the negative of it,
+ * so a Reward paid on a result that turned out to be wrong is *taken back in
+ * the ledger* rather than deleted out of it — the mistake and its correction
+ * both readable afterwards, which is the whole argument against a mutable
+ * balance column.
  *
  * Each of them is also held to a direction and a cause, because a Reward that
  * took Coins away or pointed at a Season would be a Balance nobody could
@@ -242,7 +250,8 @@ export type CoinTransactionKind =
   | "season_grant"
   | "entry_commitment"
   | "entry_reward"
-  | "entry_refund";
+  | "entry_refund"
+  | "entry_reversal";
 
 /** What a Coin Transaction points at as the thing that caused it. */
 export type CoinTransactionCause = "season" | "entry";
@@ -296,6 +305,16 @@ export const coinTransactions = pgTable(
     reason: text("reason").notNull(),
     cause: text("cause").$type<CoinTransactionCause>().notNull(),
     causeId: uuid("cause_id").notNull(),
+    /**
+     * The row this one takes back, on a reversal, and null on every other kind.
+     *
+     * A reversal points at exactly one movement and is worth the negative of
+     * it, which is what makes "standing" a question the two triggers below can
+     * ask: a Reward with no reversal naming it is a Reward that still counts,
+     * and one with a reversal beside it is a Reward that was paid and taken
+     * back. Both rows stay, because both things happened (ADR-0003).
+     */
+    reverses: uuid("reverses").references((): AnyPgColumn => coinTransactions.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -309,27 +328,28 @@ export const coinTransactions = pgTable(
     uniqueIndex("coin_transactions_one_commitment_per_entry")
       .on(table.causeId)
       .where(sql`${table.kind} = 'entry_commitment'`),
-    // And one Reward per Entry, which is the last line of "settling the same
-    // Bout twice does not pay anybody twice". Settlement asks first — it grades
-    // only Entries still Open, and a Bout carries one Result — but the Coins
-    // this guards are the ones nobody would notice going out, so it is held
-    // here as well as asked about there.
-    uniqueIndex("coin_transactions_one_reward_per_entry")
-      .on(table.causeId)
-      .where(sql`${table.kind} = 'entry_reward'`),
-    // And one refund per Entry, which is what makes "a cancelled Entry cannot
-    // be double-refunded under concurrent requests" true of something other
-    // than the order two requests happened to arrive in. The row lock in
-    // `cancelEntry` is what they actually queue behind; this is what holds if
-    // anything ever asks without taking it.
-    uniqueIndex("coin_transactions_one_refund_per_entry")
-      .on(table.causeId)
-      .where(sql`${table.kind} = 'entry_refund'`),
+    // A movement is taken back once. #14 held "one Reward per Entry" and "one
+    // refund per Entry" as two indexes of this shape, and #16 replaced them
+    // with `won_entries_are_rewarded_once` and `entries_are_refunded_in_full`,
+    // which say the stronger thing: an Entry holds one Reward *standing*, and
+    // holds it exactly when it is Won. An index cannot ask that — "standing"
+    // is a row somewhere else not existing — but it can ask this, and this is
+    // the half of it a correction could otherwise get wrong twice: reversing
+    // the same Reward again would take the Coins away a second time, and no
+    // count of Rewards would look any different afterwards.
+    uniqueIndex("coin_transactions_one_reversal_per_row").on(table.reverses),
     // Every Balance read and every rebuild groups by these two.
     index("coin_transactions_by_fan").on(table.seasonId, table.userId),
+    // And everything that asks what an Entry's Coins have done looks it up by
+    // this one: the two triggers below, and the correction that reads which
+    // Rewards are still standing before it reverses any of them. Until #16
+    // there were two partial unique indexes on this column doing the work by
+    // accident; this is the same lookup, asked for on purpose.
+    index("coin_transactions_by_cause").on(table.causeId),
     check(
       "coin_transactions_kind_known",
-      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward', 'entry_refund')`,
+      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward', 'entry_refund',
+        'entry_reversal')`,
     ),
     check("coin_transactions_cause_known", sql`${table.cause} in ('season', 'entry')`),
     // A row that moves nothing is not a movement; it is a row somebody wrote
@@ -370,11 +390,33 @@ export const coinTransactions = pgTable(
     // ledger records what happened rather than unwriting it (ADR-0003): the
     // Coins were committed, and then they came back. How many is not something
     // a check can see — that the refund is the whole Amount and nothing else
-    // is `cancelled_entries_are_refunded`'s to say.
+    // is `entries_are_refunded_in_full`'s to say.
     check(
       "coin_transactions_refund_returns_coins",
       sql`${table.kind} <> 'entry_refund'
         or (${table.amount} > 0 and ${table.cause} = 'entry')`,
+    ),
+    // A reversal names what it takes back, and only a reversal does. Without
+    // both directions there are two rows nothing else in this table could make
+    // sense of: a reversal that reverses nothing, which is Coins removed from
+    // a Balance with no movement behind it, and a Reward pointing at another
+    // row, which would make it look reversed to everything that reads
+    // "standing" as "nothing names me".
+    check(
+      "coin_transactions_a_reversal_names_what_it_undoes",
+      sql`(${table.kind} = 'entry_reversal') = (${table.reverses} is not null)`,
+    ),
+    // And it takes Coins back rather than handing them out. The two rows a
+    // correction can reverse — a Reward and a refund — both returned Coins, so
+    // undoing either is negative; a positive reversal would be this ticket's
+    // way of writing the Coin printer the rest of these checks close. That it
+    // is worth exactly the negative of the row it names is
+    // `a_reversal_undoes_the_row_it_names`, which is the only rule here that
+    // has to read another row to ask.
+    check(
+      "coin_transactions_reversal_takes_coins_back",
+      sql`${table.kind} <> 'entry_reversal'
+        or (${table.amount} < 0 and ${table.cause} = 'entry')`,
     ),
   ],
 );
@@ -725,12 +767,17 @@ export const boutLocks = pgTable(
  * There is no append-only trigger here, unlike {@link boutLocks}. A Lock is
  * never undone, so a record of one never needs correcting; a Result is entered
  * by a person watching a fight and can be entered wrong, which is the case
- * ADR-0003 built the whole ledger around. #16 corrects one by reversing what it
- * settled and grading again — and it needs this row to be the corrected
- * Result afterwards.
+ * ADR-0003 built the whole ledger around. A correction reverses what this row
+ * settled, updates it in place and grades every Entry again (#16) — it has to
+ * be the corrected Result afterwards, because it is what every Prediction on
+ * the Bout is graded against wherever one is shown.
  *
  * `enteredBy` and `enteredAt` are who said this is what happened and when,
- * which is the question a corrected result asks first.
+ * which is the question a corrected result asks first. They are the *standing*
+ * statement: a correction moves them to the admin who corrected it, and the
+ * one they replaced goes to {@link boutResultCorrections} rather than being
+ * written over. `corrected_results_are_recorded` is what makes that not
+ * something a writer has to remember.
  *
  * **A Bout that produced nothing gradable is recorded here too**, as a row
  * naming the reason and no winner (ADR-0005). One table rather than two,
@@ -821,6 +868,91 @@ export const boutResults = pgTable(
 );
 
 /**
+ * The Result audit log: one row per correction, holding the ending it replaced.
+ *
+ * {@link boutResults} always says what the game grades against, which is what
+ * a correction updates it to be. This is where what it used to say goes, and
+ * it is the difference between an audit trail that can say "the Bout was
+ * recorded as Beridze by KO/TKO in round 2, and that was wrong" and one that
+ * can only say that somebody changed something.
+ *
+ * The question it answers is asked after the fact, by a fan whose Entry was
+ * Won and is now Lost, so it is append-only for exactly the reason
+ * `bout_locks_are_append_only` is: a log somebody can tidy up afterwards
+ * answers nothing.
+ *
+ * Four moments and two people, and each of them is asked about: `enteredAt`
+ * and `enteredBy` are who made the statement being replaced and when they made
+ * it, `correctedAt` and `correctedBy` are who replaced it. Reading a Bout's
+ * corrections oldest-first is reading everything anybody has ever said about
+ * that fight, in the order they said it.
+ *
+ * The columns describing the superseded ending are the same four
+ * {@link boutResults} carries, held to the same values by checks of their own —
+ * a log that could hold a shape the table it logs could never have held is a
+ * log of something that did not happen. What it deliberately does not carry is
+ * `bout_results_round_was_offered`: that Outcome exists because this row's
+ * Bout was priced with it, and the log is not the place to discover otherwise.
+ */
+export const boutResultCorrections = pgTable(
+  "bout_result_corrections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id),
+    /** The corner the superseded Result named, or null where it was a No Result. */
+    winner: text("winner").$type<Corner>(),
+    /** How the superseded Result said it ended. */
+    method: text("method").$type<RecordedMethod>(),
+    /** The round the superseded Result said it ended in. */
+    round: integer("round"),
+    /** Why the superseded row said the Bout produced nothing gradable. */
+    noResult: text("no_result").$type<NoResultReason>(),
+    /** When the superseded statement was made, and by which admin. */
+    enteredAt: timestamp("entered_at", { withTimezone: true }).notNull(),
+    enteredBy: uuid("entered_by")
+      .notNull()
+      .references(() => users.id),
+    /** When it was corrected, and by which admin. */
+    correctedAt: timestamp("corrected_at", { withTimezone: true }).notNull().defaultNow(),
+    correctedBy: uuid("corrected_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    // Every correction of one Bout, oldest first, which is the only order this
+    // is ever read in.
+    index("bout_result_corrections_by_bout").on(table.boutId, table.correctedAt),
+    check(
+      "bout_result_corrections_winner_known",
+      sql`${table.winner} is null
+        or ${table.winner} in ('red', 'blue')`,
+    ),
+    check(
+      "bout_result_corrections_method_known",
+      sql`${table.method} is null
+        or ${table.method} in ('ko_tko', 'submission', 'decision', 'disqualification')`,
+    ),
+    check(
+      "bout_result_corrections_no_result_known",
+      sql`${table.noResult} is null
+        or ${table.noResult} in ('cancelled', 'withdrawal', 'draw', 'no_contest')`,
+    ),
+    check(
+      "bout_result_corrections_is_a_result_or_no_result",
+      sql`(${table.noResult} is null) = (${table.winner} is not null
+        and ${table.method} is not null)`,
+    ),
+    check(
+      "bout_result_corrections_a_round_is_a_finish",
+      sql`(${table.round} is not null) = (${table.method} is not null
+        and ${table.method} in ('ko_tko', 'submission'))`,
+    ),
+  ],
+);
+
+/**
  * The committed unit: between one and ten Predictions and an Amount of Coins.
  *
  * An Entry is what a fan submits and what their history lists. Its Coins leave
@@ -847,23 +979,24 @@ export const boutResults = pgTable(
  * that wrote it commits, whatever wrote it.
  *
  * **Cancelling is three more rules a column cannot hold**, and
- * `0010_cancelling_an_entry.sql` holds each of them: an Entry reaches
- * `cancelled` out of `open` and never leaves it, only while every Bout in it
- * is still open (`entries_are_cancelled_while_every_bout_is_open`), and never
- * apart from the refund that returns its whole Amount. The first and the last
- * are named `an_entry_returns_its_coins_once_out_of_open` and
- * `entries_are_refunded_in_full`, and are dropped and rewritten under those
- * names by `0011_no_result_and_disqualification.sql`, which widens both to the
- * second status that returns an Amount. The last is the shape
+ * `0010_cancelling_an_entry.sql` wrote each of them: an Entry reaches
+ * `cancelled` out of `open` and never leaves it
+ * (`an_entry_is_cancelled_once_out_of_open`), only while every Bout in it is
+ * still open (`entries_are_cancelled_while_every_bout_is_open`), and never
+ * apart from the refund that returns its whole Amount
+ * (`entries_are_refunded_in_full`). The last is the shape
  * `results_are_entered_on_settled_bouts` uses and the same kind of promise: a
  * status and a Coin movement that are only ever true together.
  *
- * **`refunded` is held by the first and the last of those as well**, because
- * an Entry of nothing but No Results returns exactly the same Amount by
- * exactly the same movement (ADR-0005) — the difference is whose decision it
- * was, not what the Coins did. What it is deliberately not held by is the
- * middle one: it is settlement that writes it, on a card that has not only
- * started but finished.
+ * **What holds every other status is the Coins, not the status.**
+ * `entries_are_refunded_in_full` and `won_entries_are_rewarded_once` each tie a
+ * status to a movement *standing* — a Reward or a refund no reversal names —
+ * in both directions, so an Entry is Won exactly while it holds its one Reward
+ * and Refunded exactly while it holds its Amount back. That is what lets a
+ * corrected result move an Entry between them (#16) while making it impossible
+ * to move one without moving the Coins that go with it. Only `cancelled` is
+ * held as a status rule as well, because it is the fan's own decision about a
+ * card that had not started and nothing corrects one.
  */
 export const entries = pgTable(
   "entries",

@@ -27,14 +27,19 @@
  *
  * Three separate things stop a Bout settled twice from paying twice, and they
  * are deliberately not one: the `bout_results` primary key refuses a second
- * Result, only Entries still Open are graded, and
- * `coin_transactions_one_reward_per_entry` refuses a second Reward for an Entry
- * whatever asked for it — with `coin_transactions_one_refund_per_entry` saying
- * the same of a refund. The first is what an admin actually meets, and is the
- * one turned back into a sentence below. The others are underneath it, and
- * reaching any of them means something is wrong rather than merely refused — so
- * they are left to fail loudly rather than dressed up as a refusal an admin
- * could read and shrug at.
+ * Result, only Entries still Open are graded, and `won_entries_are_rewarded_once`
+ * refuses a second standing Reward for an Entry whatever asked for it — with
+ * `entries_are_refunded_in_full` saying the same of a refund. The first is what
+ * an admin actually meets, and is the one turned back into a sentence below.
+ * The others are underneath it, and reaching any of them means something is
+ * wrong rather than merely refused — so they are left to fail loudly rather
+ * than dressed up as a refusal an admin could read and shrug at.
+ *
+ * Correcting a Result that was entered wrong is `server/utils/corrections.ts`,
+ * and it is this file read backwards: the same Entries, the same grading, the
+ * Coins going the other way first. Everything here that it needs is exported
+ * for it rather than copied into it — the grading is the part that must not
+ * come to be two functions that disagree.
  */
 import { COIN_REASONS } from "#shared/coins";
 import { potentialReward, type EntryStatus, type PricedPrediction } from "#shared/entries";
@@ -70,8 +75,16 @@ export const A_RESULTS_ROUND_WAS_OFFERED = "bout_results_round_was_offered";
 /** The check holding a row to a Result or a No Result, and never half of either. */
 export const A_RESULT_OR_A_NO_RESULT = "bout_results_is_a_result_or_no_result";
 
-/** The index that holds an Entry to one Reward. */
-export const ONE_REWARD_PER_ENTRY = "coin_transactions_one_reward_per_entry";
+/**
+ * The name of the constraint trigger holding a Won Entry to one Reward, and
+ * every other Entry to none.
+ *
+ * #14 held the first half of this as a partial unique index, which a
+ * correction's re-graded Reward would meet; #16 replaced it with a rule that
+ * counts the Rewards *standing* — the ones no reversal names — and can
+ * therefore say the second half too.
+ */
+export const WON_ENTRIES_ARE_REWARDED_ONCE = "won_entries_are_rewarded_once";
 
 /**
  * Why a Result was not entered, in the words the admin reads and the status the
@@ -168,16 +181,90 @@ export async function settleBout(
  * whole of it.
  */
 async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlement> {
+  // An Entry already Won, Lost or Refunded is not graded again. It is the
+  // second of the three guards against a Bout settled twice paying twice, and
+  // the one that also covers a chain whose earlier Bout already ended it —
+  // which is why a correction, whose whole job is to reach those Entries, asks
+  // for them by name instead (`correctResult` in `server/utils/corrections.ts`).
+  const riding = await entriesRidingOn(tx, boutId, ["open"]);
+
+  // Every Entry on this Bout was decided by an earlier one, or nobody
+  // predicted on it at all. Either way there is nothing to read and nothing to
+  // write — an admin settling an undercard Bout late on a card sees this.
+  if (riding.length === 0) return NOTHING_TO_SETTLE;
+
+  const settling = await entriesToGrade(tx, riding);
+
+  const lost: SettlingEntry[] = [];
+  const won: SettlingEntry[] = [];
+  const refunded: SettlingEntry[] = [];
+  let stillOpen = 0;
+
+  for (const entry of settling) {
+    const standing = standingOf(entry);
+
+    if (standing === "lost") lost.push(entry);
+    else if (standing === "won") won.push(entry);
+    else if (standing === "refunded") refunded.push(entry);
+    else stillOpen += 1;
+  }
+
+  // No Coin Transaction for a Lost Entry, and there never will be: its Amount
+  // left the Balance when it was submitted (ADR-0003), so losing is a status
+  // and nothing else. Writing a row here would take the Coins a second time.
+  if (lost.length > 0) await markEntries(tx, "lost", lost);
+  if (won.length > 0) await markEntries(tx, "won", won);
+  if (refunded.length > 0) await markEntries(tx, "refunded", refunded);
+
+  const paid = await creditRewards(
+    tx,
+    won.map((entry) => rewardFor(entry, COIN_REASONS.entryWon)),
+  );
+  const returned = await refundEntries(
+    tx,
+    refunded.map((entry) => refundFor(entry, COIN_REASONS.entryNoResult)),
+  );
+
+  return {
+    graded: settling.length,
+    won: won.length,
+    lost: lost.length,
+    refunded: refunded.length,
+    stillOpen,
+    paid,
+    returned,
+  };
+}
+
+/**
+ * The Entries riding on this Bout that the caller may move, taken under a row
+ * lock before anything is read about them.
+ *
+ * `moving` is which statuses this transaction is allowed to change, and it is
+ * the one line between settling a Bout and correcting it: settlement takes the
+ * Entries still Open, because an Entry an earlier Bout already ended is not
+ * its business; a correction takes everything but a cancelled Entry, because
+ * an Entry an earlier grading got wrong is exactly its business. Both take the
+ * lock, and for the same reason.
+ *
+ * **The lock is not about two admins settling the same Bout** — the primary
+ * key on `bout_results` answers that one. It is about two Bouts of the *same
+ * Entry* moving at once, which is an admin working down a card quickly.
+ * Without it both transactions read the other's Bout as unsettled, both leave
+ * the Entry Open, and a fan who won is never paid: no constraint could catch
+ * it, because neither transaction ever writes anything wrong.
+ */
+export async function entriesRidingOn(
+  tx: DatabaseTransaction,
+  boutId: string,
+  moving: readonly EntryStatus[],
+): Promise<string[]> {
   const riding = await tx
     .select({ id: entries.id })
     .from(entries)
     .where(
       and(
-        // An Entry already Won, Lost or Refunded is not graded again. It is the
-        // second of the three guards against a Bout settled twice paying twice,
-        // and the one that also covers a chain whose earlier Bout already
-        // ended it.
-        eq(entries.status, "open"),
+        inArray(entries.status, [...moving]),
         inArray(
           entries.id,
           tx
@@ -187,27 +274,38 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
         ),
       ),
     )
-    // A consistent order to take the rows in, so two settlements whose Entries
+    // A consistent order to take the rows in, so two gradings whose Entries
     // overlap queue behind one another rather than deadlocking half way.
     .orderBy(entries.id)
     .for("update");
 
-  // Every Entry on this Bout was decided by an earlier one, or nobody
-  // predicted on it at all. Either way there is nothing to read and nothing to
-  // write — an admin settling an undercard Bout late on a card sees this.
-  if (riding.length === 0) return NOTHING_TO_SETTLE;
+  return riding.map((entry) => entry.id);
+}
 
-  // A second statement rather than a `for update` on the join above, and that
-  // is the point of it: in read committed a statement that waited on a row lock
-  // re-reads that row, but reads everything joined to it from the snapshot it
-  // started with. This one starts after the lock is held, so what it sees of
-  // the other Bouts is what has actually committed.
+/**
+ * Everything these Entries need to be graded: their Amounts, every Prediction
+ * in them, and how each of those Bouts ended.
+ *
+ * One statement whatever the card's attendance, and deliberately a *second*
+ * statement rather than a `for update` on the take above. That is the point of
+ * it: in read committed a statement that waited on a row lock re-reads that
+ * row, but reads everything joined to it from the snapshot it started with.
+ * This one starts after the lock is held, so what it sees of the other Bouts
+ * is what has actually committed.
+ */
+export async function entriesToGrade(
+  tx: DatabaseTransaction,
+  entryIds: readonly string[],
+): Promise<SettlingEntry[]> {
+  if (entryIds.length === 0) return [];
+
   const rows = await tx
     .select({
       entryId: entries.id,
       seasonId: entries.seasonId,
       userId: entries.userId,
       amount: entries.amount,
+      status: entries.status,
       boutId: predictions.boutId,
       corner: predictions.corner,
       method: predictions.method,
@@ -223,12 +321,7 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
     .from(entries)
     .innerJoin(predictions, eq(predictions.entryId, entries.id))
     .leftJoin(boutResults, eq(boutResults.boutId, predictions.boutId))
-    .where(
-      inArray(
-        entries.id,
-        riding.map((entry) => entry.id),
-      ),
-    );
+    .where(inArray(entries.id, [...entryIds]));
 
   const settling = new Map<string, SettlingEntry>();
 
@@ -238,6 +331,7 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
       seasonId: row.seasonId,
       userId: row.userId,
       amount: row.amount,
+      status: row.status,
       predictions: [],
     };
 
@@ -255,41 +349,22 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
     });
   }
 
-  const lost: SettlingEntry[] = [];
-  const won: SettlingEntry[] = [];
-  const refunded: SettlingEntry[] = [];
-  let stillOpen = 0;
+  return [...settling.values()];
+}
 
-  for (const entry of settling.values()) {
-    const standing = gradeEntry(
-      entry.predictions.map((prediction) => ({ prediction, ending: prediction.ending })),
-    );
-
-    if (standing === "lost") lost.push(entry);
-    else if (standing === "won") won.push(entry);
-    else if (standing === "refunded") refunded.push(entry);
-    else stillOpen += 1;
-  }
-
-  // No Coin Transaction for a Lost Entry, and there never will be: its Amount
-  // left the Balance when it was submitted (ADR-0003), so losing is a status
-  // and nothing else. Writing a row here would take the Coins a second time.
-  if (lost.length > 0) await markEntries(tx, "lost", lost);
-  if (won.length > 0) await markEntries(tx, "won", won);
-  if (refunded.length > 0) await markEntries(tx, "refunded", refunded);
-
-  const paid = await creditRewards(tx, won.map(rewardFor));
-  const returned = await refundEntries(tx, refunded.map(refundFor));
-
-  return {
-    graded: settling.size,
-    won: won.length,
-    lost: lost.length,
-    refunded: refunded.length,
-    stillOpen,
-    paid,
-    returned,
-  };
+/**
+ * Where this Entry stands against everything its Bouts have settled to so far.
+ *
+ * `gradeEntry` asked of the rows: the Predictions and their endings arrive on
+ * one object here and as two fields there, and this is the one line that turns
+ * one into the other. Settlement and correction both ask it, of the same rows,
+ * and get the same answer — which is what makes a correction a re-grade rather
+ * than a second opinion.
+ */
+export function standingOf(entry: SettlingEntry): EntryStatus {
+  return gradeEntry(
+    entry.predictions.map((prediction) => ({ prediction, ending: prediction.ending })),
+  );
 }
 
 /** A settlement that found nothing left to decide, which is a common one. */
@@ -312,17 +387,23 @@ const NOTHING_TO_SETTLE: Settlement = {
  * ending off the same row, and `settledPrice` reads the Multipliers and the
  * ending off it to work out what the answer actually pays.
  */
-interface SettlingPrediction extends PricedPrediction {
+export interface SettlingPrediction extends PricedPrediction {
   /** How its Bout ended, or null while that Bout has not settled. */
   ending: BoutEnding | null;
 }
 
 /** One Entry this decides, with everything needed to grade and pay it. */
-interface SettlingEntry {
+export interface SettlingEntry {
   id: string;
   seasonId: string;
   userId: string;
   amount: number;
+  /**
+   * Where it stands now, which is not where {@link standingOf} says it should.
+   * Settlement takes only Entries this is `open` for; a correction reads it to
+   * know which Entries it is actually moving.
+   */
+  status: EntryStatus;
   predictions: SettlingPrediction[];
 }
 
@@ -335,8 +416,15 @@ interface SettlingEntry {
  * read back from a number written at submission, and each Prediction is priced
  * at what it *ended up* paying — a No Result at ×1.0, a disqualification at its
  * winner alone. There is nothing to disagree with.
+ *
+ * `saying` is handed the Multiplier it came to and writes the ledger's reason
+ * from it, because the Coins are the same movement whether this is the first
+ * grading of the Bout or a correction of one, and only the sentence differs.
  */
-function rewardFor(entry: SettlingEntry): CoinsReturned {
+export function rewardFor(
+  entry: SettlingEntry,
+  saying: (multiplier: number) => string,
+): CoinsReturned {
   const { multiplier, reward } = potentialReward(
     entry.amount,
     entry.predictions.map((prediction) => settledPrice(prediction, prediction.ending)),
@@ -347,7 +435,7 @@ function rewardFor(entry: SettlingEntry): CoinsReturned {
     userId: entry.userId,
     entryId: entry.id,
     amount: reward,
-    reason: COIN_REASONS.entryWon(multiplier),
+    reason: saying(multiplier),
   };
 }
 
@@ -360,19 +448,22 @@ function rewardFor(entry: SettlingEntry): CoinsReturned {
  * `entries_are_refunded_in_full` checks against, and a refund is the one
  * movement in this file that is not allowed to be a Multiplier's opinion of
  * anything.
+ *
+ * The reason is the caller's, for the reason it is on {@link rewardFor}: an
+ * Amount coming back on a corrected result is the same Amount coming back.
  */
-function refundFor(entry: SettlingEntry): CoinsReturned {
+export function refundFor(entry: SettlingEntry, reason: string): CoinsReturned {
   return {
     seasonId: entry.seasonId,
     userId: entry.userId,
     entryId: entry.id,
     amount: entry.amount,
-    reason: COIN_REASONS.entryNoResult,
+    reason,
   };
 }
 
 /** Moves these Entries to where this settlement found them, in one statement. */
-async function markEntries(
+export async function markEntries(
   tx: DatabaseTransaction,
   status: EntryStatus,
   settled: readonly SettlingEntry[],

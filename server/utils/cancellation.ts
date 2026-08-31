@@ -41,18 +41,24 @@ export const ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN =
   "entries_are_cancelled_while_every_bout_is_open";
 
 /**
- * The name of the trigger that holds an Entry to one return of its Coins, out
- * of Open — a cancellation, or the refund an Entry of nothing but No Results is
- * made whole with (ADR-0005).
+ * The name of the trigger that holds an Entry to one cancellation, out of Open,
+ * and to staying cancelled afterwards.
+ *
+ * It covered the Refunded an Entry of nothing but No Results reaches as well
+ * until #16, which took that half out: a Refund is the game's decision about a
+ * Result, and a Result can be corrected, so an Entry has to be able to leave it
+ * — with its refund reversed in the same transaction. A Cancellation is the
+ * fan's own decision about a card that had not started, and nothing corrects
+ * one.
  */
-export const AN_ENTRY_RETURNS_ITS_COINS_ONCE_OUT_OF_OPEN =
-  "an_entry_returns_its_coins_once_out_of_open";
+export const AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN = "an_entry_is_cancelled_once_out_of_open";
 
-/** The name of the constraint trigger tying either of those to its refund. */
+/**
+ * The name of the constraint trigger tying either status that returns an
+ * Amount to the refund that returned it — and, since #16, to a refund that is
+ * still standing rather than one that has since been reversed.
+ */
 export const ENTRIES_ARE_REFUNDED_IN_FULL = "entries_are_refunded_in_full";
-
-/** The index that holds a cancelled Entry to one refund. */
-export const ONE_REFUND_PER_ENTRY = "coin_transactions_one_refund_per_entry";
 
 /**
  * Why an Entry was not cancelled, in the words the fan reads and the status
@@ -186,9 +192,9 @@ export async function committedEntries(
  * under concurrent requests": two requests arriving together queue behind the
  * row, and the second reads the status the first one left. Without it both
  * would read `open`, both would find every Bout open, and the fan would be
- * refunded twice — with `coin_transactions_one_refund_per_entry` the only
- * thing left to notice, after one of the two transactions had already told a
- * fan it worked. The fan's Balance row is taken next, for the quieter reason
+ * refunded twice — with `entries_are_refunded_in_full` the only thing left to
+ * notice, at commit, after one of the two transactions had already told a fan
+ * it worked. The fan's Balance row is taken next, for the quieter reason
  * {@link balanceToMoveFrom} gives: a cancellation and a submission overlapping
  * would otherwise leave the materialised Balance saying a number neither of
  * them meant.

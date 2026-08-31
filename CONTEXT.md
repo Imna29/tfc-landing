@@ -68,7 +68,7 @@ a Prediction of one has none.
 Recorded once per Bout and only after it has locked — entering one locks a Bout still open
 — and the Bout is **settled** from that moment, which is the end of the road its status
 travels: closed, open, locked, settled. A Result entered wrong is corrected rather than
-deleted (#16), the way a Coin Transaction is ([[adr-0003]]).
+deleted, the way a Coin Transaction is — see [[correction]] and [[adr-0003]].
 
 A Result may record one more method than the game offers: a **disqualification**. It is
 how a Bout ends and it is not one of the three answers any fan was shown, so it settles
@@ -78,6 +78,26 @@ Not a "score" and not an "outcome": an [[outcome]] is an answer the game offered
 Result is what actually happened. A [[bout]] that produced nothing gradable is a
 [[no-result]] rather than a Result of its own. Both are recorded the same way and in the
 same place, and a Bout is **settled** either way.
+
+### Correction
+
+Replacing a [[result]] that was entered wrong, once Entries have already settled against
+it. The Bout stays settled and its Lock stays where it was: what was wrong is the record of
+the fight, not the fact that it is over.
+
+A Correction **reverses** the Coin Transactions the first Result wrote and grades every
+Entry on the Bout again ([[adr-0003]]). It never edits or deletes one: a fan whose Entry
+flipped from Won to Lost has the Reward taken back by a row that says so, standing beside
+the row that paid it, so the mistake and its fix are both readable afterwards. An Entry
+whose grade has not changed is not moved at all.
+
+What the Bout used to be recorded as is kept, with who entered it, who corrected it and
+when — the answer to a fan whose Entry was Won yesterday and is Lost today. The one Entry a
+Correction never reaches is a cancelled one ([[cancellation]]), which was taken back before
+anything in it was decided.
+
+Not an "amendment", and never "voiding" a Result. Correcting is what the ledger is shaped
+for, not an exception to it.
 
 ### Settlement
 

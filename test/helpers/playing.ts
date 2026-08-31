@@ -1,0 +1,199 @@
+import { $fetch } from "@nuxt/test-utils/e2e";
+import { eq } from "drizzle-orm";
+import type { CommittedEntries } from "../../shared/entries";
+import type { Corner } from "../../shared/events";
+import type { Correction, NoResultReason, RecordedMethod, Settlement } from "../../shared/results";
+import { coinTransactions, entries } from "../../server/db/schema";
+import { postJson, signUp } from "./accounts";
+import {
+  cardBout,
+  cardInTheGame,
+  correctResult,
+  enterResult,
+  lockBout,
+  type CardInTheGame,
+} from "./cards";
+import { testDatabase } from "./database";
+import { confirmEmail, fanId } from "./users";
+
+/**
+ * Playing the game from a test: a fan with Coins, a card to predict on, an
+ * Entry submitted, and the Bouts settled underneath it.
+ *
+ * `test/helpers/cards.ts` arranges the card an admin prepares; this is what a
+ * fan then does with it, and what an admin does back. Both settlement
+ * (`test/server/settlement.test.ts`) and correction
+ * (`test/server/corrections.test.ts`) need every one of these, and a second
+ * copy of "submit an Entry the way the panel does" is a second thing to keep
+ * true of the routes.
+ *
+ * Everything here goes over HTTP, because that is the seam these suites test
+ * at. The two exceptions read Postgres directly and say why where they are:
+ * a status and a ledger are what the routes are trusted to have *written*, and
+ * a test that read them back through the same routes would be quoting the
+ * answer it is checking.
+ */
+
+/** A fan who can play: a Season's Coins, and a confirmed address. */
+export async function fanWithCoins() {
+  const signedUp = await signUp();
+
+  await confirmEmail(signedUp.details.email);
+
+  return { ...signedUp, id: await fanId(signedUp.details.email) };
+}
+
+/** A card two hours out, which is a card every Bout on is still open. */
+export function upcomingCard(bouts: number): Promise<CardInTheGame> {
+  return cardInTheGame({
+    scheduledStart: new Date(Date.now() + 120 * 60_000),
+    bouts: Array.from({ length: bouts }, (_, place) =>
+      cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1 }),
+    ),
+  });
+}
+
+/** Submits an Entry the way the panel on the card does. */
+export async function submit(
+  fan: { cookie: string },
+  amount: number,
+  predictions: { boutId: string; corner?: Corner; method?: string; round?: number }[],
+) {
+  const response = await postJson(
+    "/api/predictions/entries",
+    { amount, predictions: predictions.map((one) => ({ corner: "red", ...one })) },
+    fan.cookie,
+  );
+
+  if (response.status !== 201) {
+    throw new Error(`The Entry was not accepted: ${await response.text()}`);
+  }
+
+  return (await response.json()) as { entry: { id: string }; balance: number };
+}
+
+/** How a Bout ended, as a case says it: everything optional, nothing implied. */
+export interface EnteredResult {
+  winner?: Corner;
+  method?: RecordedMethod;
+  round?: number | null;
+}
+
+/** Locks a Bout and enters its result, which is how a card is settled. */
+export async function settle(
+  card: CardInTheGame,
+  place: number,
+  result: EnteredResult,
+): Promise<{ settlement: Settlement }> {
+  const bout = card.bouts[place]!;
+
+  await lockBout(bout.id, card.admin.cookie);
+
+  const entered = await enterResult(
+    bout.id,
+    { winner: "red", method: "decision", round: null, ...result },
+    card.admin.cookie,
+  );
+
+  if (!entered.ok) throw new Error(`The result was not entered: ${await entered.text()}`);
+
+  return (await entered.json()) as { settlement: Settlement };
+}
+
+/**
+ * Locks a Bout and records that it produced nothing gradable.
+ *
+ * The other half of {@link settle}, and deliberately a second helper rather
+ * than another shape {@link settle} can take: an admin entering a No Result
+ * sends no winner and no method at all, and a helper that merged one in
+ * would be testing a request the admin area never makes.
+ */
+export async function settleAsNoResult(
+  card: CardInTheGame,
+  place: number,
+  reason: NoResultReason = "draw",
+): Promise<{ settlement: Settlement }> {
+  const bout = card.bouts[place]!;
+
+  await lockBout(bout.id, card.admin.cookie);
+
+  const entered = await enterResult(bout.id, { noResult: reason }, card.admin.cookie);
+
+  if (!entered.ok) throw new Error(`The No Result was not entered: ${await entered.text()}`);
+
+  return (await entered.json()) as { settlement: Settlement };
+}
+
+/** Corrects the result already entered on a settled Bout, as an admin does. */
+export async function correct(
+  card: CardInTheGame,
+  place: number,
+  result: EnteredResult,
+): Promise<{ correction: Correction }> {
+  const corrected = await correctResult(
+    card.bouts[place]!.id,
+    { winner: "red", method: "decision", round: null, ...result },
+    card.admin.cookie,
+  );
+
+  if (!corrected.ok) throw new Error(`The result was not corrected: ${await corrected.text()}`);
+
+  return (await corrected.json()) as { correction: Correction };
+}
+
+/** Corrects a Bout to the No Result it turned out to have produced. */
+export async function correctToNoResult(
+  card: CardInTheGame,
+  place: number,
+  reason: NoResultReason = "draw",
+): Promise<{ correction: Correction }> {
+  const corrected = await correctResult(
+    card.bouts[place]!.id,
+    { noResult: reason },
+    card.admin.cookie,
+  );
+
+  if (!corrected.ok) throw new Error(`The result was not corrected: ${await corrected.text()}`);
+
+  return (await corrected.json()) as { correction: Correction };
+}
+
+/** The Entries a fan is holding, as their own listing shows them back. */
+export function listingFor(cookie: string): Promise<CommittedEntries> {
+  return $fetch<CommittedEntries>("/api/predictions/entries", { headers: { cookie } });
+}
+
+/** Where an Entry stands, read back from the row settlement wrote. */
+export async function statusOf(entryId: string): Promise<string> {
+  const [entry] = await testDatabase()
+    .select({ status: entries.status })
+    .from(entries)
+    .where(eq(entries.id, entryId));
+
+  return entry?.status ?? "no such Entry";
+}
+
+/**
+ * Every Coin Transaction written about a fan, oldest first.
+ *
+ * Coins leaving before Coins arriving where two rows share a moment, which is
+ * every row one correction writes: `created_at` defaults to `now()`, and
+ * Postgres reads that as the moment the transaction began, so a reversal and
+ * the re-graded Reward that replaces it are written at the same instant. They
+ * are also always a negative row and a positive one, so ordering by the amount
+ * puts what was taken back before what was given — which is the order they
+ * read in, and an order that does not depend on which row Postgres happened to
+ * return first.
+ */
+export function ledgerFor(userId: string) {
+  return testDatabase()
+    .select()
+    .from(coinTransactions)
+    .where(eq(coinTransactions.userId, userId))
+    .orderBy(coinTransactions.createdAt, coinTransactions.amount);
+}
+
+/** What the site header would show this fan. */
+export function balance(cookie: string): Promise<{ balance: number | null }> {
+  return $fetch<{ balance: number | null }>("/api/coins/balance", { headers: { cookie } });
+}

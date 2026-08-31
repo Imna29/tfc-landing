@@ -7,6 +7,7 @@ import {
   endingNote,
   gradeEntry,
   gradePrediction,
+  isTheSameEnding,
   noResultLabel,
   parseEnding,
   resultLabel,
@@ -407,6 +408,87 @@ describe("how a Bout went, as a sentence", () => {
   it("says the Result where there is one", () => {
     expect(boutEndingLabel(result({ method: "decision", round: null }), CORNERS)).toBe(
       "Giorgi Tsiklauri by Decision",
+    );
+  });
+});
+
+/**
+ * The question a correction asks before it writes anything: is this a
+ * different account of the fight at all?
+ *
+ * Cheap to get subtly wrong, and expensive when it is. Reading two identical
+ * results as different would put a row in the audit log saying a Result was
+ * replaced by itself and re-pay Rewards nobody's Coins moved for; reading two
+ * different ones as the same would refuse a correction somebody needs to make.
+ */
+describe("whether two endings are the same account of one Bout", () => {
+  it("is the same result entered twice", () => {
+    expect(isTheSameEnding(result(), result())).toBe(true);
+    expect(isTheSameEnding(noResult("draw"), noResult("draw"))).toBe(true);
+  });
+
+  it("is not the same when any one answer moved", () => {
+    expect(isTheSameEnding(result(), result({ winner: "blue" }))).toBe(false);
+    expect(isTheSameEnding(result(), result({ method: "submission" }))).toBe(false);
+    expect(isTheSameEnding(result(), result({ round: 3 }))).toBe(false);
+  });
+
+  it("tells the four ways a Bout produces nothing gradable apart", () => {
+    // A fan is shown which of them it was (ADR-0005), so correcting a draw to
+    // a no contest is a correction like any other.
+    expect(isTheSameEnding(noResult("draw"), noResult("no_contest"))).toBe(false);
+  });
+
+  it("is never a Result and a No Result", () => {
+    expect(isTheSameEnding(result(), noResult())).toBe(false);
+    expect(isTheSameEnding(noResult(), result())).toBe(false);
+  });
+
+  it("counts an answer nobody gave as part of what was recorded", () => {
+    // "Decision, no round" and "KO/TKO in round 2" differ in two answers; the
+    // null is as much a statement about the fight as the round is.
+    expect(
+      isTheSameEnding(result({ method: "decision", round: null }), result({ method: "decision" })),
+    ).toBe(false);
+  });
+});
+
+/**
+ * What an admin is told a correction did.
+ *
+ * The reversal is said first and separately, because it is the half they are
+ * uneasy about: Coins have just come off fans who had been told they won, and
+ * a net figure would let a correction that reversed 800 Coins and paid 800
+ * read as a correction that did nothing.
+ */
+describe("what correcting a result says it moved", () => {
+  const moved = {
+    graded: 12,
+    won: 3,
+    lost: 8,
+    refunded: 1,
+    stillOpen: 0,
+    paid: 240,
+    returned: 20,
+    reversed: 800,
+  };
+
+  it("counts the Entries, the Coins taken back and the Coins handed out", () => {
+    expect(RESULT_MESSAGES.corrected(moved)).toBe(
+      "Result corrected. 12 Entries re-graded, 800 Coins reversed, 240 Coins returned in " +
+        "Rewards, 20 Coins refunded in full.",
+    );
+  });
+
+  it("leaves the refunds off a correction that made nobody whole", () => {
+    expect(RESULT_MESSAGES.corrected({ ...moved, returned: 0 })).toBe(
+      "Result corrected. 12 Entries re-graded, 800 Coins reversed, 240 Coins returned in Rewards.",
+    );
+  });
+
+  it("counts one Entry as one Entry", () => {
+    expect(RESULT_MESSAGES.corrected({ ...moved, graded: 1, returned: 0 })).toContain(
+      "1 Entry re-graded",
     );
   });
 });

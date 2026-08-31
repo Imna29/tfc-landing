@@ -11,6 +11,7 @@ import {
   RECORDED_METHOD_LABELS,
   RESULT_MESSAGES,
   type EnteredEnding,
+  type Correction,
   type NoResultReason,
   type RecordedMethod,
   type Settlement,
@@ -42,9 +43,22 @@ import {
  * The result form is the most consequential control in the product, and it is
  * deliberately the plainest thing on the page. Entering a result grades every
  * Entry riding on the Bout and pays the Rewards, in one transaction, and none
- * of that is taken back by pressing anything: a result entered wrong is
- * corrected by reversing what it settled and grading again (#16). So a Bout
- * that has been settled shows what was entered and offers no form at all.
+ * of that is taken back by pressing it again.
+ *
+ * A Bout that has settled shows what it was recorded as, and the same form
+ * becomes the one that corrects it. The same three answers about the same
+ * fight, and a Bout is only ever offering one of the two — so what changes is
+ * the paragraph in front of it, the words on the buttons and where they post.
+ * The paragraph is the part that matters: correcting takes Coins back off fans
+ * who have been told they won, and an admin should be reading that before they
+ * press anything. Underneath, it reverses the Coin Transactions the first
+ * result wrote and grades every Entry again (ADR-0003).
+ *
+ * Every correction a Bout has had is listed beneath it, oldest first: what it
+ * used to be recorded as, who changed it and when. That is the answer to the
+ * fan whose Entry was Won on Sunday and is Lost on Monday, and it belongs
+ * beside the fight it is about rather than in a query somebody would have to
+ * know to run.
  *
  * A Bout that produced nothing gradable is entered beside it rather than
  * through it, as a No Result naming which of the four it was (ADR-0005). Two
@@ -251,17 +265,51 @@ function settledAs(bout: (typeof bouts.value)[number]): string | null {
   return bout.ending ? boutEndingLabel(bout.ending, cornersOf(bout)) : null;
 }
 
+/**
+ * One correction in a line: what the Bout used to be recorded as, who changed
+ * it, and when.
+ *
+ * The same shape `lockOf` writes a Lock in, because they are read for the same
+ * reason — a fan is unhappy about one fight, and somebody has to be able to
+ * say what happened to it.
+ */
+function correctedFrom(
+  bout: (typeof bouts.value)[number],
+  correction: (typeof bout.corrections)[number],
+): string {
+  const was = boutEndingLabel(correction.ending, cornersOf(bout));
+
+  return `Was ${was} · corrected ${inTbilisi(correction.at)} · ${correction.by}`;
+}
+
+/**
+ * Whether this Bout's form is correcting a result rather than entering one.
+ *
+ * The two are one form, because they ask for the same three answers about the
+ * same fight and a Bout is only ever offering one of them: a Bout still being
+ * fought has no result to correct, and a settled one is finished with being
+ * settled. What differs is the sentence in front of it, the words on the
+ * buttons and where they post — which is enough, because an admin correcting a
+ * result is reading a paragraph that says so.
+ */
+function correcting(bout: (typeof bouts.value)[number]): boolean {
+  return bout.status === "settled";
+}
+
 async function enterResult(bout: (typeof bouts.value)[number]) {
   const answered = entered.value[bout.id];
-
-  await settle(bout, RESULT_MESSAGES.settled, {
+  const ending = {
     winner: answered?.winner ?? null,
     method: answered?.method ?? null,
     // A round only means anything alongside a finish, so a Decision and a
     // disqualification send none whatever is still sitting in the control
     // behind them.
     round: endsInARound(bout.id) ? (answered?.round ?? null) : null,
-  });
+  };
+
+  if (correcting(bout)) return correct(bout, ending);
+
+  await settle(bout, RESULT_MESSAGES.settled, ending);
 }
 
 /**
@@ -278,9 +326,11 @@ async function enterResult(bout: (typeof bouts.value)[number]) {
  * who has not said why is told to say why rather than to choose a winner.
  */
 async function enterNoResult(bout: (typeof bouts.value)[number]) {
-  await settle(bout, RESULT_MESSAGES.noResultEntered, {
-    noResult: entered.value[bout.id]?.noResult ?? null,
-  });
+  const ending = { noResult: entered.value[bout.id]?.noResult ?? null };
+
+  if (correcting(bout)) return correct(bout, ending);
+
+  await settle(bout, RESULT_MESSAGES.noResultEntered, ending);
 }
 
 /**
@@ -293,17 +343,54 @@ async function settle(
   said: (settlement: Settlement) => string,
   body: EnteredEnding,
 ) {
-  working.value = bout.id;
-  problem.value = "";
-  done.value = "";
-
-  try {
+  await reportOn(bout, async () => {
     const { settlement } = await $fetch(`/api/admin/bouts/${bout.id}/result`, {
       method: "POST",
       body,
     });
 
-    done.value = said(settlement);
+    return said(settlement);
+  });
+}
+
+/**
+ * The request behind both correction buttons: the same two statements about
+ * the fight, sent to the route that reverses what the first result paid and
+ * grades every Entry again.
+ *
+ * One sentence answers both, unlike entering a result, because there is only
+ * one thing worth saying about a correction and it is the same either way: how
+ * many Entries were re-graded, and how many Coins were taken back and handed
+ * out.
+ */
+async function correct(bout: (typeof bouts.value)[number], body: EnteredEnding) {
+  await reportOn(bout, async () => {
+    const { correction } = await $fetch(`/api/admin/bouts/${bout.id}/correction`, {
+      method: "POST",
+      body,
+    });
+
+    return RESULT_MESSAGES.corrected(correction);
+  });
+}
+
+/**
+ * Every control on this page that moves Coins, around the one thing that
+ * differs: the Bout is marked busy, the last answer is cleared, what happened
+ * is said, and the card is read back.
+ *
+ * The request itself is the caller's rather than a path handed in, because the
+ * two routes answer with two shapes — entering a result with a `Settlement`,
+ * correcting one with a `Correction` — and because a `$fetch` of a path this
+ * function was given is a `$fetch` Nuxt cannot type.
+ */
+async function reportOn(bout: (typeof bouts.value)[number], run: () => Promise<string>) {
+  working.value = bout.id;
+  problem.value = "";
+  done.value = "";
+
+  try {
+    done.value = await run();
 
     await refresh();
   } catch (failure) {
@@ -383,6 +470,13 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
         <p v-if="settledAs(bout)" class="mt-1 text-sm text-on-surface/70">
           Result: {{ settledAs(bout) }}
         </p>
+        <p
+          v-for="correction in bout.corrections"
+          :key="correction.at"
+          class="mt-1 text-sm text-on-surface/70"
+        >
+          {{ correctedFrom(bout, correction) }}
+        </p>
 
         <div v-for="asked in questionsOf(bout)" :key="asked.question" class="mt-6">
           <h3 class="font-headline text-xs font-black uppercase tracking-widest">
@@ -411,13 +505,20 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
           </div>
         </div>
 
-        <div
-          v-if="bout.status === 'open' || bout.status === 'locked'"
-          class="mt-6 border-t border-outline-variant/20 pt-6"
-        >
-          <h3 class="font-headline text-xs font-black uppercase tracking-widest">Result</h3>
+        <div v-if="bout.status !== 'closed'" class="mt-6 border-t border-outline-variant/20 pt-6">
+          <h3 class="font-headline text-xs font-black uppercase tracking-widest">
+            {{ correcting(bout) ? "Correct the result" : "Result" }}
+          </h3>
 
-          <p class="mt-2 text-sm text-on-surface/70">
+          <p v-if="correcting(bout)" class="mt-2 text-sm text-on-surface/70">
+            Only if what is recorded above is not what happened. Correcting reverses the Coins this
+            Bout has already moved and grades every Entry on it again: fans whose Entry now wins are
+            paid, and fans who were paid on the earlier result have it taken back. Nothing is erased
+            — the Reward, the row that reverses it and the one that replaces it all stay in the
+            ledger, and what the Bout used to be recorded as is kept beside it.
+          </p>
+
+          <p v-else class="mt-2 text-sm text-on-surface/70">
             Entering this grades every Entry on the Bout and pays the Rewards, in one go. It is not
             taken back by entering it again: a result entered wrong is corrected by reversing what
             it settled and grading afresh.
@@ -428,7 +529,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               <span>Winner</span>
               <select
                 v-model="entered[bout.id]!.winner"
-                :aria-label="`Winner of Bout ${bout.cardOrder}`"
+                :aria-label="`${correcting(bout) ? 'Corrected winner' : 'Winner'} of Bout ${bout.cardOrder}`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
@@ -441,7 +542,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               <span>Method</span>
               <select
                 v-model="entered[bout.id]!.method"
-                :aria-label="`Method of victory in Bout ${bout.cardOrder}`"
+                :aria-label="`${correcting(bout) ? 'Corrected method' : 'Method'} of victory in Bout ${bout.cardOrder}`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
@@ -455,7 +556,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               <span>Round</span>
               <select
                 v-model.number="entered[bout.id]!.round"
-                :aria-label="`Round Bout ${bout.cardOrder} ended in`"
+                :aria-label="`${correcting(bout) ? 'Corrected round' : 'Round'} Bout ${bout.cardOrder} ended in`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
@@ -471,15 +572,15 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
               @click="enterResult(bout)"
             >
-              Enter result and settle
+              {{ correcting(bout) ? "Correct and re-grade" : "Enter result and settle" }}
             </button>
           </div>
 
           <p class="mt-6 text-sm text-on-surface/70">
             If the Bout produced nothing to grade — it was cancelled, a fighter withdrew, it was a
-            draw or a no contest — enter that instead. Every Prediction on it then counts as ×1.0
-            and the rest of each Entry plays on; an Entry with nothing else left to decide has its
-            Coins returned in full.
+            draw or a no contest — {{ correcting(bout) ? "correct it to that" : "enter that" }}
+            instead. Every Prediction on it then counts as ×1.0 and the rest of each Entry plays on;
+            an Entry with nothing else left to decide has its Coins returned in full.
           </p>
 
           <div v-if="entered[bout.id]" class="mt-3 flex flex-wrap items-center gap-4 text-sm">
@@ -487,7 +588,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               <span>No Result</span>
               <select
                 v-model="entered[bout.id]!.noResult"
-                :aria-label="`Why Bout ${bout.cardOrder} produced no result`"
+                :aria-label="`Why Bout ${bout.cardOrder} produced no result${correcting(bout) ? ' after all' : ''}`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
@@ -503,7 +604,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               class="border border-outline-variant/40 font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
               @click="enterNoResult(bout)"
             >
-              Enter No Result and settle
+              {{ correcting(bout) ? "Correct to a No Result" : "Enter No Result and settle" }}
             </button>
           </div>
         </div>
