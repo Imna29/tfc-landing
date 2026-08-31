@@ -8,7 +8,9 @@ const props = defineProps(
 
 const titleText = computed(() => props.slice.primary.title || "THE");
 const titleHighlightText = computed(() => props.slice.primary.title_highlight || "LENS");
-const ctaLabel = computed(() => props.slice.primary.view_all_button_label || "VIEW FULL PHOTO ARCHIVE");
+const ctaLabel = computed(
+  () => props.slice.primary.view_all_button_label || "VIEW FULL PHOTO ARCHIVE",
+);
 
 // flatMap rather than map-then-filter: a filter that asks about `item.image`
 // says nothing to TypeScript about `item`, so the images came out still
@@ -43,7 +45,10 @@ const galleryImages = computed(() =>
       <div class="w-20 h-1 bg-primary mb-8" />
     </div>
 
-    <div v-if="galleryImages.length > 0" class="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-3 gap-1">
+    <div
+      v-if="galleryImages.length > 0"
+      class="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-3 gap-1"
+    >
       <div
         v-for="photo in galleryImages"
         :key="photo.id"
@@ -56,7 +61,7 @@ const galleryImages = computed(() =>
           fetchpriority="low"
           class="w-full h-full object-cover"
           :src="photo.image.url"
-        >
+        />
       </div>
     </div>
 

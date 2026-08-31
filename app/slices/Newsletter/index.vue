@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 import type { Content } from "@prismicio/client";
 
 defineProps(
   getSliceComponentProps<Content.NewsletterSlice>(["slice", "index", "slices", "context"]),
 );
 
-const email = ref('')
+const email = ref("");
 </script>
 
 <template>
@@ -15,7 +15,9 @@ const email = ref('')
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
-    <div class="bg-primary-container p-12 md:p-20 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-12">
+    <div
+      class="bg-primary-container p-12 md:p-20 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-12"
+    >
       <div class="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div class="grid grid-cols-6 gap-2 rotate-12 -translate-y-20">
           <div class="h-96 w-4 bg-white" />
@@ -28,10 +30,14 @@ const email = ref('')
       </div>
 
       <div class="relative z-10 text-center md:text-left">
-        <h2 class="font-headline text-5xl md:text-7xl font-black italic uppercase text-white leading-none mb-4">
-          {{ slice.primary.headline_1 }}<br>{{ slice.primary.headline_2 }}
+        <h2
+          class="font-headline text-5xl md:text-7xl font-black italic uppercase text-white leading-none mb-4"
+        >
+          {{ slice.primary.headline_1 }}<br />{{ slice.primary.headline_2 }}
         </h2>
-        <p class="text-white/80 font-bold uppercase tracking-widest">{{ slice.primary.description }}</p>
+        <p class="text-white/80 font-bold uppercase tracking-widest">
+          {{ slice.primary.description }}
+        </p>
       </div>
 
       <div class="relative z-10 w-full max-w-md">
@@ -41,8 +47,11 @@ const email = ref('')
             type="email"
             :placeholder="slice.primary.email_placeholder ?? undefined"
             class="bg-transparent border-0 border-b-4 border-white text-white placeholder:text-white/50 font-black text-2xl py-4 focus:ring-0 focus:border-white uppercase"
+          />
+          <button
+            type="submit"
+            class="bg-white text-primary-container py-5 font-black uppercase text-xl hover:bg-on-surface-variant transition-colors"
           >
-          <button type="submit" class="bg-white text-primary-container py-5 font-black uppercase text-xl hover:bg-on-surface-variant transition-colors">
             {{ slice.primary.submit_label }}
           </button>
         </form>

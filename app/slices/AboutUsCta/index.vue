@@ -28,7 +28,7 @@ defineProps(
       <h2
         class="font-headline text-6xl md:text-8xl font-black italic uppercase tracking-tighter mb-10 leading-none"
       >
-        {{ slice.primary.title }}<br>
+        {{ slice.primary.title }}<br />
         <span class="text-primary-container">{{ slice.primary.title_highlight }}</span>
       </h2>
       <p class="text-xl text-secondary mb-12 uppercase tracking-widest">
@@ -44,10 +44,10 @@ defineProps(
             'w-full md:w-auto px-12 py-5 font-headline font-black italic uppercase tracking-tighter text-xl transition-all text-center',
             cta.variant === 'Primary'
               ? 'bg-primary-container text-white hover:scale-105'
-              : 'border-2 border-outline text-white hover:bg-white hover:text-black'
+              : 'border-2 border-outline text-white hover:bg-white hover:text-black',
           ]"
         >
-          {{ cta.text || 'Learn more' }}
+          {{ cta.text || "Learn more" }}
         </PrismicLink>
       </div>
     </div>

@@ -14,7 +14,9 @@ defineProps(
     :data-slice-variation="slice.variation"
   >
     <div class="container mx-auto px-6 md:px-20">
-      <p class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant mb-12">
+      <p
+        class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant mb-12"
+      >
         {{ slice.primary.title }}
       </p>
       <div class="flex flex-wrap justify-center items-center gap-12 md:gap-24">
@@ -33,7 +35,7 @@ defineProps(
             decoding="async"
             fetchpriority="low"
             class="h-16 w-auto object-contain"
-          >
+          />
         </component>
       </div>
     </div>

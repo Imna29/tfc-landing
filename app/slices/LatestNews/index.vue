@@ -55,7 +55,7 @@ const initializeObservers = async () => {
         }
       });
     },
-    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
   );
 
   newsCards.forEach((card) => {
@@ -74,7 +74,7 @@ const initializeObservers = async () => {
         }
       });
     },
-    { threshold: 0.1 }
+    { threshold: 0.1 },
   );
   const header = sectionRef.value.querySelector("[data-section-header]");
   if (header) headerObserver.observe(header);
@@ -132,21 +132,27 @@ onUnmounted(() => {
             fetchpriority="low"
             :class="[
               'w-full h-48 object-cover transition-all',
-              isMobileViewport && cardStates[index]
-                ? 'grayscale-0'
-                : 'grayscale hover:grayscale-0',
+              isMobileViewport && cardStates[index] ? 'grayscale-0' : 'grayscale hover:grayscale-0',
             ]"
             :src="article.image.url"
-          >
+          />
         </div>
         <time class="text-primary font-black uppercase text-xs mb-2">
-          {{ asDate(article.date)?.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) }}
+          {{
+            asDate(article.date)?.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          }}
         </time>
         <component
           :is="isFilled.link(article.article_link) ? 'a' : 'div'"
           v-bind="isFilled.link(article.article_link) ? asLinkAttrs(article.article_link) : {}"
         >
-          <h3 class="font-headline text-2xl font-black italic uppercase leading-tight mb-4 hover:text-primary transition-colors cursor-pointer">
+          <h3
+            class="font-headline text-2xl font-black italic uppercase leading-tight mb-4 hover:text-primary transition-colors cursor-pointer"
+          >
             {{ article.title }}
           </h3>
         </component>

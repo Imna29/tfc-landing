@@ -28,7 +28,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1 }
+    { threshold: 0.1 },
   );
   const header = sectionRef.value.querySelector("[data-section-header]");
   if (header) headerObserver.observe(header);
@@ -60,7 +60,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
   );
 
   rows.forEach((row) => {
@@ -99,13 +99,15 @@ onUnmounted(() => {
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
-            <tr class="border-b border-outline-variant text-secondary uppercase text-[10px] tracking-[0.3em]">
+            <tr
+              class="border-b border-outline-variant text-secondary uppercase text-[10px] tracking-[0.3em]"
+            >
               <th
                 v-for="(header, index) in slice.primary.table_headers"
                 :key="index"
                 :class="[
                   'py-6 px-4',
-                  index === slice.primary.table_headers.length - 1 ? 'text-right' : ''
+                  index === slice.primary.table_headers.length - 1 ? 'text-right' : '',
                 ]"
               >
                 {{ header.text }}
@@ -123,7 +125,13 @@ onUnmounted(() => {
             >
               <td class="py-8 px-4">{{ event.name }}</td>
               <td class="py-8 px-4 text-secondary text-sm font-body not-italic">
-                {{ asDate(event.date)?.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) }}
+                {{
+                  asDate(event.date)?.toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                }}
               </td>
               <td class="py-8 px-4 text-primary">{{ event.result }}</td>
               <td class="py-8 px-4 text-right">

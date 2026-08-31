@@ -208,10 +208,7 @@ const footer = computed(() => {
               class="space-y-4 text-sm font-bold uppercase tracking-widest text-on-surface-variant"
             >
               <li v-for="(navLink, index) in footer.navigationLinks" :key="index">
-                <PrismicLink
-                  :field="navLink.link"
-                  class="hover:text-primary transition-colors"
-                >
+                <PrismicLink :field="navLink.link" class="hover:text-primary transition-colors">
                   {{ navLink.link.text }}
                 </PrismicLink>
               </li>

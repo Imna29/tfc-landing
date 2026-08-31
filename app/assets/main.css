@@ -209,9 +209,15 @@
   }
 
   @keyframes digitBounce {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
 
   /* Ken Burns for hero background */
@@ -219,8 +225,12 @@
     animation: kenBurns 20s ease-out forwards;
   }
   @keyframes kenBurns {
-    0% { transform: scale(1); }
-    100% { transform: scale(1.08); }
+    0% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(1.08);
+    }
   }
 
   /* Pulse for play buttons */
@@ -228,17 +238,36 @@
     animation: playPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   @keyframes playPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.85; transform: scale(1.05); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: scale(1.05);
+    }
   }
 
   /* Stagger delays */
-  .mma-delay-1 { transition-delay: 0.08s; }
-  .mma-delay-2 { transition-delay: 0.16s; }
-  .mma-delay-3 { transition-delay: 0.24s; }
-  .mma-delay-4 { transition-delay: 0.32s; }
-  .mma-delay-5 { transition-delay: 0.40s; }
-  .mma-delay-6 { transition-delay: 0.48s; }
+  .mma-delay-1 {
+    transition-delay: 0.08s;
+  }
+  .mma-delay-2 {
+    transition-delay: 0.16s;
+  }
+  .mma-delay-3 {
+    transition-delay: 0.24s;
+  }
+  .mma-delay-4 {
+    transition-delay: 0.32s;
+  }
+  .mma-delay-5 {
+    transition-delay: 0.4s;
+  }
+  .mma-delay-6 {
+    transition-delay: 0.48s;
+  }
 
   /* Modal transitions */
   .mma-modal-enter-active,

@@ -31,7 +31,7 @@ onMounted(() => {
         fetchpriority="low"
         class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-700 mma-ken-burns"
         :src="slice.primary.image.url"
-      >
+      />
       <div
         class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"
       />
@@ -46,14 +46,28 @@ onMounted(() => {
         :class="{ 'mma-active': isMounted }"
         :style="{ transitionDelay: '0.1s' }"
       >
-        <span class="bg-primary-container text-white px-3 py-1 font-headline font-black italic text-sm tracking-widest">
+        <span
+          class="bg-primary-container text-white px-3 py-1 font-headline font-black italic text-sm tracking-widest"
+        >
           {{ slice.primary.badge }}
         </span>
         <div class="h-[2px] w-24 bg-primary" />
       </div>
-      <h1 class="font-headline text-7xl md:text-9xl font-black italic uppercase tracking-tighter leading-[0.85] mb-6">
-        <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.2s' }">{{ slice.primary.title }}:</span>
-        <span class="block mma-fade-up text-primary" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.3s' }">{{ slice.primary.subtitle }}</span>
+      <h1
+        class="font-headline text-7xl md:text-9xl font-black italic uppercase tracking-tighter leading-[0.85] mb-6"
+      >
+        <span
+          class="block mma-fade-up"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.2s' }"
+          >{{ slice.primary.title }}:</span
+        >
+        <span
+          class="block mma-fade-up text-primary"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.3s' }"
+          >{{ slice.primary.subtitle }}</span
+        >
       </h1>
       <div
         class="flex flex-wrap items-center gap-12 mt-4 mma-fade-up"
@@ -63,7 +77,20 @@ onMounted(() => {
         <div v-if="slice.primary.date || slice.primary.tba">
           <p class="text-secondary uppercase text-xs tracking-[0.2em] mb-1">DATE & TIME</p>
           <p v-if="slice.primary.tba" class="font-headline font-bold text-2xl uppercase">TBA</p>
-          <p v-else class="font-headline font-bold text-2xl uppercase">{{ asDate(slice.primary.date)?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase() }} / {{ asDate(slice.primary.date)?.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) }}</p>
+          <p v-else class="font-headline font-bold text-2xl uppercase">
+            {{
+              asDate(slice.primary.date)
+                ?.toLocaleDateString("en-US", { month: "short", day: "2-digit" })
+                .toUpperCase()
+            }}
+            /
+            {{
+              asDate(slice.primary.date)?.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            }}
+          </p>
         </div>
         <div v-if="slice.primary.location">
           <p class="text-secondary uppercase text-xs tracking-[0.2em] mb-1">LOCATION</p>
@@ -79,7 +106,7 @@ onMounted(() => {
               { 'mma-active': isMounted },
               button.link.variant === 'Primary'
                 ? 'bg-primary-container text-white hover:scale-105'
-                : 'border border-white/20 hover:bg-white/10'
+                : 'border border-white/20 hover:bg-white/10',
             ]"
             :style="{ transitionDelay: `${0.5 + index * 0.08}s` }"
           >

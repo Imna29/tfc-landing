@@ -44,7 +44,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1 }
+    { threshold: 0.1 },
   );
   observer.observe(sectionRef.value);
 
@@ -80,7 +80,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
   );
 
   cards.forEach((card) => {
@@ -106,7 +106,10 @@ onUnmounted(() => {
     :data-slice-variation="slice.variation"
   >
     <div class="container mx-auto px-6 md:px-20">
-      <div class="text-center max-w-2xl mx-auto mb-16 mma-fade-up" :class="{ 'mma-active': isInView }">
+      <div
+        class="text-center max-w-2xl mx-auto mb-16 mma-fade-up"
+        :class="{ 'mma-active': isInView }"
+      >
         <h2 class="font-headline text-5xl font-black italic uppercase mb-4">
           {{ slice.primary.title }}
         </h2>

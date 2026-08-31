@@ -65,7 +65,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     headerObserver.observe(header);
   }
@@ -97,7 +97,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
   );
 
   paragraphs.forEach((p) => {
@@ -134,7 +134,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
   );
 
   stats.forEach((stat) => {
@@ -155,7 +155,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     imageObserver.observe(image);
   }
@@ -214,7 +214,11 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div data-story-image class="relative mma-fade-right" :class="{ 'mma-active': isImageInView }">
+      <div
+        data-story-image
+        class="relative mma-fade-right"
+        :class="{ 'mma-active': isImageInView }"
+      >
         <div class="absolute -top-4 -left-4 w-full h-full border-2 border-primary-container/20" />
         <img
           v-if="isFilled.image(slice.primary.image)"

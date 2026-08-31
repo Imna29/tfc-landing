@@ -16,11 +16,13 @@ const formattedEventDate = computed(() => {
     return "";
   }
 
-  return eventDate.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).toUpperCase();
+  return eventDate
+    .toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+    .toUpperCase();
 });
 
 const isMounted = ref(false);
@@ -66,9 +68,24 @@ onMounted(() => {
         <h1
           class="font-headline text-5xl md:text-9xl font-black italic uppercase leading-[0.9] tracking-tighter mb-8 text-white"
         >
-          <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.2s' }">{{ slice.primary.headline_1 }}</span>
-          <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.3s' }">{{ slice.primary.headline_2 }}</span>
-          <span class="block mma-fade-up text-primary-container" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.4s' }">{{ slice.primary.headline_3 }}</span>
+          <span
+            class="block mma-fade-up"
+            :class="{ 'mma-active': isMounted }"
+            :style="{ transitionDelay: '0.2s' }"
+            >{{ slice.primary.headline_1 }}</span
+          >
+          <span
+            class="block mma-fade-up"
+            :class="{ 'mma-active': isMounted }"
+            :style="{ transitionDelay: '0.3s' }"
+            >{{ slice.primary.headline_2 }}</span
+          >
+          <span
+            class="block mma-fade-up text-primary-container"
+            :class="{ 'mma-active': isMounted }"
+            :style="{ transitionDelay: '0.4s' }"
+            >{{ slice.primary.headline_3 }}</span
+          >
         </h1>
         <p
           class="text-xl md:text-2xl font-light text-on-surface-variant max-w-2xl mb-12 border-l-4 border-primary-container pl-6 mma-fade-up"
@@ -87,7 +104,7 @@ onMounted(() => {
               { 'mma-active': isMounted },
               button.link.variant === 'Primary'
                 ? 'bg-primary-container text-white'
-                : 'border-2 border-outline-variant/30 text-white backdrop-blur-sm hover:bg-white/5 transition-colors'
+                : 'border-2 border-outline-variant/30 text-white backdrop-blur-sm hover:bg-white/5 transition-colors',
             ]"
             :style="{ transitionDelay: `${0.55 + index * 0.08}s` }"
           >
@@ -95,14 +112,21 @@ onMounted(() => {
             <Icon
               v-if="button.icon"
               :name="button.icon"
-              :class="button.link.variant === 'Primary' ? 'group-hover:translate-x-1 transition-transform' : ''"
+              :class="
+                button.link.variant === 'Primary'
+                  ? 'group-hover:translate-x-1 transition-transform'
+                  : ''
+              "
             />
           </PrismicLink>
         </div>
       </div>
     </div>
 
-    <div v-if="formattedEventDate || slice.primary.tba || slice.primary.event_location" class="absolute bottom-10 right-20 hidden lg:block">
+    <div
+      v-if="formattedEventDate || slice.primary.tba || slice.primary.event_location"
+      class="absolute bottom-10 right-20 hidden lg:block"
+    >
       <div
         class="flex flex-col items-end gap-2 text-primary font-headline italic font-bold mma-fade-right"
         :class="{ 'mma-active': isMounted }"
@@ -110,7 +134,9 @@ onMounted(() => {
       >
         <span v-if="slice.primary.tba" class="text-6xl">TBA</span>
         <span v-else-if="formattedEventDate" class="text-6xl">{{ formattedEventDate }}</span>
-        <span v-if="slice.primary.event_location" class="text-xl tracking-widest">{{ slice.primary.event_location }}</span>
+        <span v-if="slice.primary.event_location" class="text-xl tracking-widest">{{
+          slice.primary.event_location
+        }}</span>
       </div>
     </div>
   </section>

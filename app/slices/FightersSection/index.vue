@@ -49,7 +49,8 @@ const initializeCardObserver = () => {
   cardObserver?.disconnect();
   cardObserver = null;
 
-  const fighterCards = fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
+  const fighterCards =
+    fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
   if (!fighterCards?.length) return;
 
   fighterCards.forEach((card, index) => {
@@ -83,7 +84,7 @@ const initializeCardObserver = () => {
         }
       });
     },
-    { threshold: 0, rootMargin: "0px 0px 200px 0px" }
+    { threshold: 0, rootMargin: "0px 0px 200px 0px" },
   );
 
   fighterCards.forEach((card) => {
@@ -129,7 +130,10 @@ const { data: fighterDocuments } = await useAsyncData(
 const fighterDocumentsById = computed(
   () =>
     new Map(
-      (fighterDocuments.value ?? []).map((fighterDocument) => [fighterDocument.id, fighterDocument]),
+      (fighterDocuments.value ?? []).map((fighterDocument) => [
+        fighterDocument.id,
+        fighterDocument,
+      ]),
     ),
 );
 
@@ -238,7 +242,13 @@ const searchPlaceholder = computed(
 );
 const loadMoreLabel = computed(() => props.slice.primary.load_more_label || "Load More Fighters");
 
-const divisionOrder = ["BANTAMWEIGHT", "FEATHERWEIGHT", "LIGHTWEIGHT", "WELTERWEIGHT", "HEAVYWEIGHT"];
+const divisionOrder = [
+  "BANTAMWEIGHT",
+  "FEATHERWEIGHT",
+  "LIGHTWEIGHT",
+  "WELTERWEIGHT",
+  "HEAVYWEIGHT",
+];
 
 const divisions = computed(() => {
   const uniqueDivisions = Array.from(new Set(fighters.value.map((fighter) => fighter.division)));

@@ -24,7 +24,7 @@ defineProps(
             fetchpriority="low"
             class="w-full h-64 object-cover grayscale"
             :src="slice.primary.image_1.url"
-          >
+          />
           <img
             v-if="isFilled.image(slice.primary.image_2)"
             :alt="slice.primary.image_2.alt || 'Community image 2'"
@@ -33,7 +33,7 @@ defineProps(
             fetchpriority="low"
             class="w-full h-80 object-cover grayscale translate-y-8"
             :src="slice.primary.image_2.url"
-          >
+          />
         </div>
       </div>
 

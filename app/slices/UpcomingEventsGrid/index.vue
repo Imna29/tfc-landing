@@ -10,7 +10,10 @@ const props = defineProps(
 
 const getTags = (tagsString: string | null | undefined) => {
   if (!tagsString) return [];
-  return tagsString.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+  return tagsString
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter((tag) => tag.length > 0);
 };
 
 const sectionRef = ref<HTMLElement | null>(null);
@@ -32,7 +35,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1 }
+    { threshold: 0.1 },
   );
   const header = sectionRef.value.querySelector("[data-section-header]");
   if (header) headerObserver.observe(header);
@@ -64,7 +67,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
   );
 
   cards.forEach((card) => {
@@ -101,8 +104,14 @@ onUnmounted(() => {
             {{ slice.primary.subtitle }}
           </p>
         </div>
-        <div class="hidden md:block mma-fade-right" :class="{ 'mma-active': isHeaderInView }" :style="{ transitionDelay: '0.15s' }">
-          <span class="text-8xl font-black italic opacity-5 font-headline">{{ slice.primary.decorative_text }}</span>
+        <div
+          class="hidden md:block mma-fade-right"
+          :class="{ 'mma-active': isHeaderInView }"
+          :style="{ transitionDelay: '0.15s' }"
+        >
+          <span class="text-8xl font-black italic opacity-5 font-headline">{{
+            slice.primary.decorative_text
+          }}</span>
         </div>
       </div>
 
@@ -124,7 +133,7 @@ onUnmounted(() => {
               fetchpriority="low"
               class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
               :src="event.image.url"
-            >
+            />
             <div
               class="absolute top-0 left-0 bg-primary-container p-2 font-headline font-black italic text-xs"
             >
@@ -134,11 +143,18 @@ onUnmounted(() => {
           <div class="flex-1 flex flex-col justify-between">
             <div>
               <div class="flex justify-between items-start mb-4">
-                <span v-if="slice.primary.tba" class="text-primary font-headline font-black italic text-xl">
+                <span
+                  v-if="slice.primary.tba"
+                  class="text-primary font-headline font-black italic text-xl"
+                >
                   TBA
                 </span>
                 <span v-else class="text-primary font-headline font-black italic text-xl">
-                  {{ asDate(event.date)?.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }).toUpperCase() }}
+                  {{
+                    asDate(event.date)
+                      ?.toLocaleDateString("en-US", { month: "short", day: "2-digit" })
+                      .toUpperCase()
+                  }}
                 </span>
                 <Icon name="material-symbols:location-on" class="text-secondary text-xl" />
               </div>

@@ -69,9 +69,7 @@ const { data: mediaDocuments, pending: mediaPending } = await useAsyncData(
 
 const mediaDocumentsById = computed(
   () =>
-    new Map(
-      (mediaDocuments.value ?? []).map((mediaDocument) => [mediaDocument.id, mediaDocument]),
-    ),
+    new Map((mediaDocuments.value ?? []).map((mediaDocument) => [mediaDocument.id, mediaDocument])),
 );
 
 const orderedMediaItems = computed(() =>
@@ -191,8 +189,6 @@ const goToNextPage = () => {
 
   currentPage.value += 1;
 };
-
-
 </script>
 
 <template>
@@ -214,7 +210,9 @@ const goToNextPage = () => {
           {{ descriptionText }}
         </p>
       </div>
-      <div class="flex flex-wrap gap-4 font-headline italic uppercase text-sm font-bold tracking-widest">
+      <div
+        class="flex flex-wrap gap-4 font-headline italic uppercase text-sm font-bold tracking-widest"
+      >
         <button
           v-for="filterOption in filterOptions"
           :key="filterOption.id"
@@ -237,7 +235,10 @@ const goToNextPage = () => {
       class="max-w-7xl mx-auto h-[620px] bg-surface-container-lowest animate-pulse"
     />
 
-    <div v-else-if="mediaItems.length > 0" class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[300px]">
+    <div
+      v-else-if="mediaItems.length > 0"
+      class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4 auto-rows-[300px]"
+    >
       <article
         v-if="featuredMedia"
         class="md:col-span-2 md:row-span-2 relative group overflow-hidden bg-surface-container-lowest cursor-pointer"
@@ -251,12 +252,10 @@ const goToNextPage = () => {
           fetchpriority="low"
           class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           :src="getImageUrl(featuredMedia)"
-        >
+        />
         <div v-else class="w-full h-full bg-surface-container-low" />
         <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-all" />
-        <div
-          class="absolute bottom-0 left-0 p-8 w-full bg-gradient-to-t from-black to-transparent"
-        >
+        <div class="absolute bottom-0 left-0 p-8 w-full bg-gradient-to-t from-black to-transparent">
           <span
             v-if="getPrimaryBadge(featuredMedia)"
             class="bg-primary text-white text-[10px] font-black italic px-3 py-1 uppercase tracking-widest mb-4 inline-block"
@@ -285,7 +284,7 @@ const goToNextPage = () => {
           fetchpriority="low"
           class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
           :src="getImageUrl(wideMedia)"
-        >
+        />
         <div v-else class="w-full h-full bg-surface-container-low" />
         <div class="absolute inset-0 flex items-center justify-center">
           <Icon
@@ -318,7 +317,7 @@ const goToNextPage = () => {
           fetchpriority="low"
           class="w-full h-full object-cover opacity-80"
           :src="getImageUrl(item)"
-        >
+        />
         <div v-else class="w-full h-full bg-surface-container-low" />
         <div
           class="absolute inset-0 bg-primary-container/20 group-hover:opacity-0 transition-opacity"
@@ -339,7 +338,10 @@ const goToNextPage = () => {
       No media entries found for this filter.
     </div>
 
-    <div v-if="totalPages > 1" class="max-w-7xl mx-auto mt-12 flex items-center justify-center gap-6">
+    <div
+      v-if="totalPages > 1"
+      class="max-w-7xl mx-auto mt-12 flex items-center justify-center gap-6"
+    >
       <button
         class="font-headline font-black italic uppercase tracking-wider text-sm px-5 py-2 border border-outline-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed hover:border-primary hover:text-primary"
         :disabled="!canGoPrevious"

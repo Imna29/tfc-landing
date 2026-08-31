@@ -6,11 +6,6 @@
   // `nuxt.node.d.ts` is what teaches TypeScript about `routeRules` and the
   // rest of the Nuxt config surface, which the e2e tests configure directly.
   "extends": "./.nuxt/tsconfig.server.json",
-  "include": [
-    ".nuxt/nuxt.node.d.ts",
-    "test/**/*",
-    "vitest.config.ts",
-    "drizzle.config.ts"
-  ],
+  "include": [".nuxt/nuxt.node.d.ts", "test/**/*", "vitest.config.ts", "drizzle.config.ts"],
   "exclude": []
 }

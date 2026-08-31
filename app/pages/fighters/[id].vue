@@ -47,26 +47,23 @@ const fighterId = Array.isArray(fighterIdParam)
     ? fighterIdParam
     : "";
 
-const { data: fighterDocument } = await useAsyncData(
-  `en-us/fighter/${fighterId}`,
-  async () => {
-    if (!fighterId) {
+const { data: fighterDocument } = await useAsyncData(`en-us/fighter/${fighterId}`, async () => {
+  if (!fighterId) {
+    return null;
+  }
+
+  try {
+    return await client.getByUID("fighter", fighterId, {
+      lang: "en-us",
+    });
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) {
       return null;
     }
 
-    try {
-      return await client.getByUID("fighter", fighterId, {
-        lang: "en-us",
-      });
-    } catch (error) {
-      if ((error as { status?: number }).status === 404) {
-        return null;
-      }
-
-      throw error;
-    }
-  },
-);
+    throw error;
+  }
+});
 
 if (!fighterDocument.value) {
   throw createError({
@@ -358,7 +355,9 @@ const closeVideoModal = () => {
                 }}</span>
               </div>
               <div class="min-w-0">
-                <h4 class="text-xl md:text-2xl font-headline font-black italic uppercase break-words">
+                <h4
+                  class="text-xl md:text-2xl font-headline font-black italic uppercase break-words"
+                >
                   {{ fight.opponent }}
                 </h4>
                 <p class="text-sm text-on-surface-variant uppercase tracking-widest break-words">
@@ -366,9 +365,13 @@ const closeVideoModal = () => {
                 </p>
               </div>
             </div>
-            <div class="flex items-center gap-4 md:gap-12 w-full md:w-auto justify-between md:justify-start pl-[calc(1rem+2px)] md:pl-0">
+            <div
+              class="flex items-center gap-4 md:gap-12 w-full md:w-auto justify-between md:justify-start pl-[calc(1rem+2px)] md:pl-0"
+            >
               <div class="text-left md:text-right min-w-0">
-                <span class="block font-bold text-primary italic break-words">{{ fight.method }}</span>
+                <span class="block font-bold text-primary italic break-words">{{
+                  fight.method
+                }}</span>
                 <span class="text-xs text-secondary-fixed-dim uppercase">{{ fight.round }}</span>
               </div>
               <button
