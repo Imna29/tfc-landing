@@ -42,7 +42,20 @@ export default defineEventHandler(async (event) => {
   // One moment for the whole request, so that a Bout locking while this runs
   // cannot be open for the first Prediction of an Entry and locked for the
   // fourth.
-  const priced = await priceAnswers(entry.predictions, { seasonId: season.id, now: new Date() });
+  const now = new Date();
+
+  // The Locks that have fallen due, written before anything is priced against
+  // them. It is what makes the refusal below one Postgres would give too: the
+  // Bout is `locked` in the row by the time the Prediction is written, and
+  // `predictions_are_made_on_open_bouts` refuses it whatever this route
+  // believed a moment earlier.
+  await applyAutomaticLocks(now);
+
+  const priced = await priceAnswers(entry.predictions, {
+    seasonId: season.id,
+    now,
+    sweepAfter: sweepWindow(),
+  });
 
   if (priced.refusal) throw refuse(priced.refusal.status, priced.refusal.problem);
 

@@ -18,22 +18,26 @@ import { inAskedOrder } from "#shared/pricing";
 import { asc, eq, gte } from "drizzle-orm";
 import { bouts, events, outcomes } from "../db/schema";
 import { useDatabase } from "./db";
+import { sweepWindow } from "./locks";
 
 /**
- * How long a card stays the card being shown after its scheduled start.
+ * How long a card stays the card being shown after its scheduled start: until
+ * the sweep behind it has closed everything on it.
  *
  * The upcoming Event is the next one, until it starts — and then it is still
  * the one a fan is watching, with Bouts locking one after another as it
- * progresses (ADR-0006). Nothing in the schema yet says a card has finished:
- * #12 gives a Bout a locked status and #14 a settled one, and when they land
- * "every Bout is done with" is the question to ask instead of this one. Until
- * then, an evening is how long a fight card lasts.
+ * progresses (ADR-0006). What ends it is the last backstop: past
+ * `sweepWindow()` no Bout on the card can be open, so there is nothing left on
+ * it to predict.
  *
- * A guess, in other words, and the one thing here somebody at TFC should look
- * at: too short and the card disappears from under a fan while the main event
- * is still being fought.
+ * One number rather than two that happened to agree. A card that stopped being
+ * shown before its Bouts stopped taking Predictions would be a card a fan
+ * could still submit into and no longer see, which is the worse half of
+ * getting this wrong.
  */
-const A_CARD_RUNS_FOR = 6 * 60 * 60 * 1000;
+function aCardRunsFor(): number {
+  return sweepWindow();
+}
 
 /** A fight card and everything the game holds against it. */
 export interface UpcomingCard {
@@ -66,7 +70,7 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
       venue: events.venue,
     })
     .from(events)
-    .where(gte(events.scheduledStart, new Date(now.getTime() - A_CARD_RUNS_FOR)))
+    .where(gte(events.scheduledStart, new Date(now.getTime() - aCardRunsFor())))
     .orderBy(asc(events.scheduledStart))
     .limit(1);
 
@@ -154,8 +158,9 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
     bouts: shown.map((place) => place.bout),
   };
 
-  // Which Bout locks by itself is a fact about the card rather than about any
-  // one Bout, so it can only be settled once the whole card is in hand.
+  // Which Bout a fan is counted down to is a fact about the card rather than
+  // about any one Bout, so it can only be settled once the whole card is in
+  // hand.
   for (const { bout, predictions } of shown) {
     predictions.locksAt = locksAt(bout, card);
     predictions.outcomes = inAskedOrder(predictions.outcomes, bout.scheduledRounds);

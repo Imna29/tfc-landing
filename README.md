@@ -471,6 +471,61 @@ A card imported before this migration has no Outcomes at all, and is refused an
 opening by the same rule. Re-import it — which is allowed while every Bout on it
 is still closed — and it comes back seeded.
 
+### Locking a Bout, and the backstops behind the admin
+
+A **Lock** is the moment a Bout stops taking Predictions, and ADR-0006 makes it
+per Bout rather than per card: a fan can still predict the main event while the
+opener is being fought. That is the engagement case for the whole product, and
+it is bought with an admin at a keyboard for the length of every event — an
+admin who is also watching the fights.
+
+So the automatic backstops are not enhancements. **A Bout still taking
+Predictions while it is being fought is the one failure that lets a fan win with
+certainty**, and an admin who forgets to lock one is the expected case, not the
+exceptional one. There are three:
+
+1. **The Bout fought first locks when the card reaches its scheduled start.**
+2. **Entering a result locks that Bout** if it is somehow still open (#14 calls
+   `lockBout` inside the transaction it settles from, which is what keeps
+   grading and locking from ever being half done).
+3. **The sweep**: every Bout still open `LOCK_SWEEP_HOURS` after the scheduled
+   start — six by default — locks regardless.
+
+**Nothing schedules those.** ADR-0009 and ADR-0010 leave a serverless function
+with no cron beside it, so `applyAutomaticLocks` in `server/utils/locks.ts` is
+run by the requests that care where a Bout is: the public card, an Entry being
+submitted, and the admin area. A card nobody is looking at locks the moment
+somebody looks. Two things make that honest rather than a fudge:
+
+- **A Lock is dated at the moment it fell due**, not the moment the row was
+  written — otherwise a fan asking why their Bout closed would be answered with
+  a time that has nothing to do with them.
+- **The refusal does not wait for the row.** `automaticLock` in
+  `shared/locks.ts` is asked directly while an Entry is priced, so a Bout past
+  its moment is refused whether or not anything has been written down yet. The
+  sweep is what makes the state a fact and the audit log an answer.
+
+An admin locks a Bout with `POST /api/admin/bouts/[id]/lock`, from
+`/admin/events/[id]` today and from the cageside console when #20 lands. It
+names a Bout, which is both things ADR-0006 asks for: advancing the Lock as a
+card progresses is locking the next Bout on it, and closing one early — a
+fighter withdrew — is locking that Bout and leaving the card alone. It is also
+why a double-tap in a dark arena is safe: the second press asks about the same
+Bout and is told it has locked.
+
+**A Lock is final.** There is no route that reopens a Bout and there is not
+going to be one: `a_locked_bout_is_never_reopened` refuses it in Postgres, so a
+hand-written `update` is refused too.
+
+**Every Lock is recorded**, in `bout_locks`: when, how, and which admin where
+one acted. The log is what answers a fan who thinks their Bout closed early, so
+it is held to be complete rather than remembered —
+`locked_bouts_are_recorded` is a deferred constraint trigger that refuses any
+transaction leaving a Bout locked with no record, or a record with no Lock, and
+`bout_locks_are_append_only` refuses rewriting one afterwards for the reason
+ADR-0003 gives about the Coin ledger. An admin reads it down the card at
+`/admin/events/[id]`, beside the fight it belongs to.
+
 ### The card a fan reads
 
 `/predictions` is the public card: every Bout of the upcoming Event in card
@@ -513,13 +568,14 @@ Four rules worth knowing about what a fan is shown:
   game does not make.
 - **A Lock that has passed reads as locked**, whatever `bouts.status` still
   says, so a countdown reaching zero and the words beside it can never
-  disagree. `locked` becomes a status of its own with #12, and `boutState` in
-  `shared/predictions.ts` keeps saying the same thing when it does.
-- **A card stays the card being shown for six hours after its scheduled
-  start** (`A_CARD_RUNS_FOR` in `server/utils/publicCard.ts`). That number is a
-  guess and is the one thing here somebody at TFC should look at: nothing in
-  the schema yet says a card has finished, so an evening stands in for it until
-  #12 and #14 make "every Bout is done with" a question that can be asked.
+  disagree. The row catches up on the next request (see
+  [Locking a Bout](#locking-a-bout-and-the-backstops-behind-the-admin)), and
+  `boutState` in `shared/predictions.ts` says the same thing either side of it.
+- **A card stays the card being shown until its sweep has passed**
+  (`sweepWindow()`, six hours by default). Past that no Bout on the card can be
+  open, so there is nothing left on it to predict. One number rather than two
+  that happened to agree: a card that vanished while its Bouts were still
+  taking Predictions would be a card a fan could submit into and no longer see.
 
 The page is exempt from the edge cache (ADR-0008) for staleness rather than
 privacy — it is the same HTML for everybody, and a copy ten minutes old is a

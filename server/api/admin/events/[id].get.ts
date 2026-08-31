@@ -11,6 +11,12 @@ import { PRICING_MESSAGES } from "#shared/pricing";
 export default defineEventHandler(async (event) => {
   await requireAdmin(event);
 
+  // The Locks that have fallen due, applied before the card is read: an admin
+  // looking at a card mid-event is one of the people this most has to be
+  // honest with, and a Bout listed open that closed an hour ago is what they
+  // would go and lock by hand — recording their name against the clock's work.
+  await applyAutomaticLocks();
+
   const id = getRouterParam(event, "id");
   const card = looksLikeId(id) ? await cardToPrice(id) : null;
 

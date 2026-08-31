@@ -34,6 +34,7 @@ import {
 // it — the values these name are spelled out again in the check constraints
 // below, where Postgres can hold them.
 import type { BoutStatus, Corner } from "../../shared/events";
+import type { LockKind } from "../../shared/locks";
 import type { Method, Question } from "../../shared/pricing";
 
 /**
@@ -464,7 +465,7 @@ export const bouts = pgTable(
     uniqueIndex("bouts_one_main_event")
       .on(table.eventId)
       .where(sql`${table.mainEvent}`),
-    check("bouts_status_known", sql`${table.status} in ('closed', 'open')`),
+    check("bouts_status_known", sql`${table.status} in ('closed', 'open', 'locked')`),
     check("bouts_card_order_is_a_place", sql`${table.cardOrder} >= 1`),
     // Spelled out again in `SCHEDULED_ROUNDS` in `shared/events.ts`, which is
     // what the import refuses with and what the Prismic field is bounded by.
@@ -583,6 +584,64 @@ export const outcomes = pgTable(
     check(
       "outcomes_priced_is_attributed",
       sql`(${table.pricedAt} is null) = (${table.pricedBy} is null)`,
+    ),
+  ],
+);
+
+/**
+ * The Lock audit log: one row per Bout that has locked, saying who locked it,
+ * when, and how.
+ *
+ * "When a fan complains their Bout locked too early, that log is the answer" —
+ * which is why `lockedAt` is the moment the Bout *stopped taking Predictions*
+ * rather than the moment a row happened to be written. An automatic Lock falls
+ * due at a moment the card decides (`automaticLock` in `shared/locks.ts`) and
+ * is applied by whichever request arrives after it; dating it at the second of
+ * those would be an answer nobody could give.
+ *
+ * One row per Bout, held by the primary key: a Bout locks once. There is no
+ * unlocking and so no second row — `a_locked_bout_is_never_reopened` refuses
+ * the status going back, and `bout_locks_are_append_only` refuses this row
+ * being rewritten or removed, for the reason ADR-0003 gives about the Coin
+ * ledger. A log that can be edited answers nothing.
+ *
+ * `lockedBy` is the admin whose action locked it: the one who pressed the
+ * button, or the one who entered the result that locked it behind them. It is
+ * null for the two Locks the clock performs, and `bout_locks_manual_is_attributed`
+ * holds the two in step — a Lock somebody caused is attributed to them, and
+ * one nobody caused is attributed to nobody. Which of the four counted as
+ * automatic is `isAutomatic` in `shared/locks.ts`, and is a different question:
+ * a result-entry Lock has an admin against it and was still nobody's decision
+ * to lock that Bout at that moment.
+ *
+ * The foreign key deliberately does not cascade, like the ones on
+ * {@link predictions}: a Bout that has locked is never deleted — the trigger
+ * in `0004_event_import.sql` refuses to replace one that is not closed — and
+ * this is that door locked from the other side.
+ */
+export const boutLocks = pgTable(
+  "bout_locks",
+  {
+    boutId: uuid("bout_id")
+      .primaryKey()
+      .references(() => bouts.id),
+    kind: text("kind").$type<LockKind>().notNull(),
+    /** When the Bout stopped taking Predictions. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Which admin locked it, or null where the clock did. */
+    lockedBy: uuid("locked_by").references(() => users.id),
+  },
+  (table) => [
+    check(
+      "bout_locks_kind_known",
+      sql`${table.kind} in ('manual', 'scheduled', 'sweep', 'result')`,
+    ),
+    // A Lock somebody performed and nobody is recorded as having performed is
+    // a Lock nobody can be asked about; a Lock the clock performed with an
+    // admin against it is a person blamed for the clock.
+    check(
+      "bout_locks_manual_is_attributed",
+      sql`(${table.lockedBy} is not null) = (${table.kind} in ('manual', 'result'))`,
     ),
   ],
 );

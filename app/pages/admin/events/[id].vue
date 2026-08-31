@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { LOCK_KIND_LABELS } from "#shared/locks";
 import { MULTIPLIER, outcomeLabel, QUESTION_LABELS, QUESTIONS } from "#shared/pricing";
 
 /**
- * Pricing one fight card, and opening its Bouts for predictions.
+ * Pricing one fight card, opening its Bouts for predictions, and locking them
+ * again as it is fought.
  *
  * The screen ADR-0002 costs TFC. Multipliers are fixed by hand, so somebody
  * sits down with this before every card — which is why import seeds every
@@ -10,10 +12,18 @@ import { MULTIPLIER, outcomeLabel, QUESTION_LABELS, QUESTIONS } from "#shared/pr
  * blank form. It is deliberately plain, like the rest of the admin area
  * (ADR-0011).
  *
- * A Bout is priced and opened on its own rather than the card in one go. A
- * card is rarely ready all at once — a late replacement on one Bout leaves the
- * rest of it perfectly openable — and opening is the door ADR-0001 shuts on
- * re-importing the card, so it is done deliberately, one fight at a time.
+ * A Bout is priced, opened and locked on its own rather than the card in one
+ * go. A card is rarely ready all at once — a late replacement on one Bout
+ * leaves the rest of it perfectly openable — and opening is the door ADR-0001
+ * shuts on re-importing the card, so it is done deliberately, one fight at a
+ * time. Locking is the same shape for the reason ADR-0006 gives: Bouts lock
+ * one after another while the card is fought, and keeping the later ones open
+ * is the engagement case for the whole product.
+ *
+ * This is not the screen an admin locks from cageside — #20 builds that, on a
+ * phone, one-handed, in the dark. What this is is where the Locks can be read
+ * back afterwards: each Bout says how it came to be locked and when, which is
+ * the answer to a fan who thinks theirs closed too early.
  *
  * Nothing here decides who may price a card: `server/middleware/admin.ts`
  * refused everyone else before this page was rendered at all.
@@ -87,11 +97,30 @@ function cornersOf(bout: (typeof bouts.value)[number]) {
   return { red: bout.redName, blue: bout.blueName };
 }
 
-/** Where a Bout is: nobody has priced it, it is priced, or it is taking Predictions. */
+/** Where a Bout is: unpriced, priced, taking Predictions, or done taking them. */
 function stateOf(bout: (typeof bouts.value)[number]): string {
-  if (bout.status !== "closed") return "Open for predictions";
+  if (bout.status === "locked") return "Locked";
+  if (bout.status === "open") return "Open for predictions";
 
   return bout.priced ? "Priced, not yet open" : "Nobody has priced this Bout";
+}
+
+/**
+ * How a Bout came to be locked, in one line: what did it, when, and — where
+ * somebody's action did it — who.
+ *
+ * The Lock audit log, read where the fight is. The moment is the one the Bout
+ * stopped taking Predictions at, which is the only moment a fan asking about
+ * it cares about. A Lock the clock performed names nobody, because naming the
+ * admin who happened to be signed in would put a person against the clock's
+ * work.
+ */
+function lockOf(bout: (typeof bouts.value)[number]): string | null {
+  const lock = bout.lock;
+
+  if (!lock) return null;
+
+  return [LOCK_KIND_LABELS[lock.kind], inTbilisi(lock.at), lock.by].filter(Boolean).join(" · ");
 }
 
 async function priceBout(bout: (typeof bouts.value)[number]) {
@@ -138,6 +167,26 @@ async function openBout(bout: (typeof bouts.value)[number]) {
     working.value = "";
   }
 }
+
+async function lockBout(bout: (typeof bouts.value)[number]) {
+  working.value = bout.id;
+  problem.value = "";
+  done.value = "";
+
+  try {
+    await $fetch(`/api/admin/bouts/${bout.id}/lock`, { method: "POST" });
+
+    done.value =
+      `Bout ${bout.cardOrder} has locked and takes no further Predictions. A ` +
+      "Lock is never taken back.";
+
+    await refresh();
+  } catch (failure) {
+    problem.value = problemFrom(failure);
+  } finally {
+    working.value = "";
+  }
+}
 </script>
 
 <template>
@@ -151,6 +200,13 @@ async function openBout(bout: (typeof bouts.value)[number]) {
         on a Bout, save them, and the Bout can be opened. A method or a round is priced knowing it
         multiplies onto the winner the fan picked, so
         <em>Submission</em> means "given that your fighter wins".
+      </p>
+
+      <p class="mt-4 text-on-surface/80 leading-relaxed">
+        Lock a Bout to stop it taking Predictions. The Bout fought first locks by itself when the
+        card starts, and everything still open locks a few hours later whatever anybody remembered —
+        but between those two it is an admin who advances the Lock as the card is fought. A Lock is
+        never taken back, and each one is recorded here with the moment the Bout actually closed.
       </p>
 
       <p v-if="card" class="mt-4 text-sm text-on-surface/70">
@@ -178,6 +234,7 @@ async function openBout(bout: (typeof bouts.value)[number]) {
         </header>
 
         <p class="mt-2 text-sm font-bold">{{ stateOf(bout) }}</p>
+        <p v-if="lockOf(bout)" class="mt-1 text-sm text-on-surface/70">{{ lockOf(bout) }}</p>
 
         <div v-for="asked in questionsOf(bout)" :key="asked.question" class="mt-6">
           <h3 class="font-headline text-xs font-black uppercase tracking-widest">
@@ -222,6 +279,14 @@ async function openBout(bout: (typeof bouts.value)[number]) {
             @click="openBout(bout)"
           >
             {{ bout.status === "closed" ? "Open for predictions" : "Open" }}
+          </button>
+          <button
+            type="button"
+            :disabled="working === bout.id || bout.status !== 'open'"
+            class="border border-outline-variant/40 font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
+            @click="lockBout(bout)"
+          >
+            {{ bout.status === "locked" ? "Locked" : "Lock" }}
           </button>
         </div>
       </article>

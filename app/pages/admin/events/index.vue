@@ -9,14 +9,15 @@
  *
  * What the page has to make obvious is the one-way door in ADR-0001. A card
  * can be re-imported freely while every Bout on it is closed, and not at all
- * once one is open, because from that moment fans hold Coins against those
- * rows. So each card says which side of that line it is on rather than only
- * whether it is in.
+ * once one has been opened — whether it is still open or has since locked,
+ * because fans hold Coins against those rows either way. So each card says
+ * which side of that line it is on rather than only whether it is in.
  *
  * The second thing it has to make obvious is what is left to do to a card that
- * is in: how many of its Bouts nobody has priced, and how many are open. A
- * card is priced Bout by Bout on `/admin/events/[id]`, and this is where an
- * admin sees at a glance which card still needs sitting down with.
+ * is in: how many of its Bouts nobody has priced, how many are open, and how
+ * many have locked. A card is priced Bout by Bout on `/admin/events/[id]`, and
+ * this is where an admin sees at a glance which card still needs sitting down
+ * with and how far through the fought ones are.
  */
 useSeoMeta({
   title: "Events",
@@ -128,7 +129,8 @@ async function importCard(prismicId: string) {
                   }}
                 </NuxtLink>
                 <span class="block text-on-surface/70">
-                  {{ card.imported.open }} of {{ card.imported.bouts }} open for predictions.
+                  {{ card.imported.open }} of {{ card.imported.bouts }} open for predictions,
+                  {{ card.imported.locked }} locked.
                 </span>
               </template>
               <template v-else>—</template>
@@ -137,7 +139,7 @@ async function importCard(prismicId: string) {
               <button
                 type="button"
                 :disabled="
-                  !season || (card.imported?.open ?? 0) > 0 || importing === card.prismicId
+                  !season || (card.imported?.started ?? 0) > 0 || importing === card.prismicId
                 "
                 class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
                 @click="importCard(card.prismicId)"

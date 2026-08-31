@@ -44,8 +44,9 @@ const capabilities: { title: string; description: string; to: string }[] = [
   {
     title: "Events",
     description:
-      "Import a fight card out of Prismic, price its Multipliers, and open its Bouts for " +
-      "predictions. A card can only be re-imported while every Bout on it is still closed.",
+      "Import a fight card out of Prismic, price its Multipliers, open its Bouts for " +
+      "predictions and lock them again as the card is fought. A card can only be re-imported " +
+      "while every Bout on it is still closed.",
     to: "/admin/events",
   },
   {

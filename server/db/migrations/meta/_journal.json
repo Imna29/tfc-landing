@@ -57,6 +57,13 @@
       "when": 1788187228959,
       "tag": "0007_entries_and_predictions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788191945803,
+      "tag": "0008_locking_bouts",
+      "breakpoints": true
     }
   ]
 }

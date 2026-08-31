@@ -30,6 +30,29 @@ automatically at the card's scheduled start, the rest advanced by an admin durin
 event, with automatic backstops behind them. A locked Bout can never be reopened.
 See [[adr-0006]].
 
+Every Lock is recorded — when it happened, how, and which admin if one did it — and that
+record is the answer to a fan who thinks their Bout closed too early. Its moment is the
+moment the Bout stopped taking Predictions, never the moment the row was written: an
+automatic Lock falls due while nobody is looking and is written down by the next request
+to arrive.
+
+The four ways a Bout locks: an admin locks it (**manual**), the card reaches its
+scheduled start with the Bout fought first still open (**scheduled**), the [[sweep]]
+passes (**sweep**), or a result is entered on a Bout still open (**result**). Only the
+first is somebody deciding to lock that Bout at that moment; the other three are
+**automatic**.
+
+### Sweep
+
+The last automatic backstop: every Bout still open a configured window after the card's
+scheduled start — six hours by default — is locked regardless of what an admin
+remembered to do.
+
+Not a scheduled job. There is nothing to run one on ([[adr-0009]], [[adr-0010]]), so it
+is applied by the requests that care where a Bout is: the public card, an Entry being
+submitted, and the admin area. A card nobody is looking at locks the moment somebody
+looks, and the [[lock]] is still dated at the moment it fell due.
+
 ### Settlement
 
 Grading every Entry affected by a Bout's result and writing the resulting Coin

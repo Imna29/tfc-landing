@@ -24,7 +24,8 @@ import {
   type PricedPrediction,
 } from "#shared/entries";
 import type { Corner } from "#shared/events";
-import { boutState, lockMoment } from "#shared/predictions";
+import { automaticLock } from "#shared/locks";
+import { boutState } from "#shared/predictions";
 import { MULTIPLIER, type Method } from "#shared/pricing";
 import { eq, inArray, sql } from "drizzle-orm";
 import { bouts, entries, events, outcomes, predictions } from "../db/schema";
@@ -123,11 +124,14 @@ export type Submission =
  *
  * `now` is passed in rather than read here so that the moment a Lock is judged
  * against is the moment the request was answered — the same decision the card
- * a fan is looking at was rendered from.
+ * a fan is looking at was rendered from. `sweepAfter` comes the same way and
+ * for the same reason: it is configuration (`sweepWindow` in
+ * `server/utils/locks.ts`), and reading it twice in one request would be two
+ * chances to disagree about when a Bout closed.
  */
 export async function priceAnswers(
   answers: readonly PredictionAnswer[],
-  within: { seasonId: string; now: Date },
+  within: { seasonId: string; now: Date; sweepAfter: number },
 ): Promise<PricedAnswers> {
   const boutIds = answers.map((answer) => answer.boutId);
 
@@ -186,17 +190,19 @@ export async function priceAnswers(
     if (!bout) return refuse(409, ENTRY_MESSAGES.boutNotOnTheCard);
     if (bout.seasonId !== within.seasonId) return refuse(409, ENTRY_MESSAGES.notThisSeason);
 
-    // Both halves of "not open": a Bout nobody has opened, and one whose Lock
-    // has passed without anybody writing a row to say so. #12 makes the second
-    // a status of its own, and `boutState` keeps answering the same way when
-    // it does.
-    const locksAt = lockMoment(
+    // Both halves of "not open": a Bout somebody locked, and one whose own
+    // Lock moment has passed without a row having been written for it yet.
+    // `applyAutomaticLocks` writes those rows at the top of this request, so
+    // the second half is a fraction of a second wide — and it is asked anyway,
+    // because the Bout this is about is the one being fought right now.
+    const locks = automaticLock(
       bout.cardOrder,
       bout.firstOnTheCard,
       bout.scheduledStart.toISOString(),
+      within.sweepAfter,
     );
 
-    if (boutState({ status: bout.status, locksAt }, within.now.getTime()) !== "open") {
+    if (boutState({ status: bout.status, locksAt: locks.at }, within.now.getTime()) !== "open") {
       return refuse(409, ENTRY_MESSAGES.boutNotOpen);
     }
 

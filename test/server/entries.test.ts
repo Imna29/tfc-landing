@@ -8,7 +8,14 @@ import {
   ENTRY_PREDICTIONS,
   potentialReward,
 } from "../../shared/entries";
-import { balanceCache, coinTransactions, entries, predictions } from "../../server/db/schema";
+import {
+  balanceCache,
+  boutLocks,
+  bouts,
+  coinTransactions,
+  entries,
+  predictions,
+} from "../../server/db/schema";
 import type { SubmittedEntry } from "../../server/utils/entries";
 import { postJson, signUp } from "../helpers/accounts";
 import {
@@ -516,6 +523,60 @@ describe("submitting an Entry", async () => {
       const stillOpen = await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie);
 
       expect(stillOpen.status).toBe(201);
+    });
+
+    it("refuses a Bout an admin has locked", async () => {
+      // The Lock doing what it exists for. Once a Bout is locked nothing more
+      // is committed to it, whatever page a fan still has open.
+      const card = await cardInTheGame({
+        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      });
+      const fan = await fanWithCoins();
+
+      const locked = await postJson(
+        `/api/admin/bouts/${card.bouts[0]!.id}/lock`,
+        {},
+        card.admin.cookie,
+      );
+
+      expect(locked.status).toBe(200);
+
+      const refused = await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie);
+
+      expect(refused.status).toBe(409);
+      expect((await refused.json()).message).toBe(ENTRY_MESSAGES.boutNotOpen);
+
+      // And only that Bout: the rest of the card is still being played on,
+      // which is the whole of ADR-0006.
+      expect(
+        (await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie)).status,
+      ).toBe(201);
+    });
+
+    it("writes the Lock down when a card's backstop has passed, and refuses on it", async () => {
+      // Nothing schedules the sweep, so the submission itself is what applies
+      // it: by the time the Prediction is written the Bout is `locked` in the
+      // row, and `predictions_are_made_on_open_bouts` refuses it too.
+      const card = await cardInTheGame({
+        scheduledStart: new Date(Date.now() - 7 * 60 * 60_000),
+        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      });
+      const fan = await fanWithCoins();
+
+      const refused = await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie);
+
+      expect(refused.status).toBe(409);
+      expect((await refused.json()).message).toBe(ENTRY_MESSAGES.boutNotOpen);
+
+      // The refusal is not the route's opinion alone: the sweep ran first, so
+      // the row itself says the Bout is done, and it says who closed it.
+      const [headliner] = await testDatabase()
+        .select({ status: bouts.status, kind: boutLocks.kind })
+        .from(bouts)
+        .innerJoin(boutLocks, eq(boutLocks.boutId, bouts.id))
+        .where(eq(bouts.id, card.bouts[1]!.id));
+
+      expect(headliner).toEqual({ status: "locked", kind: "sweep" });
     });
 
     it("refuses a Prediction on a Bout that is not open, even written by hand", async () => {

@@ -18,11 +18,13 @@ import type { OutcomeAnswer } from "./pricing";
 /**
  * Where a Bout is, as a fan reads it.
  *
- * The first two are the `bouts.status` Postgres holds. The third is not a
- * status at all today — it is what the passing of a Lock moment makes of an
- * open Bout, worked out wherever the card is being read, so a countdown
- * reaching zero and the words beside it can never disagree. #12 gives a locked
- * Bout a status of its own, and this keeps saying the same thing when it does.
+ * The same three values `bouts.status` holds, and for two of them this is only
+ * reading the column back. The third is the one worth having: a Bout locks at
+ * a moment the card decides, and the row saying so is written by the next
+ * request to arrive (`applyAutomaticLocks` in `server/utils/locks.ts`) — so
+ * between those two instants the column still says `open`. Working the state
+ * out here rather than trusting the column means a countdown reaching zero and
+ * the words beside it can never disagree.
  */
 export type BoutState = "closed" | "open" | "locked";
 
@@ -52,35 +54,23 @@ export function boutState(
 }
 
 /**
- * When a Bout locks without anybody doing anything, or null for one an admin
- * advances by hand.
+ * The Lock a fan is counted down to, or null on a Bout an admin advances.
  *
  * ADR-0006: the Bout fought first locks automatically at the card's scheduled
- * start, and the rest are locked as the card progresses — so it is the only
- * Bout on a card with a Lock a fan can be counted down to. Answering null for
- * the others is the honest thing: a countdown to a moment nobody has committed
- * to would be a promise the game does not make.
+ * start, and the rest are locked by an admin as the card progresses — so it is
+ * the only Bout on a card with a moment a fan can watch arrive.
+ *
+ * Deliberately not the sweep that stands behind every other Bout
+ * (`automaticLock` in `shared/locks.ts`). That moment is hours out and will
+ * almost never be the one: an admin locks Bout 6 when Bout 6 is fought, long
+ * before its backstop. Counting a fan down to a moment that is not going to be
+ * the moment is worse than telling them an admin decides it, so what the rest
+ * of the card gets is `PREDICTION_MESSAGES.locksWhenReached`.
  */
 export function locksAt(bout: FightCardBout, card: FightCard): string | null {
   const first = Math.min(...card.bouts.map((one) => one.cardOrder));
 
-  return lockMoment(bout.cardOrder, first, card.scheduledStart);
-}
-
-/**
- * The same answer as {@link locksAt}, for a caller holding one place on the
- * card rather than the whole card.
- *
- * A submission names Bouts rather than a card and asks of each one whether it
- * is still taking Predictions, so the rule is written here — once — and
- * {@link locksAt} is the card-shaped way of asking it.
- */
-export function lockMoment(
-  cardOrder: number,
-  firstOnTheCard: number,
-  scheduledStart: string,
-): string | null {
-  return cardOrder === firstOnTheCard ? scheduledStart : null;
+  return bout.cardOrder === first ? card.scheduledStart : null;
 }
 
 /** One answer a fan can give, and what it pays. */
@@ -94,7 +84,7 @@ export interface BoutPredictions {
   /** The row a Prediction points at, and an Entry is submitted against. */
   boutId: string;
   status: BoutStatus;
-  /** When it locks by itself, or null for one an admin advances. */
+  /** The Lock a fan can watch arrive, or null on one an admin advances. */
   locksAt: string | null;
   /**
    * Every answer offered, in the order they are asked.

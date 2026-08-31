@@ -18,6 +18,18 @@ export type Database = ReturnType<typeof createDatabase>;
 export type DatabaseTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /**
+ * Wherever a statement can be run: the connection itself, or a transaction
+ * already open on it.
+ *
+ * What it is for is ADR-0010. A module that writes one statement and can be
+ * called both on its own and from inside somebody else's transaction takes one
+ * of these rather than reaching for `useDatabase()` — reaching for it from
+ * inside a transaction asks for the connection that transaction is holding,
+ * and on a serverless function there is no second one to hand out.
+ */
+export type DatabaseConnection = Pick<Database, "execute">;
+
+/**
  * How many connections one process may hold open.
  *
  * A serverless function handles one request at a time and is cloned to scale,

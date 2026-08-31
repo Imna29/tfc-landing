@@ -10,6 +10,7 @@
  * nothing to self-correct a mispriced Outcome once fans are on it.
  */
 import type { BoutStatus, Corner } from "#shared/events";
+import type { BoutLock } from "#shared/locks";
 import {
   defaultOutcomes,
   inAskedOrder,
@@ -22,6 +23,7 @@ import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
 import { bouts, events, outcomes, seasons } from "../db/schema";
 import { useDatabase } from "./db";
+import { locksOn } from "./locks";
 
 /** The name of the trigger that refuses to open a Bout nobody has priced. */
 export const BOUTS_ARE_OPENED_ONLY_WHEN_PRICED = "bouts_are_opened_only_when_priced";
@@ -73,6 +75,15 @@ export interface BoutToPrice {
   titleFight: boolean;
   /** Whether every Outcome has been priced, which is what opening asks. */
   priced: boolean;
+  /**
+   * How this Bout came to be locked, or null while it has not.
+   *
+   * The Lock audit log, read where an admin is already looking: down a card,
+   * Bout by Bout. It is here rather than on a page of its own because that is
+   * the shape the question arrives in — a fan complains about one Bout, and
+   * what answers them is who locked it and when, beside the fight it was.
+   */
+  lock: BoutLock | null;
   outcomes: OutcomeToPrice[];
 }
 
@@ -166,8 +177,9 @@ export async function priceOutcomes(
  * Opens a Bout for predictions, answering whether this call is what opened it.
  *
  * `closed` is in the `where` clause so that opening is something that happens
- * once: a Bout that has been locked or settled is not reopened by a second
- * press of the button, and #12 does not have to remember to stop it.
+ * once: a Bout that has locked is not reopened by a second press of the
+ * button. `a_locked_bout_is_never_reopened` says the same thing underneath,
+ * for the presses that never come through here.
  *
  * Whether it *may* be opened is not decided here. The trigger named by
  * {@link BOUTS_ARE_OPENED_ONLY_WHEN_PRICED} refuses a Bout with an unpriced
@@ -187,10 +199,13 @@ export async function openBout(boutId: string): Promise<boolean> {
 
 /**
  * The Bouts matching a condition, each with its Outcomes in the order they
- * were asked.
+ * were asked and the Lock it has if it has one.
  *
  * One query with a join rather than a query per Bout: a card is up to a dozen
- * Bouts of eight Outcomes each, and this is read on every save.
+ * Bouts of eight Outcomes each, and this is read on every save. The Lock
+ * audit log is a second query rather than two more joins onto that one,
+ * because it belongs to `server/utils/locks.ts` and because a card has at most
+ * one Lock per Bout — a dozen rows, asked for once.
  */
 async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   const rows = await useDatabase()
@@ -222,7 +237,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
   const card = new Map<string, BoutToPrice>();
 
   for (const { outcome, ...bout } of rows) {
-    const priced = card.get(bout.id) ?? { ...bout, priced: false, outcomes: [] };
+    const priced = card.get(bout.id) ?? { ...bout, priced: false, lock: null, outcomes: [] };
 
     card.set(bout.id, priced);
 
@@ -239,12 +254,15 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     }
   }
 
+  const locked = await locksOn([...card.keys()]);
+
   return [...card.values()].map((bout) => ({
     ...bout,
     // The same question the trigger asks. A Bout with no Outcomes at all is
     // not priced either: it is a card imported before there were any, and it
     // is re-imported rather than opened.
     priced: bout.outcomes.length > 0 && bout.outcomes.every((outcome) => outcome.priced),
+    lock: locked.get(bout.id) ?? null,
     outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
   }));
 }

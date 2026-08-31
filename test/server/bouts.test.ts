@@ -2,6 +2,7 @@ import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import type { FightCard } from "../../shared/fightCard";
+import { LOCK_KIND_LABELS, LOCK_MESSAGES, SWEEP_AFTER } from "../../shared/locks";
 import {
   boutState,
   BOUT_STATE_LABELS,
@@ -11,6 +12,7 @@ import {
 import { PRICING_MESSAGES } from "../../shared/pricing";
 import type { CardBout } from "../../server/utils/cardImport";
 import type { ImportedEvent } from "../../server/utils/events";
+import { applyAutomaticLocks, lockBout } from "../../server/utils/locks";
 import type { CardToPrice } from "../../server/utils/pricing";
 import { postJson, signUpAdmin } from "../helpers/accounts";
 import { boutOutcomes, cardBout, corner, importedBouts, importTestCard } from "../helpers/cards";
@@ -19,21 +21,25 @@ import { setupTestServer } from "../helpers/server";
 import { fanId } from "../helpers/users";
 
 /**
- * A fight card in the game: pricing it, opening its Bouts, and the card a fan
- * reads once both are done.
+ * A fight card in the game, from both sides: pricing it, opening its Bouts,
+ * locking them again as it is fought, and the card a fan reads throughout.
  *
- * The first half is what ADR-0002 costs somebody at TFC in time. Multipliers
+ * The first part is what ADR-0002 costs somebody at TFC in time. Multipliers
  * are fixed by hand, so every card has to be priced before it opens, forever.
  * What makes that payable is that import seeds every Outcome from a table, and
  * what keeps it honest is that a seeded number is not a price — a Bout nobody
  * has looked at cannot be opened, and Postgres is what says so rather than the
  * route that asks first.
  *
- * The second half is what all of that was for: the card a fan sees, which is
- * where a seeded number becomes a Multiplier somebody is weighing up. Both
- * halves are here rather than in a file of their own because they are the same
- * card, arranged the same way, and a second file would be a second Nuxt build
- * on every run.
+ * The second is what ADR-0006 costs somebody in attention: Bouts lock one at a
+ * time as a card is fought, by an admin who is also watching it. The backstops
+ * behind that person are the point of those cases — an admin who forgets is
+ * the expected case, not the exceptional one.
+ *
+ * The third is what all of it was for: the card a fan sees, which is where a
+ * seeded number becomes a Multiplier somebody is weighing up. All three are
+ * here rather than in files of their own because they are the same card,
+ * arranged the same way, and each file is a second Nuxt build on every run.
  */
 describe("a fight card in the game", async () => {
   await setupTestServer();
@@ -376,8 +382,317 @@ describe("a fight card in the game", async () => {
     });
   });
 
+  describe("locking a Bout as a card is fought", () => {
+    /** Locks a Bout, as the button does and as #20's console will. */
+    function lock(boutId: string, cookie: string) {
+      return postJson(`/api/admin/bouts/${boutId}/lock`, {}, cookie);
+    }
+
+    /**
+     * A card priced and open, starting a given number of minutes from now.
+     *
+     * Minutes into the past are how a card being fought is arranged: its first
+     * Bout is past the moment it locks at, and the rest are what an admin is
+     * advancing the Lock through. Relative rather than a fixed date, for the
+     * reason `upcomingIn` below gives.
+     */
+    async function liveCard(minutes: number, bouts: CardBout[]) {
+      const signedIn = await admin();
+      const scheduledStart = new Date(Date.now() + minutes * 60_000);
+      const imported = await importTestCard(signedIn.id, { scheduledStart, bouts });
+      const priced = await cardToPrice(imported.id, signedIn.cookie);
+
+      for (const bout of priced.bouts) {
+        await priceEveryOutcome(bout, signedIn.cookie);
+        await open(bout.id, signedIn.cookie);
+      }
+
+      return { ...signedIn, eventId: imported.id, scheduledStart };
+    }
+
+    /** Every Bout of the card as the admin area reads it, in card order. */
+    async function asAdminSeesIt(eventId: string, cookie: string) {
+      return (await cardToPrice(eventId, cookie)).bouts;
+    }
+
+    const twoBouts = [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })];
+
+    it("locks the Bout fought first when the card reaches its scheduled start", async () => {
+      // The first of the three backstops ADR-0006 calls mandatory. Nobody
+      // presses anything: the card starts, and the Bout being fought stops
+      // taking Predictions.
+      const { cookie, eventId, scheduledStart } = await liveCard(-1, twoBouts);
+
+      const [opener, headliner] = await asAdminSeesIt(eventId, cookie);
+
+      expect(opener).toMatchObject({
+        status: "locked",
+        lock: { kind: "scheduled", at: scheduledStart.toISOString(), by: null },
+      });
+
+      // And only that one: keeping the rest open while it is being fought is
+      // the engagement case for the whole product.
+      expect(headliner).toMatchObject({ status: "open", lock: null });
+    });
+
+    it("dates an automatic Lock at the moment it fell due, not the moment it ran", async () => {
+      // "When a fan complains their Bout locked too early, that log is the
+      // answer." Nothing writes the row until a request arrives, which may be
+      // hours later; dating it then would answer a fan with a moment that has
+      // nothing to do with them.
+      const { cookie, eventId, scheduledStart } = await liveCard(-90, twoBouts);
+
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      expect(opener?.lock?.at).toBe(scheduledStart.toISOString());
+    });
+
+    it("lets an admin lock one Bout early and leaves the rest of the card open", async () => {
+      // A fighter withdrew from the main event two hours out. That Bout stops
+      // taking Predictions; nothing else on the card is affected.
+      const { cookie, details, eventId } = await liveCard(120, twoBouts);
+      const [, headliner] = await asAdminSeesIt(eventId, cookie);
+
+      expect((await lock(headliner!.id, cookie)).status).toBe(200);
+
+      const [opener, locked] = await asAdminSeesIt(eventId, cookie);
+
+      expect(locked).toMatchObject({
+        status: "locked",
+        lock: { kind: "manual", by: details.username },
+      });
+      expect(opener).toMatchObject({ status: "open", lock: null });
+    });
+
+    it("advances the Lock down the card, one Bout at a time", async () => {
+      // The ordinary shape of a live event: the card has started, its opener
+      // locked by itself, and an admin closes each fight as it comes up.
+      const { cookie, eventId } = await liveCard(-1, [
+        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 2 }),
+        cardBout({ cardOrder: 3, mainEvent: true }),
+      ]);
+
+      const [, second] = await asAdminSeesIt(eventId, cookie);
+
+      expect((await lock(second!.id, cookie)).status).toBe(200);
+
+      expect((await asAdminSeesIt(eventId, cookie)).map((bout) => bout.status)).toEqual([
+        "locked",
+        "locked",
+        "open",
+      ]);
+    });
+
+    it("refuses a second press, so a double tap does not lock the next fight", async () => {
+      // #20's console is used one-handed in a dark arena. The control names a
+      // Bout, so pressing it twice asks twice about the same Bout — and the
+      // second press is told it has locked rather than closing the next fight.
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      expect((await lock(opener!.id, cookie)).status).toBe(200);
+
+      const again = await lock(opener!.id, cookie);
+
+      expect(again.status).toBe(409);
+      expect((await again.json()).message).toBe(LOCK_MESSAGES.alreadyLocked);
+      expect((await asAdminSeesIt(eventId, cookie))[1]).toMatchObject({ status: "open" });
+    });
+
+    it("refuses to lock a Bout nobody has opened", async () => {
+      const { cookie, bout } = await importedCard();
+
+      const response = await lock(bout.id, cookie);
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).message).toBe(LOCK_MESSAGES.notOpen);
+    });
+
+    it("refuses a Bout that is not on a card, and one that is not an id at all", async () => {
+      const { cookie } = await importedCard();
+
+      expect((await lock("2fd25b0a-2f9e-4a06-9d4a-30d6d1c4a1f0", cookie)).status).toBe(404);
+      expect((await lock("the main event", cookie)).status).toBe(404);
+    });
+
+    it("locks everything still open once the card's backstop passes", async () => {
+      // The last backstop, and the one that says an admin stopped advancing
+      // the Lock partway through an evening. Seven hours past the start is
+      // past the six the window defaults to.
+      const { cookie, eventId, scheduledStart } = await liveCard(-7 * 60, [
+        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 2 }),
+        cardBout({ cardOrder: 3, mainEvent: true }),
+      ]);
+
+      const card = await asAdminSeesIt(eventId, cookie);
+
+      expect(card.map((bout) => bout.lock?.kind)).toEqual(["scheduled", "sweep", "sweep"]);
+      expect(card.every((bout) => bout.status === "locked")).toBe(true);
+
+      // Dated six hours after the card started, whatever time it is now.
+      expect(card[1]?.lock?.at).toBe(
+        new Date(scheduledStart.getTime() + SWEEP_AFTER).toISOString(),
+      );
+      expect(card.every((bout) => bout.lock?.by === null)).toBe(true);
+    });
+
+    it("takes that window from configuration, so TFC can shorten it", async () => {
+      // Asked of the sweep itself rather than through the API, because the
+      // server under test was handed its environment when it booted and this
+      // is what a shorter window would actually change.
+      const { cookie, eventId, scheduledStart } = await liveCard(-40, twoBouts);
+
+      process.env.LOCK_SWEEP_HOURS = "0.5";
+
+      try {
+        await applyAutomaticLocks(new Date(), testDatabase());
+      } finally {
+        delete process.env.LOCK_SWEEP_HOURS;
+      }
+
+      expect((await asAdminSeesIt(eventId, cookie))[1]).toMatchObject({
+        status: "locked",
+        lock: {
+          kind: "sweep",
+          at: new Date(scheduledStart.getTime() + 30 * 60_000).toISOString(),
+        },
+      });
+    });
+
+    it("locks a Bout inside the transaction that enters its result", async () => {
+      // #14 settles a Bout by grading every Entry on it and moving Coins, all
+      // in one transaction. The Lock belongs in that transaction: a result
+      // entered and the Bout still taking Predictions afterwards is the gap
+      // the backstops exist for, and it would be a gap somebody could commit
+      // Coins into knowing the answer.
+      const { cookie, details, eventId, id } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      const locked = await testDatabase().transaction((tx) =>
+        lockBout(tx, { boutId: opener!.id, kind: "result", by: id }),
+      );
+
+      expect(locked).toBe(true);
+      expect((await asAdminSeesIt(eventId, cookie))[0]).toMatchObject({
+        status: "locked",
+        lock: { kind: "result", by: details.username },
+      });
+    });
+
+    it("never reopens a Bout that has locked, through the route that opens one", async () => {
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      await lock(opener!.id, cookie);
+
+      const response = await open(opener!.id, cookie);
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).message).toBe(LOCK_MESSAGES.alreadyLocked);
+    });
+
+    it("never reopens one written by hand either", async () => {
+      // The rule with the most riding on it after `predictions_are_made_on_open_bouts`:
+      // a Bout reopened after being fought is a Bout somebody can commit Coins
+      // to knowing how it went.
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      await lock(opener!.id, cookie);
+
+      const reopened = await testDatabase()
+        .execute(sql`update bouts set status = 'open' where id = ${opener!.id}::uuid`)
+        .then(
+          () => "reopened it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(reopened).toMatch(/a_locked_bout_is_never_reopened/);
+    });
+
+    it("refuses a Lock nobody recorded, even written by hand", async () => {
+      // The audit log is not left to whichever statement locks a Bout to
+      // remember: the Bout a fan complains about is exactly the one whose row
+      // somebody forgot to write.
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      const unrecorded = await testDatabase()
+        .execute(sql`update bouts set status = 'locked' where id = ${opener!.id}::uuid`)
+        .then(
+          () => "locked it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(unrecorded).toMatch(/locked_bouts_are_recorded/);
+    });
+
+    it("refuses a record of a Lock that did not happen", async () => {
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      const invented = await testDatabase()
+        .execute(sql`insert into bout_locks (bout_id, kind) values (${opener!.id}::uuid, 'sweep')`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(invented).toMatch(/locked_bouts_are_recorded/);
+    });
+
+    it("refuses to rewrite the log afterwards", async () => {
+      // A log somebody can tidy up answers nothing, which is the reason
+      // ADR-0003 gives about the Coin ledger.
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      await lock(opener!.id, cookie);
+
+      const erased = await testDatabase()
+        .execute(sql`delete from bout_locks where bout_id = ${opener!.id}::uuid`)
+        .then(
+          () => "erased it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(erased).toMatch(/bout_locks_are_append_only/);
+    });
+
+    it("shows an admin how each Bout came to be locked, and when", async () => {
+      // The log where the question is asked: down the card, after the event,
+      // with a fan's complaint in hand.
+      const { cookie, details, eventId } = await liveCard(-1, twoBouts);
+      const [, headliner] = await asAdminSeesIt(eventId, cookie);
+
+      await lock(headliner!.id, cookie);
+
+      const page = await $fetch<string>(`/admin/events/${eventId}`, { headers: { cookie } });
+
+      expect(page).toContain(LOCK_KIND_LABELS.scheduled);
+      expect(page).toContain(LOCK_KIND_LABELS.manual);
+      expect(page).toContain(details.username);
+    });
+
+    it("tells a fan a locked Bout has locked", async () => {
+      const { cookie, eventId } = await liveCard(120, twoBouts);
+      const [opener] = await asAdminSeesIt(eventId, cookie);
+
+      await lock(opener!.id, cookie);
+
+      const { predictions } = await $fetch<{ predictions: CardPredictions | null }>(
+        "/api/predictions/card",
+      );
+
+      expect(predictions?.bouts[1]?.status).toBe("locked");
+      expect(await $fetch<string>("/predictions")).toContain(BOUT_STATE_LABELS.locked);
+    });
+  });
+
   describe("what the card listing says at a glance", () => {
-    it("counts the Bouts still to price and the ones already open", async () => {
+    it("counts the Bouts still to price, the open ones and the locked ones", async () => {
       const signedIn = await admin();
       const imported = await importTestCard(signedIn.id, {
         bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
@@ -385,7 +700,13 @@ describe("a fight card in the game", async () => {
 
       const before = await listedCards(signedIn.cookie);
 
-      expect(before[0]?.imported).toMatchObject({ bouts: 2, unpriced: 2, open: 0 });
+      expect(before[0]?.imported).toMatchObject({
+        bouts: 2,
+        unpriced: 2,
+        open: 0,
+        locked: 0,
+        started: 0,
+      });
 
       const card = await cardToPrice(imported.id, signedIn.cookie);
 
@@ -394,7 +715,15 @@ describe("a fight card in the game", async () => {
 
       const after = await listedCards(signedIn.cookie);
 
-      expect(after[0]?.imported).toMatchObject({ bouts: 2, unpriced: 1, open: 1 });
+      expect(after[0]?.imported).toMatchObject({ bouts: 2, unpriced: 1, open: 1, locked: 0 });
+
+      await postJson(`/api/admin/bouts/${card.bouts[0]!.id}/lock`, {}, signedIn.cookie);
+
+      const fought = await listedCards(signedIn.cookie);
+
+      // A locked Bout is no longer open, and still shuts the door on a
+      // re-import: fans hold Coins against it whatever it is doing now.
+      expect(fought[0]?.imported).toMatchObject({ open: 0, locked: 1, started: 1 });
     });
   });
 

@@ -1,3 +1,4 @@
+import { LOCK_MESSAGES } from "#shared/locks";
 import { PRICING_MESSAGES } from "#shared/pricing";
 
 /**
@@ -23,6 +24,10 @@ export default defineEventHandler(async (event) => {
   const bout = looksLikeId(id) ? await boutToPrice(id) : null;
 
   if (!bout) throw refuse(404, PRICING_MESSAGES.boutNotFound);
+  // Told apart, because they are not the same news. A Bout already open is
+  // somebody having pressed the button twice; a Bout locked is a fight that is
+  // over as far as the game is concerned, and no button reopens it.
+  if (bout.status === "locked") throw refuse(409, LOCK_MESSAGES.alreadyLocked);
   if (bout.status !== "closed") throw refuse(409, PRICING_MESSAGES.alreadyOpen);
   if (!bout.priced) throw refuse(409, PRICING_MESSAGES.unpriced);
 
