@@ -10,22 +10,23 @@ import { setupTestServer } from "../helpers/server";
 import { confirmEmail, fanId } from "../helpers/users";
 
 /**
- * Two Entries submitted in the same moment.
+ * Two requests about the same fan's Coins, arriving in the same moment.
  *
  * A file of its own because it needs a different server: the rest of the suite
  * runs on `DATABASE_POOL_MAX=1`, the connection budget a serverless function
  * has, and on one connection the driver queues the second request behind the
- * first — which would make this pass whether or not anything in the
+ * first — which would make these pass whether or not anything in the
  * application had actually taken a lock. The whole point here is that the
  * second request is genuinely in flight while the first is deciding.
  *
- * What it is guarding is the only bug in this feature that cannot be
- * corrected by hand afterwards without somebody noticing: a fan committing
- * Coins twice over. No constraint on the ledger can catch it — neither
- * transaction can see the other's uncommitted row — so it is the `for update`
- * in `balanceToCommitFrom` that has to, and this is what says so.
+ * What they are guarding is the only kind of bug in this feature that cannot
+ * be corrected by hand afterwards without somebody noticing: Coins committed
+ * twice over, or returned twice over. No constraint could catch either on its
+ * own — neither transaction can see the other's uncommitted rows — so it is
+ * the `for update` in `balanceToCommitFrom` and the one in `cancelEntry` that
+ * have to, and this is what says so.
  */
-describe("two Entries submitted in the same moment", async () => {
+describe("two requests in the same moment", async () => {
   await setupTestServer({ env: { DATABASE_POOL_MAX: "4" } });
 
   it("commits the Coins once, and refuses the Entry there are none left for", async () => {
@@ -68,6 +69,52 @@ describe("two Entries submitted in the same moment", async () => {
     expect(await $fetch("/api/coins/balance", { headers: { cookie: signedUp.cookie } })).toEqual({
       season: { name: "Season 1" },
       balance: 0,
+    });
+  });
+
+  it("cancels an Entry once, and returns its Coins once", async () => {
+    const card = await cardInTheGame({
+      scheduledStart: new Date(Date.now() + 120 * 60_000),
+      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+    });
+
+    const signedUp = await signUp();
+
+    await confirmEmail(signedUp.details.email);
+
+    const fan = await fanId(signedUp.details.email);
+
+    const submitted = await postJson(
+      "/api/predictions/entries",
+      { amount: 40, predictions: [{ boutId: card.bouts[0]!.id, corner: "red" }] },
+      signedUp.cookie,
+    );
+
+    expect(submitted.status).toBe(201);
+
+    const { entry } = (await submitted.json()) as { entry: { id: string } };
+
+    // The same Entry cancelled twice at once, which is a fan double-tapping
+    // the button on a slow connection.
+    const [first, second] = await Promise.all([
+      postJson(`/api/predictions/entries/${entry.id}/cancel`, {}, signedUp.cookie),
+      postJson(`/api/predictions/entries/${entry.id}/cancel`, {}, signedUp.cookie),
+    ]);
+
+    expect([first!.status, second!.status].sort()).toEqual([200, 409]);
+
+    // One refund, and a Balance restored to exactly what it was rather than to
+    // more than the fan ever held.
+    const ledger = await testDatabase()
+      .select()
+      .from(coinTransactions)
+      .where(eq(coinTransactions.userId, fan));
+
+    expect(ledger.filter((row) => row.kind === "entry_refund")).toHaveLength(1);
+    expect(ledger.reduce((total, row) => total + row.amount, 0)).toBe(STARTING_BALANCE);
+    expect(await $fetch("/api/coins/balance", { headers: { cookie: signedUp.cookie } })).toEqual({
+      season: { name: "Season 1" },
+      balance: STARTING_BALANCE,
     });
   });
 });

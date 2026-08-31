@@ -219,19 +219,23 @@ export const seasons = pgTable(
  * What moved Coins. One kind per ticket that can move them, added by that
  * ticket's own migration.
  *
- * Three of them, and the discipline is the point: Coins come into existence as
- * a Season grant, leave a Balance as an Entry's commitment and come back as the
- * Reward a winning Entry earned. `coin_transactions_kind_known` is what says
- * so, and the ticket that adds the refund a cancellation returns (#13) or the
- * reversal a corrected result writes (#16) has to say so again in SQL that
- * somebody reads. A kind permitted before anything writes it is a kind nobody
- * has thought about.
+ * Four of them, and the discipline is the point: Coins come into existence as
+ * a Season grant, leave a Balance as an Entry's commitment, come back as the
+ * Reward a winning Entry earned, and come back untouched as the refund a
+ * cancelled Entry returns. `coin_transactions_kind_known` is what says so, and
+ * the ticket that adds the reversal a corrected result writes (#16) has to say
+ * so again in SQL that somebody reads. A kind permitted before anything writes
+ * it is a kind nobody has thought about.
  *
  * Each of them is also held to a direction and a cause, because a Reward that
  * took Coins away or pointed at a Season would be a Balance nobody could
  * explain from the row that moved it. See the check constraints below.
  */
-export type CoinTransactionKind = "season_grant" | "entry_commitment" | "entry_reward";
+export type CoinTransactionKind =
+  | "season_grant"
+  | "entry_commitment"
+  | "entry_reward"
+  | "entry_refund";
 
 /** What a Coin Transaction points at as the thing that caused it. */
 export type CoinTransactionCause = "season" | "entry";
@@ -306,11 +310,19 @@ export const coinTransactions = pgTable(
     uniqueIndex("coin_transactions_one_reward_per_entry")
       .on(table.causeId)
       .where(sql`${table.kind} = 'entry_reward'`),
+    // And one refund per Entry, which is what makes "a cancelled Entry cannot
+    // be double-refunded under concurrent requests" true of something other
+    // than the order two requests happened to arrive in. The row lock in
+    // `cancelEntry` is what they actually queue behind; this is what holds if
+    // anything ever asks without taking it.
+    uniqueIndex("coin_transactions_one_refund_per_entry")
+      .on(table.causeId)
+      .where(sql`${table.kind} = 'entry_refund'`),
     // Every Balance read and every rebuild groups by these two.
     index("coin_transactions_by_fan").on(table.seasonId, table.userId),
     check(
       "coin_transactions_kind_known",
-      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward')`,
+      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward', 'entry_refund')`,
     ),
     check("coin_transactions_cause_known", sql`${table.cause} in ('season', 'entry')`),
     // A row that moves nothing is not a movement; it is a row somebody wrote
@@ -344,6 +356,17 @@ export const coinTransactions = pgTable(
     check(
       "coin_transactions_reward_returns_coins",
       sql`${table.kind} <> 'entry_reward'
+        or (${table.amount} > 0 and ${table.cause} = 'entry')`,
+    ),
+    // And so does a refund, for the Entry that was cancelled. It is a third
+    // row about an Entry rather than a reversal of the commitment, because the
+    // ledger records what happened rather than unwriting it (ADR-0003): the
+    // Coins were committed, and then they came back. How many is not something
+    // a check can see — that the refund is the whole Amount and nothing else
+    // is `cancelled_entries_are_refunded`'s to say.
+    check(
+      "coin_transactions_refund_returns_coins",
+      sql`${table.kind} <> 'entry_refund'
         or (${table.amount} > 0 and ${table.cause} = 'entry')`,
     ),
   ],
@@ -769,6 +792,16 @@ export const boutResults = pgTable(
  * the migration that creates this table holds it with a deferred constraint
  * trigger: an Entry is between one and ten Predictions when the transaction
  * that wrote it commits, whatever wrote it.
+ *
+ * **Cancelling is three more rules a column cannot hold**, and
+ * `0010_cancelling_an_entry.sql` holds each of them: an Entry reaches
+ * `cancelled` out of `open` and never leaves it
+ * (`an_entry_is_cancelled_once_out_of_open`), only while every Bout in it is
+ * still open (`entries_are_cancelled_while_every_bout_is_open`), and never
+ * apart from the refund that returns its whole Amount
+ * (`cancelled_entries_are_refunded`). The last is the shape
+ * `results_are_entered_on_settled_bouts` uses and the same kind of promise: a
+ * status and a Coin movement that are only ever true together.
  */
 export const entries = pgTable(
   "entries",
@@ -789,7 +822,7 @@ export const entries = pgTable(
     // Every Entry a fan has in a Season, which is the profile history (#17)
     // and what settlement re-reads.
     index("entries_by_fan").on(table.seasonId, table.userId),
-    check("entries_status_known", sql`${table.status} in ('open', 'won', 'lost')`),
+    check("entries_status_known", sql`${table.status} in ('open', 'won', 'lost', 'cancelled')`),
     // Spelled out again in `AMOUNT` in `shared/entries.ts`, which is what the
     // page and the route refuse with. There is no ceiling here: the maximum is
     // the fan's whole Balance, and the ledger is the only thing that knows it.

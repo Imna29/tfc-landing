@@ -16,7 +16,8 @@
  * are: a card is worth showing to somebody who is not playing.
  */
 import { coinsLabel } from "./coins";
-import type { Corner } from "./events";
+import type { BoutStatus, Corner } from "./events";
+import { boutState } from "./predictions";
 import {
   isMethod,
   isRound,
@@ -89,7 +90,15 @@ export const COMBINED_MULTIPLIER_CAP = 100;
  * profile history reads back. Spelled out again in the check constraint, for
  * the reason given on `Role` in `server/db/schema.ts`.
  */
-export type EntryStatus = "open" | "won" | "lost";
+export type EntryStatus = "open" | "won" | "lost" | "cancelled";
+
+/** What each status is called wherever a fan reads one of their Entries. */
+export const ENTRY_STATUS_LABELS = {
+  open: "Open",
+  won: "Won",
+  lost: "Lost",
+  cancelled: "Cancelled",
+} as const satisfies Record<EntryStatus, string>;
 
 /**
  * A fan's answer to one Bout, as they are building it.
@@ -135,6 +144,70 @@ export interface DraftPrediction extends PricedPrediction {
   cardOrder: number;
   /** The two names the Bout is fought under, which name the winner. */
   corners: Record<Corner, string>;
+}
+
+/**
+ * Where a Prediction's Bout stands, which is the whole of what an Entry can
+ * still be taken back on.
+ *
+ * What a Prediction says was decided when it was submitted; only the Bout it
+ * was made on moves afterwards. So this is what {@link cancellationOf} asks
+ * for, and asking for no more than it is what lets the route ask the question
+ * of four columns rather than of a whole listing.
+ */
+export interface PredictedBout {
+  status: BoutStatus;
+  /**
+   * The moment this Bout locks by itself, whether or not a row says so yet.
+   *
+   * The Bout's own automatic Lock — the card's scheduled start for the Bout
+   * fought first, the sweep behind it for every other (`automaticLock` in
+   * `shared/locks.ts`). Deliberately not the `locksAt` a card shows a fan,
+   * which is null on every Bout an admin advances: that one is a countdown
+   * worth watching, and this one is a fact about when the Entry stops being
+   * cancellable.
+   */
+  locksAt: string;
+}
+
+/** One Prediction of an Entry a fan has submitted, as they read it back. */
+export interface CommittedPrediction extends DraftPrediction, PredictedBout {}
+
+/**
+ * An Entry a fan has submitted, as their own listing shows it back to them.
+ *
+ * Carries no combined Multiplier and no Reward, for the reason the `entries`
+ * table carries neither: both are the product of what is on the Predictions,
+ * and `potentialReward` below is where they are worked out (ADR-0013).
+ */
+export interface CommittedEntry {
+  id: string;
+  status: EntryStatus;
+  amount: number;
+  submittedAt: string;
+  predictions: CommittedPrediction[];
+}
+
+/** The Entries a fan holds, as the listing beside the card reads them. */
+export interface CommittedEntries {
+  /**
+   * The server's clock when it answered.
+   *
+   * A page that decides whether to offer cancelling has to decide it against
+   * some instant, and the browser's own would render one answer on the server
+   * and a different one a moment later in the browser. Same reason
+   * `CardPredictions` carries one, and read by the same `useNow`.
+   */
+  answeredAt: string;
+  /** Every Entry this fan holds this Season, newest first. */
+  entries: CommittedEntry[];
+}
+
+/** Whether an Entry can still be taken back, and the reason where it cannot. */
+export interface Cancellation {
+  cancellable: boolean;
+  /** Why not, in the words the fan reads, or empty where they may. */
+  reason: string;
 }
 
 /** What an Entry returns if every Prediction in it lands. */
@@ -334,6 +407,73 @@ export function predictionLabel(pick: BoutPick, corners: Record<Corner, string>)
 
   return `${winner}${method}${round}`;
 }
+
+/**
+ * Whether this Entry can still be cancelled, and what to tell the fan when it
+ * cannot.
+ *
+ * **An Entry is cancellable only while every Bout in it is still open**, which
+ * is the rule ADR-0002 makes necessary rather than a courtesy. Multipliers are
+ * frozen at submission, so an Entry that could be withdrawn at any point would
+ * let a fan wait for one to move, or fish for a pricing mistake and back out
+ * of it — and "frozen at submission" would mean nothing.
+ *
+ * Asked of every Bout rather than of the earliest, because the Bouts of a
+ * Chained Entry lock one at a time as the card is fought (ADR-0006): the
+ * moment the first of them closes, part of what the Entry is riding on is
+ * already being decided.
+ *
+ * Said once for both sides. The listing a fan reads shows the reason before
+ * they press anything, and re-reads it as the clock passes each Lock moment;
+ * the route asks the same question again of the rows in Postgres, because the
+ * page is not what the server is holding.
+ *
+ * `now` is passed in for the reason it is everywhere else in this game: a Lock
+ * that has fallen due but has no row yet is still a Lock, and the moment it is
+ * judged against is the moment the request was answered.
+ */
+export function cancellationOf(
+  entry: { status: EntryStatus; predictions: readonly PredictedBout[] },
+  now: number,
+): Cancellation {
+  if (entry.status === "cancelled") return no(CANCELLATION_MESSAGES.alreadyCancelled);
+  if (entry.status !== "open") return no(CANCELLATION_MESSAGES.alreadyGraded);
+
+  const closed = entry.predictions.some((prediction) => boutState(prediction, now) !== "open");
+
+  return closed ? no(CANCELLATION_MESSAGES.boutLocked) : { cancellable: true, reason: "" };
+}
+
+function no(reason: string): Cancellation {
+  return { cancellable: false, reason };
+}
+
+/** Everything cancelling an Entry says to the fan cancelling it. */
+export const CANCELLATION_MESSAGES = {
+  whileOpen:
+    "An Entry can be cancelled while every Bout in it is still open, and its " +
+    "Coins come back in full. Once one of them locks, the Entry rides on what " +
+    "it says.",
+  boutLocked:
+    "A Bout in this Entry has locked, so it can no longer be cancelled. What " +
+    "each answer pays is fixed when an Entry is submitted, and one that could " +
+    "be taken back afterwards could be taken back knowing how a Bout was going.",
+  alreadyCancelled:
+    "This Entry has already been cancelled, and its Coins are back in your " +
+    "Balance. Cancelling is not something that happens twice.",
+  alreadyGraded:
+    "This Entry has been graded against what happened, so there is nothing " +
+    "left to cancel. How it went is on the Entry itself.",
+  notYours:
+    "That is not one of your Entries. An Entry belongs to the fan who " +
+    "submitted it, and only they can cancel it.",
+  cancelled: (amount: number) =>
+    `Entry cancelled. ${coinsLabel(amount)} returned to your Balance, which is ` +
+    "the whole of what it committed.",
+  noneYet:
+    "You have not committed an Entry this Season yet. Pick a winner on the " +
+    "card above, and the Entries you commit are listed here.",
+} as const;
 
 /** Everything submitting an Entry says to the fan submitting it. */
 export const ENTRY_MESSAGES = {

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { priceOf, type BoutPick, type DraftPrediction } from "#shared/entries";
+import {
+  priceOf,
+  type BoutPick,
+  type CommittedEntries,
+  type DraftPrediction,
+} from "#shared/entries";
 import { PREDICTION_MESSAGES } from "#shared/predictions";
 
 /**
@@ -11,6 +16,11 @@ import { PREDICTION_MESSAGES } from "#shared/predictions";
  * the one piece of state they share — what the fan has answered, by Bout —
  * because the card is where answers are given and the panel is where they are
  * committed.
+ *
+ * `SubmittedEntries` is what happened afterwards: the Entries this fan holds,
+ * and the button that takes one back while every Bout in it is still open
+ * (#13). It is here rather than on the profile because the reason a fan
+ * cancels is nearly always the card in front of them.
  *
  * The Entry is priced here from the card in front of the fan, by the same
  * function the server prices it with when it arrives (`priceOf`). So the
@@ -26,6 +36,27 @@ const { data: fan } = await useFan();
 
 const card = computed(() => data.value?.card ?? null);
 const predictions = computed(() => data.value?.predictions ?? null);
+
+/**
+ * The Entries this fan has already committed, for the panel that can take one
+ * back.
+ *
+ * Asked for only when somebody is signed in, and asked again whenever that
+ * changes: a visitor holds none, and the answer is one fan's own. Submitting
+ * an Entry and cancelling one both change it, and both say so.
+ *
+ * Through `useRequestFetch` for the reason `useFan` is: this runs during
+ * server rendering too, and a plain `$fetch` there carries no cookie — the
+ * route would answer 401 and the page would fail rendering for exactly the
+ * fans it is for.
+ */
+const request = useRequestFetch();
+
+const { data: committed, refresh: refreshCommitted } = await useAsyncData<CommittedEntries | null>(
+  "committed-entries",
+  async () => (fan.value ? await request<CommittedEntries>("/api/predictions/entries") : null),
+  { watch: [fan] },
+);
 
 /**
  * What the fan has answered, by the Bout it answers.
@@ -88,6 +119,12 @@ const draft = computed<DraftPrediction[]>(() =>
   }),
 );
 
+/** Clears the card the Entry was built on, and lists the Entry it became. */
+async function submitted() {
+  picks.value = {};
+  await refreshCommitted();
+}
+
 useSeoMeta({
   title: () => card.value?.title ?? "TFC Predictions",
   description: () =>
@@ -122,9 +159,17 @@ useSeoMeta({
             :fan="fan ?? null"
             class="lg:sticky lg:top-28"
             @remove="answer($event, null)"
-            @submitted="picks = {}"
+            @submitted="submitted"
           />
         </div>
+
+        <SubmittedEntries
+          v-if="committed"
+          :entries="committed.entries"
+          :answered-at="committed.answeredAt"
+          class="mt-16"
+          @cancelled="refreshCommitted"
+        />
       </template>
 
       <p v-else class="text-on-surface/70 max-w-2xl leading-relaxed">

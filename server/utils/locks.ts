@@ -132,10 +132,11 @@ export async function lockBout(
  *
  * Nothing schedules this. The deployment target is a serverless function with
  * no cron beside it (ADR-0009, ADR-0010), so it is run by the requests that
- * care what a Bout's state is: the public card, an Entry being submitted, and
- * the admin area. A card nobody is looking at locks the moment somebody looks,
- * and the Lock is still dated at the moment it fell due — so the log says what
- * happened rather than when it was noticed.
+ * care what a Bout's state is: the public card, an Entry being submitted or
+ * cancelled, the listing a fan reads their Entries in, and the admin area. A
+ * card nobody is looking at locks the moment somebody looks, and the Lock is
+ * still dated at the moment it fell due — so the log says what happened rather
+ * than when it was noticed.
  *
  * The refusal a fan meets does not depend on this having run. `automaticLock`
  * is asked directly while an Entry is being priced, so a Bout whose moment has

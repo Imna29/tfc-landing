@@ -71,6 +71,13 @@
       "when": 1788196215073,
       "tag": "0009_results_and_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788202848078,
+      "tag": "0010_cancelling_an_entry",
+      "breakpoints": true
     }
   ]
 }

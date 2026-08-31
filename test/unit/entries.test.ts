@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   AMOUNT,
+  CANCELLATION_MESSAGES,
   COMBINED_MULTIPLIER_CAP,
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   canAnswer,
+  cancellationOf,
   isAnswered,
   parseEntry,
   pickAnswered,
@@ -12,6 +14,8 @@ import {
   predictionLabel,
   priceOf,
   type BoutPick,
+  type CommittedEntry,
+  type CommittedPrediction,
   type PricedPrediction,
 } from "../../shared/entries";
 import type { OutcomeAnswer } from "../../shared/pricing";
@@ -410,5 +414,88 @@ describe("the Entry a fan sends", () => {
     });
 
     expect(parseEntry(wrong).problem).toBe(ENTRY_MESSAGES.unreadable);
+  });
+});
+
+describe("the Entry a fan takes back", () => {
+  const AN_HOUR = 60 * 60 * 1000;
+  const NOW = Date.parse("2026-09-12T18:00:00Z");
+
+  /** One Prediction of a submitted Entry, and where its Bout stands. */
+  function held(overrides: Partial<CommittedPrediction> = {}): CommittedPrediction {
+    return {
+      ...priced(),
+      cardOrder: 1,
+      corners: CORNERS,
+      status: "open",
+      // An hour out, so the Bout is open until a case says otherwise.
+      locksAt: new Date(NOW + AN_HOUR).toISOString(),
+      ...overrides,
+    };
+  }
+
+  /** An Entry as the fan's own listing shows it back to them. */
+  function committed(overrides: Partial<CommittedEntry> = {}): CommittedEntry {
+    return {
+      id: "0d1a4f8e-6c3b-4a2d-9e17-5f8b0c2a4d63",
+      status: "open",
+      amount: 20,
+      submittedAt: new Date(NOW - AN_HOUR).toISOString(),
+      predictions: [held()],
+      ...overrides,
+    };
+  }
+
+  it("lets a fan cancel while every Bout in it is still open", () => {
+    const chained = committed({
+      predictions: [held({ cardOrder: 1 }), held({ boutId: ANOTHER_BOUT, cardOrder: 2 })],
+    });
+
+    expect(cancellationOf(chained, NOW)).toEqual({ cancellable: true, reason: "" });
+  });
+
+  it("refuses once one Bout in it has locked, whatever the others are doing", () => {
+    const chained = committed({
+      predictions: [held({ cardOrder: 1, status: "locked" }), held({ boutId: ANOTHER_BOUT })],
+    });
+
+    expect(cancellationOf(chained, NOW)).toEqual({
+      cancellable: false,
+      reason: CANCELLATION_MESSAGES.boutLocked,
+    });
+  });
+
+  it("refuses once a Bout's own Lock moment has passed, though the row still says open", () => {
+    // The Lock nobody has written down yet: it falls due while nobody is
+    // looking, and is applied by the next request to arrive. The Entry stops
+    // being cancellable at the moment itself, not at the moment somebody
+    // noticed.
+    const passed = committed({
+      predictions: [held({ locksAt: new Date(NOW - 1000).toISOString() })],
+    });
+
+    expect(cancellationOf(passed, NOW)).toMatchObject({ cancellable: false });
+    expect(cancellationOf(passed, NOW - 2000)).toMatchObject({ cancellable: true });
+  });
+
+  it("refuses an Entry that has already been cancelled", () => {
+    expect(cancellationOf(committed({ status: "cancelled" }), NOW)).toEqual({
+      cancellable: false,
+      reason: CANCELLATION_MESSAGES.alreadyCancelled,
+    });
+  });
+
+  it("refuses an Entry a Result has already decided", () => {
+    for (const status of ["won", "lost"] as const) {
+      expect(cancellationOf(committed({ status }), NOW)).toEqual({
+        cancellable: false,
+        reason: CANCELLATION_MESSAGES.alreadyGraded,
+      });
+    }
+  });
+
+  it("says what cancelling returns, and that it returns all of it", () => {
+    expect(CANCELLATION_MESSAGES.cancelled(20)).toContain("20 Coins");
+    expect(CANCELLATION_MESSAGES.cancelled(1)).toContain("1 Coin ");
   });
 });

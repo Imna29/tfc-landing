@@ -55,8 +55,9 @@ remembered to do.
 
 Not a scheduled job. There is nothing to run one on ([[adr-0009]], [[adr-0010]]), so it
 is applied by the requests that care where a Bout is: the public card, an Entry being
-submitted, and the admin area. A card nobody is looking at locks the moment somebody
-looks, and the [[lock]] is still dated at the moment it fell due.
+submitted or cancelled, the listing a fan reads their own Entries in, and the admin area.
+A card nobody is looking at locks the moment somebody looks, and the [[lock]] is still
+dated at the moment it fell due.
 
 ### Result
 
@@ -173,8 +174,34 @@ An Entry with more than one Prediction is a **Chained Entry**. Never a "slip", n
 ### Entry Status
 
 One of **Open** (some Predictions still unresolved), **Won** (every Prediction correct or
-No Result, Reward paid), **Lost** (at least one Prediction wrong), or **Refunded** (every
+No Result, Reward paid), **Lost** (at least one Prediction wrong), **Cancelled** (the fan
+took it back before any of it was decided — see [[cancellation]]), or **Refunded** (every
 Prediction was No Result, Amount returned).
+
+The last two both return the Amount in full and are not the same thing. A Cancellation is
+the fan's decision, taken while every Bout in the Entry was still open; a Refund is the
+game's, because nothing in the Entry turned out to be gradable ([[adr-0005]]).
+
+### Cancellation
+
+A fan taking an Entry back. Its status becomes Cancelled and its Amount returns to the
+Balance in full, as one Coin Transaction — restoring the Balance exactly, because the
+Amount is the only thing that ever left it.
+
+Allowed only while **every** Bout in the Entry is still open, and refused from the moment
+the first of them locks. Multipliers are frozen at submission ([[adr-0002]]), so an Entry
+that could be withdrawn at any point would let a fan wait for a Multiplier to move, or fish
+for a pricing mistake and back out of it — and "frozen at submission" would mean nothing.
+The rule is worth as much as "Predictions are made on open Bouts": a fan who could take an
+Entry back after a Bout closed could take it back knowing how that Bout was going.
+
+A cancelled Entry is not deleted. It stays in the fan's history with its status, is never
+graded against a [[result]] and never pays a [[reward]], and is never cancelled twice —
+what happened is recorded rather than unwritten, the way the [[coin-transaction]] ledger
+records everything else ([[adr-0003]]).
+
+Not a "withdrawal", which is money leaving an account somewhere, and never "voiding" an
+Entry.
 
 ### Amount
 

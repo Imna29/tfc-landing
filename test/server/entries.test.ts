@@ -1,12 +1,14 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { STARTING_BALANCE } from "../../shared/coins";
+import { COIN_REASONS, STARTING_BALANCE } from "../../shared/coins";
 import {
+  CANCELLATION_MESSAGES,
   COMBINED_MULTIPLIER_CAP,
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   potentialReward,
+  type CommittedEntries,
 } from "../../shared/entries";
 import {
   balanceCache,
@@ -14,14 +16,23 @@ import {
   bouts,
   coinTransactions,
   entries,
+  events,
   predictions,
 } from "../../server/db/schema";
+import {
+  AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN,
+  CANCELLED_ENTRIES_ARE_REFUNDED,
+  ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN,
+  ONE_REFUND_PER_ENTRY,
+} from "../../server/utils/cancellation";
 import type { SubmittedEntry } from "../../server/utils/entries";
 import { postJson, signUp } from "../helpers/accounts";
 import {
   adminWithASeason,
   cardBout,
   cardInTheGame,
+  enterResult,
+  lockBout,
   priceBout,
   type CardInTheGame,
 } from "../helpers/cards";
@@ -30,8 +41,8 @@ import { setupTestServer } from "../helpers/server";
 import { confirmEmail, fanId } from "../helpers/users";
 
 /**
- * Submitting an Entry: the core of the product, and where every validation
- * rule in it lands.
+ * Submitting an Entry and cancelling one: the core of the product, and where
+ * every validation rule in it lands.
  *
  * A file of its own rather than more cases in `test/server/bouts.test.ts`,
  * which costs a second Nuxt build on every run. What buys it is that this is a
@@ -46,7 +57,7 @@ import { confirmEmail, fanId } from "../helpers/users";
  * route, and a test that only asked the API would prove the route behaves
  * rather than that the rule holds. Those cases say so where they are.
  */
-describe("submitting an Entry", async () => {
+describe("the Entry a fan commits, and takes back", async () => {
   await setupTestServer();
 
   /** A fan who can play: a Season's Coins, and a confirmed address. */
@@ -685,6 +696,407 @@ describe("submitting an Entry", async () => {
     });
   });
 
+  describe("cancelling an Entry", () => {
+    /** Cancels an Entry the way the button beside it in the listing does. */
+    function cancel(entryId: string, cookie?: string) {
+      return postJson(`/api/predictions/entries/${entryId}/cancel`, {}, cookie);
+    }
+
+    /** The Entries a fan is holding, as their own listing reads them. */
+    function listing(cookie: string) {
+      return $fetch<CommittedEntries>("/api/predictions/entries", { headers: { cookie } });
+    }
+
+    /** A card of two Bouts, which is what a Chained Entry needs. */
+    function twoBoutCard(options: Parameters<typeof cardInTheGame>[0] = {}) {
+      return upcomingCard({
+        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        ...options,
+      });
+    }
+
+    /**
+     * Moves a card back so that it has already started.
+     *
+     * The one thing a test cannot do is wait, and this is the state waiting
+     * would produce: the card reached its scheduled start with the Bout fought
+     * first still open, which is the Lock ADR-0006 promises with nobody
+     * pressing anything. Written straight to the row because no route moves a
+     * card once its Bouts are open — that is the point of the import door
+     * shutting.
+     */
+    async function cardHasStarted(eventId: string, since = 60_000) {
+      await testDatabase()
+        .update(events)
+        .set({ scheduledStart: new Date(Date.now() - since) })
+        .where(eq(events.id, eventId));
+    }
+
+    it("returns the Amount in full while every Bout in the Entry is still open", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 30, predictions: [winner(card, 0), winner(card, 1)] }, fan.cookie),
+      );
+
+      const response = await cancel(entry.id, fan.cookie);
+      const cancelled = (await response.json()) as {
+        entry: { id: string; status: string; amount: number };
+        balance: number;
+        message: string;
+      };
+
+      expect(response.status).toBe(200);
+      expect(cancelled.entry).toEqual({ id: entry.id, status: "cancelled", amount: 30 });
+      expect(cancelled.message).toBe(CANCELLATION_MESSAGES.cancelled(30));
+
+      // Exactly what was committed, and no more: the Balance is where it was
+      // before the Entry existed.
+      expect(cancelled.balance).toBe(STARTING_BALANCE);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+      expect((await entriesOf(fan.id)).at(0)).toMatchObject({ status: "cancelled", amount: 30 });
+    });
+
+    it("records the refund in the ledger, pointing at the Entry that caused it", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 25, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      expect((await cancel(entry.id, fan.cookie)).status).toBe(200);
+
+      // Three rows, and the commitment still among them: the ledger is
+      // append-only, so a cancellation is Coins coming back rather than a
+      // commitment being unwritten (ADR-0003).
+      const ledger = await ledgerFor(fan.id);
+
+      expect(ledger.map((row) => [row.kind, row.amount])).toEqual([
+        ["season_grant", STARTING_BALANCE],
+        ["entry_commitment", -25],
+        ["entry_refund", 25],
+      ]);
+      expect(ledger.at(-1)).toMatchObject({
+        cause: "entry",
+        causeId: entry.id,
+        reason: COIN_REASONS.entryCancelled,
+      });
+    });
+
+    it("keeps the cancelled Entry in the fan's listing, with its status", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      await cancel(entry.id, fan.cookie);
+
+      const { entries: held } = await listing(fan.cookie);
+
+      expect(held).toHaveLength(1);
+      expect(held[0]).toMatchObject({ id: entry.id, status: "cancelled", amount: 10 });
+      expect(held[0]?.predictions).toHaveLength(1);
+    });
+
+    it("refuses once a Bout in the Entry has locked, and leaves the Coins committed", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 40, predictions: [winner(card, 0), winner(card, 1)] }, fan.cookie),
+      );
+
+      // The opener locks as the card reaches it. The main event is still open,
+      // and it makes no difference: part of this Entry has started being
+      // decided.
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const response = await cancel(entry.id, fan.cookie);
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).message).toBe(CANCELLATION_MESSAGES.boutLocked);
+      expect((await entriesOf(fan.id)).at(0)).toMatchObject({ status: "open" });
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 40 });
+    });
+
+    it("tells the fan a Bout has locked before they try to cancel", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 0), winner(card, 1)] }, fan.cookie),
+      );
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      // What the listing carries is where each Bout stands, which is what the
+      // page decides from — `cancellationOf` in `shared/entries.ts`, the same
+      // function the route refused with above.
+      const { entries: held } = await listing(fan.cookie);
+
+      expect(held[0]?.predictions.map((prediction) => prediction.status)).toEqual([
+        "locked",
+        "open",
+      ]);
+    });
+
+    it("refuses once the card has started, though nobody locked anything", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie),
+      );
+
+      await cardHasStarted(card.eventId);
+
+      const response = await cancel(entry.id, fan.cookie);
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).message).toBe(CANCELLATION_MESSAGES.boutLocked);
+
+      // The refusal is not the route's opinion alone: cancelling applies the
+      // Locks that have fallen due first, so the row itself says the Bout is
+      // closed and says what closed it.
+      const [opener] = await testDatabase()
+        .select({ status: bouts.status, kind: boutLocks.kind })
+        .from(bouts)
+        .innerJoin(boutLocks, eq(boutLocks.boutId, bouts.id))
+        .where(eq(bouts.id, card.bouts[0]!.id));
+
+      expect(opener).toEqual({ status: "locked", kind: "scheduled" });
+    });
+
+    it("refuses to cancel another fan's Entry, and does not admit it exists", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+      const stranger = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      const response = await cancel(entry.id, stranger.cookie);
+
+      expect(response.status).toBe(404);
+      expect((await response.json()).message).toBe(CANCELLATION_MESSAGES.notYours);
+      expect((await entriesOf(fan.id)).at(0)).toMatchObject({ status: "open" });
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 });
+    });
+
+    it("refuses an Entry id that is not one at all", async () => {
+      const fan = await fanWithCoins();
+
+      const response = await cancel("the-one-i-regret", fan.cookie);
+
+      expect(response.status).toBe(404);
+      expect((await response.json()).message).toBe(CANCELLATION_MESSAGES.notYours);
+    });
+
+    it("asks a signed-out visitor to sign in", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      expect((await cancel(entry.id)).status).toBe(401);
+    });
+
+    it("cancels once, and refuses the second attempt", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      expect((await cancel(entry.id, fan.cookie)).status).toBe(200);
+
+      const again = await cancel(entry.id, fan.cookie);
+
+      expect(again.status).toBe(409);
+      expect((await again.json()).message).toBe(CANCELLATION_MESSAGES.alreadyCancelled);
+
+      // One refund, and a Balance that was restored once.
+      const refunds = (await ledgerFor(fan.id)).filter((row) => row.kind === "entry_refund");
+
+      expect(refunds).toHaveLength(1);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+
+    it("leaves a cancelled Entry out of the grading when its Bout settles", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry: withdrawn } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie),
+      );
+      const { entry: kept } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie),
+      );
+
+      expect((await cancel(withdrawn.id, fan.cookie)).status).toBe(200);
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const settled = await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "decision", round: null },
+        card.admin.cookie,
+      );
+
+      expect(settled.status).toBe(200);
+      expect(await settled.json()).toMatchObject({ settlement: { graded: 1, won: 1 } });
+
+      // The cancelled Entry is where the fan left it, and was paid nothing on
+      // top of the Amount it had already returned.
+      const held = await entriesOf(fan.id);
+
+      expect(held.find((one) => one.id === withdrawn.id)).toMatchObject({ status: "cancelled" });
+      expect(held.find((one) => one.id === kept.id)).toMatchObject({ status: "won" });
+
+      const rewards = (await ledgerFor(fan.id)).filter((row) => row.kind === "entry_reward");
+
+      expect(rewards.map((row) => row.causeId)).toEqual([kept.id]);
+    });
+
+    it("refuses a cancellation with no refund behind it, even written by hand", async () => {
+      // The rule that makes a cancelled Entry and its Coins one thing: an
+      // Entry marked cancelled and never refunded is Coins destroyed with no
+      // error anywhere.
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      const written = await testDatabase()
+        .execute(sql`update entries set status = 'cancelled' where id = ${entry.id}::uuid`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(CANCELLED_ENTRIES_ARE_REFUNDED);
+    });
+
+    it("refuses a refund of less than the Amount, even written by hand", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      const written = await testDatabase()
+        .transaction(async (tx) => {
+          await tx.execute(
+            sql`update entries set status = 'cancelled' where id = ${entry.id}::uuid`,
+          );
+
+          await tx.execute(
+            sql`insert into coin_transactions
+                  (season_id, user_id, kind, amount, reason, cause, cause_id)
+                select season_id, user_id, 'entry_refund', 9, 'most of it', 'entry', id
+                from entries where id = ${entry.id}::uuid`,
+          );
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(CANCELLED_ENTRIES_ARE_REFUNDED);
+    });
+
+    it("refuses a second refund on an Entry, even written by hand", async () => {
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      expect((await cancel(entry.id, fan.cookie)).status).toBe(200);
+
+      const written = await testDatabase()
+        .execute(
+          sql`insert into coin_transactions
+                (season_id, user_id, kind, amount, reason, cause, cause_id)
+              select season_id, user_id, 'entry_refund', amount, 'again', 'entry', id
+              from entries where id = ${entry.id}::uuid`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(ONE_REFUND_PER_ENTRY);
+    });
+
+    it("refuses to put a cancelled Entry back, even written by hand", async () => {
+      // A cancelled Entry whose Coins are already in the Balance, playing on
+      // as though they were still committed.
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      expect((await cancel(entry.id, fan.cookie)).status).toBe(200);
+
+      const written = await testDatabase()
+        .execute(sql`update entries set status = 'open' where id = ${entry.id}::uuid`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(AN_ENTRY_IS_CANCELLED_ONCE_OUT_OF_OPEN);
+    });
+
+    it("refuses to cancel an Entry whose Bout has locked, even written by hand", async () => {
+      // The route asks first so that a fan is told which Bout and why; this is
+      // what is true regardless, and it is the rule the whole ticket rests on.
+      const card = await twoBoutCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie),
+      );
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const written = await testDatabase()
+        .transaction(async (tx) => {
+          await tx.execute(
+            sql`update entries set status = 'cancelled' where id = ${entry.id}::uuid`,
+          );
+
+          await tx.execute(
+            sql`insert into coin_transactions
+                  (season_id, user_id, kind, amount, reason, cause, cause_id)
+                select season_id, user_id, 'entry_refund', amount, 'by hand', 'entry', id
+                from entries where id = ${entry.id}::uuid`,
+          );
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toContain(ENTRIES_ARE_CANCELLED_WHILE_EVERY_BOUT_IS_OPEN);
+    });
+  });
+
   describe("the card a fan builds an Entry on", () => {
     /** The page as a browser gets it, signed in or not. */
     function page(cookie?: string) {
@@ -726,6 +1138,42 @@ describe("submitting an Entry", async () => {
       expect(response.status).toBe(200);
       expect(rendered).toContain("Giorgi Tsiklauri");
       expect(rendered).toMatch(/aria-pressed="false"/);
+    });
+
+    it("lists the Entries a fan has committed, with a way to take one back", async () => {
+      // The listing is server-rendered with the fan's own cookie, which is the
+      // half a component test would not have caught: a page that asked the API
+      // without it would be answered 401 for exactly the fans it is for.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      await submit({ amount: 15, predictions: [winner(card, 0, "blue")] }, fan.cookie);
+
+      const rendered = await page(fan.cookie);
+
+      expect(rendered).toContain("Your Entries");
+      expect(rendered).toContain("Levan Beridze");
+      expect(rendered).toContain("Cancel Entry");
+    });
+
+    it("says why an Entry can no longer be cancelled, before the fan tries", async () => {
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      await submit({ amount: 15, predictions: [winner(card)] }, fan.cookie);
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const rendered = await page(fan.cookie);
+
+      expect(rendered).toContain(CANCELLATION_MESSAGES.boutLocked);
+      expect(rendered).not.toContain("Cancel Entry");
+    });
+
+    it("tells a fan with no Entries that this is where they will be", async () => {
+      await upcomingCard();
+      const fan = await fanWithCoins();
+
+      expect(await page(fan.cookie)).toContain(CANCELLATION_MESSAGES.noneYet);
     });
 
     it("offers nothing to pick on a Bout nobody has opened", async () => {

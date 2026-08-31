@@ -496,8 +496,9 @@ exceptional one. There are three:
 **Nothing schedules those.** ADR-0009 and ADR-0010 leave a serverless function
 with no cron beside it, so `applyAutomaticLocks` in `server/utils/locks.ts` is
 run by the requests that care where a Bout is: the public card, an Entry being
-submitted, and the admin area. A card nobody is looking at locks the moment
-somebody looks. Two things make that honest rather than a fudge:
+submitted or cancelled, the listing a fan reads their own Entries in, and the
+admin area. A card nobody is looking at locks the moment somebody looks. Two
+things make that honest rather than a fudge:
 
 - **A Lock is dated at the moment it fell due**, not the moment the row was
   written — otherwise a fan asking why their Bout closed would be answered with
@@ -686,6 +687,60 @@ Prediction, the cap, the Reward — plus the server-rendered shell of the page;
 the reactivity between them is held by `vue-tsc` and by those functions being
 the same ones the server uses, because this repo still has no component-test
 setup (see the card display section above).
+
+### Cancelling an Entry
+
+A fan changes their mind, usually because the card changed after they
+submitted. `POST /api/predictions/entries/:id/cancel` takes the Entry back: its
+status becomes `cancelled` and its Amount returns to the Balance in full, as one
+`entry_refund` row in the ledger. The commitment stays where it is — the ledger
+is append-only (ADR-0003), and what happened is that Coins were committed and
+then came back.
+
+**An Entry can be cancelled only while every Bout in it is still open.** That is
+the whole feature, and it is ADR-0002's bill rather than a courtesy:
+Multipliers are frozen at submission, so an Entry that could be withdrawn at any
+point would let a fan wait for one to move, or fish for a pricing mistake and
+back out of it. It is worth as much as "Predictions are made on open Bouts" — a
+fan who could take an Entry back after a Bout closed could take it back knowing
+how that Bout was going.
+
+`GET /api/predictions/entries` is what the fan reads before they press anything:
+every Entry they hold this Season, each Prediction carrying where its Bout
+stands and the moment it locks by itself. `cancellationOf` in
+`shared/entries.ts` turns that into a button or a sentence, and it is the same
+function the route decides with — so the panel stops offering to cancel at the
+instant the first Bout in an Entry locks, rather than at the next time somebody
+asks the server, and a fan who presses it in that last second is refused in the
+words already on the page. This is not the Entry history: that goes back through
+every Season and grades each Prediction of a chain, and belongs on the profile
+(#17).
+
+The same layers as submission, and the same reason for each: the page asks
+while the fan is looking, the route asks again of what arrived, and Postgres
+holds the ones worth holding.
+
+| Rule | Held by |
+| --- | --- |
+| Every Bout in the Entry is still open | `entries_are_cancelled_while_every_bout_is_open` |
+| An Entry is cancelled out of Open, once, and stays cancelled | `an_entry_is_cancelled_once_out_of_open` |
+| A cancelled Entry has been refunded, in full, and a refund belongs to a cancelled Entry | `cancelled_entries_are_refunded`, a deferred constraint trigger on both tables |
+| One refund per Entry | `coin_transactions_one_refund_per_entry` |
+| A refund returns Coins, for an Entry | `coin_transactions_refund_returns_coins` |
+
+**Two requests cancelling the same Entry.** `cancelEntry` takes the Entry row
+`for update` before reading anything about it, which is what makes "cannot be
+cancelled twice, or double-refunded" true of two requests in flight at once: the
+second queues behind the row and reads the status the first one left. Without it
+both would find the Entry open and every Bout open, and the fan would be
+refunded twice — with the unique index the only thing left to notice, after one
+of the two had already told a fan it worked.
+`test/server/entry-concurrency.test.ts` fires both.
+
+A cancelled Entry is not deleted, and settlement never touches it: grading reads
+only Entries that are still `open`, so a Bout it once predicted on settles
+around it. It stays in the fan's listing with its status, because it is Coins
+that moved and a decision the fan made.
 
 ### Pushing the model
 

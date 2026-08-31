@@ -58,6 +58,17 @@ export const COIN_REASONS = {
    * they came to on the day.
    */
   entryWon: (multiplier: number) => `Reward on a winning Entry at ${multiplierLabel(multiplier)}`,
+  /**
+   * The Coins an Entry returned to the fan who cancelled it.
+   *
+   * Says what was true at the moment it was written, because that is the whole
+   * of what an admin needs when a fan asks why an Entry is gone from the card:
+   * they took it back, and they were allowed to because nothing in it had
+   * started being decided yet. It is a row of its own rather than the
+   * commitment being unwritten — the ledger records what happened (ADR-0003),
+   * and what happened is that Coins were committed and then came back.
+   */
+  entryCancelled: "Returned in full on an Entry cancelled while every Bout in it was open",
 } as const;
 
 /**

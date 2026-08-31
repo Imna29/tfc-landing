@@ -185,8 +185,9 @@ export interface Reward {
  * Returns the Coins a winning Entry earned, and brings the materialised copy of
  * every Balance it moved in step.
  *
- * The other end of {@link commitCoins}: the Amount left the Balance at
- * submission, and this is the only thing that puts Coins back into one. It
+ * One of the two ends of {@link commitCoins}: the Amount left the Balance at
+ * submission, and this is what a winning Entry puts back into one — the other
+ * being {@link refundCoins}, which puts back exactly what was taken. It
  * writes and does not ask — whether these Entries won is settlement's question,
  * asked of the Results under a row lock — and
  * `coin_transactions_one_reward_per_entry` is what refuses a second Reward for
@@ -238,6 +239,51 @@ export async function creditRewards(
   }
 
   return rewards.reduce((coins, reward) => coins + reward.amount, 0);
+}
+
+/**
+ * Returns the Coins a cancelled Entry committed, and brings the materialised
+ * copy of the fan's Balance in step.
+ *
+ * The third way Coins move about an Entry, and the only one that puts back
+ * exactly what was taken: the Amount, in full, as one row. It writes and does
+ * not ask — whether this Entry may be cancelled at all is
+ * `cancelEntry`'s question in `server/utils/cancellation.ts`, asked of the
+ * Entry and of every Bout in it under a row lock — and
+ * `coin_transactions_one_refund_per_entry` refuses a second refund for an
+ * Entry whatever asked for it, with `cancelled_entries_are_refunded` holding
+ * the row and the Entry's status to each other at commit.
+ *
+ * The commitment is left where it is rather than being unwritten. The ledger
+ * is append-only (ADR-0003) and it is the record of what happened: the Coins
+ * were committed, and then they came back, which is two rows because it was
+ * two events.
+ *
+ * Takes the transaction to run inside because a cancelled Entry whose refund
+ * was not written is Coins destroyed with no error anywhere.
+ */
+export async function refundCoins(
+  tx: DatabaseTransaction,
+  refund: {
+    seasonId: string;
+    userId: string;
+    entryId: string;
+    amount: number;
+    reason: string;
+  },
+): Promise<void> {
+  await tx.insert(coinTransactions).values({
+    seasonId: refund.seasonId,
+    userId: refund.userId,
+    kind: "entry_refund",
+    // Signed, like every row in the ledger: Coins arriving are positive.
+    amount: refund.amount,
+    reason: refund.reason,
+    cause: "entry",
+    causeId: refund.entryId,
+  });
+
+  await materialiseBalances(tx, refund.seasonId, [refund.userId]);
 }
 
 /**
@@ -299,9 +345,18 @@ export function rebuildBalanceCache(database: Database, seasonId: string): Promi
  * A fan with no row has no Coin Transactions in this Season, which is zero
  * Coins — not a missing answer. It happens to a fan whose account was created
  * while no Season was open and who has not been granted anything since.
+ *
+ * `on` is for the callers already inside a transaction, which is where a
+ * Balance that has just moved has to be read from: on the one connection a
+ * serverless function has (ADR-0010), reaching for the application's own would
+ * wait on a connection the transaction itself is holding.
  */
-export async function balanceOf(seasonId: string, userId: string): Promise<number> {
-  const [held] = await balanceRow(useDatabase(), seasonId, userId);
+export async function balanceOf(
+  seasonId: string,
+  userId: string,
+  on: Database | DatabaseTransaction = useDatabase(),
+): Promise<number> {
+  const [held] = await balanceRow(on, seasonId, userId);
 
   return held?.balance ?? 0;
 }
