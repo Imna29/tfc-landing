@@ -103,6 +103,31 @@ export interface OutcomeAnswer {
 }
 
 /**
+ * Whether this is one of the three methods a Bout can end by.
+ *
+ * Here rather than beside either of its callers, because both of them are
+ * reading the same thing off the wire — a fan's Prediction and an admin's
+ * Result — and a Bout ends the same three ways whichever of them is asking.
+ * Spelled out again in `outcomes_method_known`, `predictions_method_known` and
+ * `bout_results_method_known`.
+ */
+export function isMethod(value: unknown): value is Method {
+  return value === "ko_tko" || value === "submission" || value === "decision";
+}
+
+/**
+ * Whether this is a round a Bout could be scheduled for.
+ *
+ * Which rounds *this* Bout has is a fact about the Bout — a three-round card
+ * opener has no round 4 — and is checked against the Outcomes it was opened
+ * with, by the `predictions_round_is_offered` and `bout_results_round_was_offered`
+ * keys underneath that.
+ */
+export function isRound(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
+/**
  * One Outcome as it is seeded: which answer it is, and what it pays until an
  * admin says otherwise.
  */

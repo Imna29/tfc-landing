@@ -19,12 +19,15 @@
  * confirmed in, which is what ADR-0013 means by the cap being a rule rather
  * than a number anybody was quoted.
  *
- * Three separate things stop a Bout settled twice from paying twice, and it is
- * worth knowing all three because the second and third are what hold when the
- * first is raced: the `bout_results` primary key refuses a second Result, only
- * Entries still Open are graded, and
+ * Three separate things stop a Bout settled twice from paying twice, and they
+ * are deliberately not one: the `bout_results` primary key refuses a second
+ * Result, only Entries still Open are graded, and
  * `coin_transactions_one_reward_per_entry` refuses a second Reward for an Entry
- * whatever asked for it.
+ * whatever asked for it. The first is what an admin actually meets, and is the
+ * one turned back into a sentence below. The other two are underneath it, and
+ * reaching either means something is wrong rather than merely refused — so they
+ * are left to fail loudly rather than dressed up as a refusal an admin could
+ * read and shrug at.
  */
 import { COIN_REASONS } from "#shared/coins";
 import { potentialReward, type EntryStatus, type PricedPrediction } from "#shared/entries";
@@ -125,9 +128,11 @@ export async function settleBout(
 ): Promise<Settled> {
   try {
     return await useDatabase().transaction(async (tx) => {
-      // Answers false where an admin locked it a moment ago, which is the
-      // ordinary case: a Bout is normally locked when it is fought and settled
-      // when the decision is read out.
+      // Whether this is the call that locked it does not change what happens
+      // next, so the answer is dropped: a Bout an admin locked when it was
+      // fought is already locked, which is the ordinary case, and one nobody
+      // locked is locked here. A Bout that was never open is refused by
+      // `results_are_entered_on_bouts_that_locked` a statement later.
       await lockBout(tx, { boutId: bout.id, kind: "result", by });
 
       await tx.insert(boutResults).values({
@@ -265,8 +270,8 @@ async function grade(tx: DatabaseTransaction, boutId: string): Promise<Settlemen
   // No Coin Transaction for a Lost Entry, and there never will be: its Amount
   // left the Balance when it was submitted (ADR-0003), so losing is a status
   // and nothing else. Writing a row here would take the Coins a second time.
-  if (lost.length > 0) await mark(tx, "lost", lost);
-  if (won.length > 0) await mark(tx, "won", won);
+  if (lost.length > 0) await markEntries(tx, "lost", lost);
+  if (won.length > 0) await markEntries(tx, "won", won);
 
   const paid = await creditRewards(tx, won.map(rewardFor));
 
@@ -316,7 +321,7 @@ function rewardFor(entry: SettlingEntry): Reward {
 }
 
 /** Moves these Entries to where this settlement found them, in one statement. */
-async function mark(
+async function markEntries(
   tx: DatabaseTransaction,
   status: EntryStatus,
   settled: readonly SettlingEntry[],

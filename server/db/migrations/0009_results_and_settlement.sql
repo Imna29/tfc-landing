@@ -124,6 +124,14 @@ CREATE CONSTRAINT TRIGGER locked_bouts_are_recorded
 -- A constraint trigger, deferred to the end of the transaction, because
 -- neither end can be checked while it is being written: the status and the
 -- Result are two writes and one of them is second.
+--
+-- Line for line the same shape as `refuse_a_lock_nobody_recorded` above, and
+-- deliberately a copy rather than one function taught to do both. Sharing it
+-- would mean passing the table and the status in and reaching them through
+-- `execute format(...)`: dynamic SQL, in the two triggers that stand between a
+-- fight being over and a fan being paid for it. These are read by somebody
+-- checking whether the rule is right, and each of them should be readable
+-- without holding the other in their head.
 CREATE FUNCTION refuse_a_result_apart_from_its_bout() RETURNS trigger AS $$
 DECLARE
   bout uuid;

@@ -17,6 +17,7 @@ import { A_LOCKED_BOUT_IS_NEVER_REOPENED } from "../../server/utils/locks";
 import {
   A_RESULTS_ROUND_WAS_OFFERED,
   ONE_RESULT_PER_BOUT,
+  ONE_REWARD_PER_ENTRY,
   RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED,
   RESULTS_ARE_ENTERED_ON_SETTLED_BOUTS,
 } from "../../server/utils/results";
@@ -53,7 +54,7 @@ import { confirmEmail, fanId } from "../helpers/users";
  * A file of its own rather than more cases in `test/server/entries.test.ts`,
  * which costs a second Nuxt build on every run. What buys it is that the
  * failures here are a different kind: that file is a fan being refused, this
- * one is the game paying out. It runs on `DATABASE_POOL_MAX=1` like the rest of
+ * one is the game returning Coins. It runs on `DATABASE_POOL_MAX=1` like the rest of
  * the suite, so a read reaching for a second connection while settlement holds
  * a transaction deadlocks here rather than in production (ADR-0010).
  */
@@ -319,6 +320,18 @@ describe("entering a result", async () => {
       expect(TEST_MULTIPLIERS.winner ** card.bouts.length).toBeGreaterThan(COMBINED_MULTIPLIER_CAP);
       expect(paid).toBe(10 * COMBINED_MULTIPLIER_CAP);
       expect(await statusOf(entry.id)).toBe("won");
+
+      // Read back out of the ledger rather than taken from the answer: the cap
+      // is the number this whole rule exists for, and what settlement said it
+      // returned is not evidence that it wrote it.
+      expect(
+        (await ledgerFor(fan.id))
+          .filter((row) => row.kind === "entry_reward")
+          .map((row) => row.amount),
+      ).toEqual([10 * COMBINED_MULTIPLIER_CAP]);
+      expect(await balance(fan.cookie)).toMatchObject({
+        balance: STARTING_BALANCE - 10 + 10 * COMBINED_MULTIPLIER_CAP,
+      });
     });
   });
 
@@ -688,6 +701,36 @@ describe("entering a result", async () => {
         );
 
       expect(written).toMatch(new RegExp(RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED));
+    });
+
+    it("never writes a second Reward for one Entry", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id }]);
+
+      await settle(card, 0, { winner: "red" });
+
+      // The last of the three guards against a Bout settled twice paying twice,
+      // and the one that holds when the other two have been got past — by a
+      // correction written by hand, or by a route nobody has written yet.
+      const written = await testDatabase()
+        .insert(coinTransactions)
+        .values({
+          seasonId: await openedSeasonId(),
+          userId: fan.id,
+          kind: "entry_reward",
+          amount: 40,
+          reason: "A second Reward for an Entry that already holds one",
+          cause: "entry",
+          causeId: entry.id,
+        })
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toMatch(new RegExp(ONE_REWARD_PER_ENTRY));
     });
 
     it("refuses a Result naming a round the Bout never offered", async () => {

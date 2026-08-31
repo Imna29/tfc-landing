@@ -17,7 +17,15 @@
  */
 import { coinsLabel } from "./coins";
 import type { Corner } from "./events";
-import { METHOD_LABELS, MULTIPLIER, outcomeKey, type Method, type OutcomeAnswer } from "./pricing";
+import {
+  isMethod,
+  isRound,
+  METHOD_LABELS,
+  MULTIPLIER,
+  outcomeKey,
+  type Method,
+  type OutcomeAnswer,
+} from "./pricing";
 
 /**
  * How many Predictions one Entry holds.
@@ -456,21 +464,6 @@ function readPrediction(value: unknown): PredictionAnswer | null {
   if (round !== null && !isRound(round)) return null;
 
   return { boutId, corner, method, round };
-}
-
-function isMethod(value: unknown): value is Method {
-  return value === "ko_tko" || value === "submission" || value === "decision";
-}
-
-/**
- * Whether this is a round a Bout could be scheduled for.
- *
- * Which rounds *this* Bout has is a fact about the Bout — a three-round card
- * opener has no round 4 — and is checked against the Outcomes it was opened
- * with, and by the `predictions_round_is_offered` foreign key underneath that.
- */
-function isRound(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
 
 /** Whether this is a number of Coins that can be committed. */

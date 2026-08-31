@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isFinish } from "#shared/entries";
 import type { Corner } from "#shared/events";
 import { LOCK_KIND_LABELS } from "#shared/locks";
 import {
@@ -199,7 +200,7 @@ async function openBout(bout: (typeof bouts.value)[number]) {
  * most of right, and clearing it would make them enter the whole thing again.
  */
 const entered = ref<
-  Record<string, { winner: Corner | ""; method: Method | ""; round: number | "" }>
+  Record<string, { winner: Corner | null; method: Method | null; round: number | null }>
 >({});
 
 watch(
@@ -208,7 +209,7 @@ watch(
     entered.value = Object.fromEntries(
       card.map((bout) => [
         bout.id,
-        entered.value[bout.id] ?? { winner: "", method: "", round: "" },
+        entered.value[bout.id] ?? { winner: null, method: null, round: null },
       ]),
     );
   },
@@ -217,9 +218,7 @@ watch(
 
 /** Whether a round can be named alongside the method chosen so far. */
 function endsInARound(boutId: string): boolean {
-  const method = entered.value[boutId]?.method;
-
-  return method === "ko_tko" || method === "submission";
+  return isFinish(entered.value[boutId]?.method ?? null);
 }
 
 /** The rounds this Bout could have ended in, which are the ones it offered. */
@@ -243,9 +242,11 @@ async function enterResult(bout: (typeof bouts.value)[number]) {
     const { settlement } = await $fetch(`/api/admin/bouts/${bout.id}/result`, {
       method: "POST",
       body: {
-        winner: answered?.winner || null,
-        method: answered?.method || null,
-        round: endsInARound(bout.id) ? (answered?.round ?? null) || null : null,
+        winner: answered?.winner ?? null,
+        method: answered?.method ?? null,
+        // A round only means anything alongside a finish, so a Decision sends
+        // none whatever is still sitting in the control behind it.
+        round: endsInARound(bout.id) ? (answered?.round ?? null) : null,
       },
     });
 
@@ -377,7 +378,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 :aria-label="`Winner of Bout ${bout.cardOrder}`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
-                <option value="">Choose</option>
+                <option :value="null">Choose</option>
                 <option value="red">{{ bout.redName }}</option>
                 <option value="blue">{{ bout.blueName }}</option>
               </select>
@@ -390,7 +391,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 :aria-label="`Method of victory in Bout ${bout.cardOrder}`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
-                <option value="">Choose</option>
+                <option :value="null">Choose</option>
                 <option v-for="method in METHODS" :key="method" :value="method">
                   {{ METHOD_LABELS[method] }}
                 </option>
@@ -404,7 +405,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 :aria-label="`Round Bout ${bout.cardOrder} ended in`"
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
-                <option value="">Choose</option>
+                <option :value="null">Choose</option>
                 <option v-for="round in roundsOf(bout)" :key="round" :value="round">
                   Round {{ round }}
                 </option>

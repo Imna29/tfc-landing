@@ -18,9 +18,10 @@
  * Balance: a copy of an answer the data already holds is a second answer, and
  * something has to decide which of them is right the day they differ.
  */
+import { coinsLabel } from "./coins";
 import type { BoutPick, EntryStatus } from "./entries";
 import type { Corner } from "./events";
-import { METHOD_LABELS, type Method } from "./pricing";
+import { isMethod, isRound, METHOD_LABELS, type Method } from "./pricing";
 
 /**
  * What an admin records about a Bout that has been fought: who won, how it
@@ -52,13 +53,6 @@ export interface BoutResult {
  * the Bout that produced nothing gradable.
  */
 export type PredictionGrade = "correct" | "wrong" | "unresolved";
-
-/** What each grade is called wherever a fan or an admin reads one. */
-export const PREDICTION_GRADE_LABELS = {
-  correct: "Landed",
-  wrong: "Missed",
-  unresolved: "Still to come",
-} as const satisfies Record<PredictionGrade, string>;
 
 /**
  * Whether this Prediction landed.
@@ -158,7 +152,7 @@ export const RESULT_MESSAGES = {
     "grading again, never by overwriting it.",
   settled: (entries: number, coins: number) =>
     `Result entered. ${entries} ${entries === 1 ? "Entry" : "Entries"} graded, ` +
-    `${coins} ${Math.abs(coins) === 1 ? "Coin" : "Coins"} paid in Rewards.`,
+    `${coinsLabel(coins)} returned in Rewards.`,
 } as const;
 
 /** A Result ready to be settled against, or the reason it is not one. */
@@ -174,7 +168,7 @@ export type ParsedResult =
  * Everything else is what a Result may be made of at all, and is the same
  * question on every Bout on every card.
  *
- * Asked again in Postgres — `bout_results_a_round_needs_a_finish` and the key
+ * Asked again in Postgres — `bout_results_a_round_is_a_finish` and the key
  * holding the round to one the Bout offered — because a rule that lives only
  * in a handler is one refactor away from disappearing. It is asked here so
  * that an admin is told which answer is wrong rather than being handed the
@@ -205,12 +199,4 @@ export function parseResult(value: unknown, bout: { scheduledRounds: number }): 
   }
 
   return { result: { winner, method, round } };
-}
-
-function isMethod(value: unknown): value is Method {
-  return value === "ko_tko" || value === "submission" || value === "decision";
-}
-
-function isRound(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
 }
