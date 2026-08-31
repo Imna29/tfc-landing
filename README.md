@@ -471,6 +471,67 @@ A card imported before this migration has no Outcomes at all, and is refused an
 opening by the same rule. Re-import it — which is allowed while every Bout on it
 is still closed — and it comes back seeded.
 
+### The card a fan reads
+
+`/predictions` is the public card: every Bout of the upcoming Event in card
+order, both fighters with their photos and records, the weight class, the
+rounds, and what each answer pays. It is visible signed out — a visitor should
+be able to see the game before deciding to join it — and served by
+`server/api/predictions/card.get.ts`, which asks for no session at all.
+
+**The card and the game are two models, on purpose.**
+
+- `shared/fightCard.ts` is a lineup and nothing more: an Event, its Bouts, and
+  two corners each. It imports nothing, and `test/unit/fight-card.test.ts`
+  checks that no word from the game gets into it. A card is worth showing
+  wherever a lineup is — a marketing page, an archive, a card read straight out
+  of Prismic — and that only stays true while this half owes the game nothing.
+- `shared/predictions.ts` is what TFC Predictions adds to a lineup: what each
+  answer pays, where a Bout is, and when it locks.
+
+They meet in exactly one place. `app/components/FightCard.vue` takes `card`
+and an **optional** `predictions`; given nothing for the second, it renders the
+fight and stops. `server/utils/publicCard.ts` is the only module that knows the
+two halves came out of the same row.
+
+How far that is actually held: the model's independence is checked directly
+(`test/unit/fight-card.test.ts`), and a real card rendering with no Multiplier
+anywhere on it is checked through the running server
+(`test/server/bouts.test.ts`). The `predictions`-absent path itself is held by
+`vue-tsc` and by the template's own guards rather than by a render — this repo
+has no component-test setup, and adding one is a bigger decision than #10.
+
+Four rules worth knowing about what a fan is shown:
+
+- **Nothing is offered on a Bout nobody has opened.** Every Outcome arrives
+  seeded from a fixed table, and a seeded number is not a price (ADR-0002) — so
+  the Multipliers appear the moment a Bout opens, which is the moment an admin
+  has priced every Outcome on it, and not before.
+- **Only the first Bout has a countdown.** It is the one that locks
+  automatically, at the card's scheduled start; an admin advances the rest as
+  the card progresses (ADR-0006), so a countdown on them would be a promise the
+  game does not make.
+- **A Lock that has passed reads as locked**, whatever `bouts.status` still
+  says, so a countdown reaching zero and the words beside it can never
+  disagree. `locked` becomes a status of its own with #12, and `boutState` in
+  `shared/predictions.ts` keeps saying the same thing when it does.
+- **A card stays the card being shown for six hours after its scheduled
+  start** (`A_CARD_RUNS_FOR` in `server/utils/publicCard.ts`). That number is a
+  guess and is the one thing here somebody at TFC should look at: nothing in
+  the schema yet says a card has finished, so an evening stands in for it until
+  #12 and #14 make "every Bout is done with" a question that can be asked.
+
+The page is exempt from the edge cache (ADR-0008) for staleness rather than
+privacy — it is the same HTML for everybody, and a copy ten minutes old is a
+Bout shown open that locked eight minutes ago. That is the easier of the two
+reasons to forget, so `test/server/cache-boundary.test.ts` holds it.
+
+A corner's photo and **record** are copied out of the `fighter` document at
+import, so the card renders from one query rather than from Postgres and a CMS
+together. A record is the one thing on a corner that a published fighter may
+still be missing; like a fallback name's missing photo, that is a gap on the
+card rather than a card that cannot be imported.
+
 ### Pushing the model
 
 `customtypes/event/` is the local copy of the model, written with the Prismic

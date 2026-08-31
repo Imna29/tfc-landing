@@ -57,20 +57,56 @@ export const METHOD_LABELS = {
 } as const satisfies Record<Method, string>;
 
 /**
- * One Outcome as it is seeded: which Question it answers, which answer it is,
- * and what it pays until an admin says otherwise.
+ * What one Outcome is called, given the two names the Bout is fought under.
+ *
+ * Read from the Question the Outcome answers, which is the column that says
+ * which of the three answers it carries. The Question's own name stands in for
+ * an answer that cannot be missing — `outcomes_answers_its_question` is what
+ * makes that unreachable, and an Outcome quietly renamed to the empty string
+ * would be a Multiplier with nothing beside it.
+ *
+ * The corners are passed in rather than looked up because who is in the red
+ * corner is a fact about the Bout, not about the Outcome — and because this is
+ * said once for the admin pricing a card and the fan reading it, so the two
+ * cannot come to call the same Outcome different things.
+ */
+export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, string>): string {
+  if (outcome.question === "winner") {
+    return outcome.corner ? corners[outcome.corner] : QUESTION_LABELS.winner;
+  }
+
+  if (outcome.question === "method") {
+    return outcome.method ? METHOD_LABELS[outcome.method] : QUESTION_LABELS.method;
+  }
+
+  return outcome.round === null ? QUESTION_LABELS.round : `Round ${outcome.round}`;
+}
+
+/**
+ * Which Question an Outcome answers, and which answer it carries.
  *
  * Exactly one of `corner`, `method` and `round` is ever set, and which one is
  * decided by `question`. Written as three columns rather than one answer field
  * because a round is a number that has to stay a number — the round Outcomes
  * offered are the rounds the Bout is scheduled for, and that is arithmetic, not
  * a string somebody parses back out.
+ *
+ * This much of an Outcome is what tells it from the others on its Bout, and is
+ * all anything sorting or naming them needs. What it pays, who priced it and
+ * what its id is are each somebody's else's business.
  */
-export interface SeededOutcome {
+export interface OutcomeAnswer {
   question: Question;
   corner: Corner | null;
   method: Method | null;
   round: number | null;
+}
+
+/**
+ * One Outcome as it is seeded: which answer it is, and what it pays until an
+ * admin says otherwise.
+ */
+export interface SeededOutcome extends OutcomeAnswer {
   multiplier: number;
 }
 
@@ -199,13 +235,35 @@ export const PRICING_MESSAGES = {
  * that the order an admin prices Outcomes in can be the order they were seeded
  * in, said once in {@link defaultOutcomes} rather than again in SQL.
  */
-export function outcomeKey(outcome: {
-  question: Question;
-  corner: Corner | null;
-  method: Method | null;
-  round: number | null;
-}): string {
+export function outcomeKey(outcome: OutcomeAnswer): string {
   return `${outcome.question}:${outcome.corner ?? outcome.method ?? outcome.round}`;
+}
+
+/**
+ * Outcomes in the order they were seeded, which is the order an admin prices
+ * them in and the order a fan is offered them in.
+ *
+ * Sorted here rather than in SQL because the order is a fact about the domain
+ * — winner, then method, then round; red before blue; round 1 before round 2 —
+ * and {@link defaultOutcomes} is where that is written down. Ordering by the
+ * columns would put "blue" before "red" and "method" before "winner", and
+ * would need saying again in every query.
+ */
+export function inAskedOrder<Outcome extends OutcomeAnswer>(
+  unordered: readonly Outcome[],
+  scheduledRounds: number,
+): Outcome[] {
+  const asked = defaultOutcomes(scheduledRounds).map(outcomeKey);
+  const place = (outcome: Outcome) => {
+    const at = asked.indexOf(outcomeKey(outcome));
+
+    // An Outcome the table no longer asks about — a Bout whose scheduled
+    // rounds were cut by a re-import would be one, if a re-import kept its
+    // Bouts. It sorts last rather than disappearing.
+    return at === -1 ? asked.length : at;
+  };
+
+  return [...unordered].sort((one, another) => place(one) - place(another));
 }
 
 /** A Multiplier an admin has set on one Outcome. */

@@ -57,8 +57,8 @@ export interface PrismicEvent {
  * weight class.
  *
  * One shape for both, because the import wants the same thing from each — the
- * name it is published under, and for a fighter the image and the uid their
- * profile page is reached by.
+ * name it is published under, and for a fighter the image, the record and the
+ * uid their profile page is reached by.
  */
 export interface PrismicReference {
   id: string;
@@ -66,6 +66,7 @@ export interface PrismicReference {
   data: {
     name?: string | null;
     image?: { url?: string | null } | null;
+    record?: string | null;
   };
 }
 
@@ -76,6 +77,10 @@ export interface PrismicReference {
  * with a document. A late replacement booked 48 hours out has a name and
  * nothing else, and a card that could not carry them would cost predictions on
  * a fight that is actually happening.
+ *
+ * Everything but `fighterId` is what a card shows of a corner — see
+ * `FightCardCorner` in `shared/fightCard.ts`, which is that same corner once
+ * it has been read back out for a page to render.
  */
 export interface CardCorner {
   name: string;
@@ -84,6 +89,15 @@ export interface CardCorner {
   /** What `/fighters/:uid` is reached by, for the profile link on the card. */
   fighterUid: string | null;
   imageUrl: string | null;
+  /**
+   * Their record, as the `fighter` document states it.
+   *
+   * Copied at import for the same reason the image is: the card a fan reads
+   * renders from one query rather than from Postgres and a CMS together. Null
+   * for a fallback name, and for a fighter whose document nobody has filled it
+   * in on — a gap on the card, not a card that cannot be imported.
+   */
+  record: string | null;
 }
 
 /** One Bout of a card, ready to be written. */
@@ -243,13 +257,18 @@ function readCorner(
         fighterId: fighter.id,
         fighterUid: fighter.uid ?? null,
         imageUrl: fighter.data.image?.url ?? null,
+        record: written(fighter.data.record),
       },
     };
   }
 
   const typed = written(fallbackName);
 
-  if (typed) return { corner: { name: typed, fighterId: null, fighterUid: null, imageUrl: null } };
+  if (typed) {
+    return {
+      corner: { name: typed, fighterId: null, fighterUid: null, imageUrl: null, record: null },
+    };
+  }
 
   // A fighter document with no name in it. Refused here, naming the document
   // to go and fix, rather than written as an empty name for

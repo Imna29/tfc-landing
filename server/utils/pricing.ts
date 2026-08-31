@@ -9,18 +9,18 @@
  * `0005_multipliers_and_opening_bouts.sql`. See ADR-0002 for why there is
  * nothing to self-correct a mispriced Outcome once fans are on it.
  */
-import type { Corner } from "#shared/events";
+import type { BoutStatus, Corner } from "#shared/events";
 import {
   defaultOutcomes,
+  inAskedOrder,
   MULTIPLIER,
-  outcomeKey,
   type Method,
   type OutcomeMultiplier,
   type Question,
 } from "#shared/pricing";
 import { and, eq, sql, type SQL } from "drizzle-orm";
 import type { DatabaseTransaction } from "../db/client";
-import { bouts, events, outcomes, seasons, type BoutStatus } from "../db/schema";
+import { bouts, events, outcomes, seasons } from "../db/schema";
 import { useDatabase } from "./db";
 
 /** The name of the trigger that refuses to open a Bout nobody has priced. */
@@ -247,28 +247,4 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     priced: bout.outcomes.length > 0 && bout.outcomes.every((outcome) => outcome.priced),
     outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
   }));
-}
-
-/**
- * The Outcomes in the order they were seeded, which is the order an admin
- * prices them in and the order #10 will offer them in.
- *
- * Sorted here rather than in SQL because the order is a fact about the domain
- * — winner, then method, then round; red before blue; round 1 before round 2 —
- * and `defaultOutcomes` is where that is written down. Ordering by the columns
- * would put "blue" before "red" and "method" before "winner", and would need
- * saying again in every query.
- */
-function inAskedOrder(unordered: OutcomeToPrice[], scheduledRounds: number): OutcomeToPrice[] {
-  const asked = defaultOutcomes(scheduledRounds).map(outcomeKey);
-  const place = (outcome: OutcomeToPrice) => {
-    const at = asked.indexOf(outcomeKey(outcome));
-
-    // An Outcome the table no longer asks about — a Bout whose scheduled
-    // rounds were cut by a re-import would be one, if a re-import kept its
-    // Bouts. It sorts last rather than disappearing.
-    return at === -1 ? asked.length : at;
-  };
-
-  return [...unordered].sort((one, another) => place(one) - place(another));
 }

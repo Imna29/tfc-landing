@@ -26,6 +26,26 @@ export type Corner = "red" | "blue";
  */
 export const SCHEDULED_ROUNDS = { minimum: 1, maximum: 12 } as const;
 
+/**
+ * Where a Bout is: not yet taking Predictions, or taking them.
+ *
+ * `closed` is where a Bout starts. An admin prices its Outcomes and opens it
+ * (#9), and from that moment it is a Bout fans hold Coins against — which is
+ * what the `bouts` table in `server/db/schema.ts` is careful about.
+ *
+ * `locked` arrives with #12 and `settled` with #14, each added by that
+ * ticket's own migration: a state permitted before anything writes it is a
+ * state nobody has thought about. Everything that asks whether a Bout is still
+ * untouched asks whether it is `closed`, so those two land without changing
+ * what #9 decided — and `boutState` in `shared/predictions.ts` is what turns
+ * this into the word a fan reads.
+ *
+ * Shared rather than kept in the schema because the public card is the other
+ * place that reads it: what a fan is told about a Bout is decided from the
+ * same two values Postgres holds.
+ */
+export type BoutStatus = "closed" | "open";
+
 /** Everything importing a card says to the admin doing it. */
 export const EVENT_MESSAGES = {
   cardNotChosen: "Choose a card to import.",

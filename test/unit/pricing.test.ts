@@ -3,8 +3,10 @@ import { SCHEDULED_ROUNDS } from "../../shared/events";
 import {
   defaultOutcomes,
   MULTIPLIER,
+  outcomeLabel,
   parseMultipliers,
   PRICING_MESSAGES,
+  type OutcomeAnswer,
 } from "../../shared/pricing";
 
 /**
@@ -21,7 +23,10 @@ describe("the Outcomes a Bout is seeded with", () => {
     const seeded = defaultOutcomes(3);
 
     expect(
-      seeded.map((outcome) => [outcome.question, outcome.corner ?? outcome.method ?? outcome.round]),
+      seeded.map((outcome) => [
+        outcome.question,
+        outcome.corner ?? outcome.method ?? outcome.round,
+      ]),
     ).toEqual([
       ["winner", "red"],
       ["winner", "blue"],
@@ -49,6 +54,44 @@ describe("the rounds a Bout offers", () => {
 
     expect(seeded.every((outcome) => outcome.multiplier > MULTIPLIER.above)).toBe(true);
     expect(seeded.every((outcome) => outcome.multiplier <= MULTIPLIER.maximum)).toBe(true);
+  });
+});
+
+describe("what one Outcome is called", () => {
+  /** The two names a Bout is fought under, which is what a winner is called. */
+  const corners = { red: "Giorgi Tsiklauri", blue: "Levan Beridze" };
+
+  /** An Outcome's answer as a Bout holds one: a Question, and one answer. */
+  function answer(asked: Partial<OutcomeAnswer> & Pick<OutcomeAnswer, "question">): OutcomeAnswer {
+    return { corner: null, method: null, round: null, ...asked };
+  }
+
+  it("names the fighter a winner Outcome is a win for", () => {
+    expect(outcomeLabel(answer({ question: "winner", corner: "red" }), corners)).toBe(
+      "Giorgi Tsiklauri",
+    );
+    expect(outcomeLabel(answer({ question: "winner", corner: "blue" }), corners)).toBe(
+      "Levan Beridze",
+    );
+  });
+
+  it("names a method of victory the way both a fan and an admin read it", () => {
+    expect(outcomeLabel(answer({ question: "method", method: "ko_tko" }), corners)).toBe("KO/TKO");
+    expect(outcomeLabel(answer({ question: "method", method: "submission" }), corners)).toBe(
+      "Submission",
+    );
+  });
+
+  it("names a round by its number", () => {
+    expect(outcomeLabel(answer({ question: "round", round: 2 }), corners)).toBe("Round 2");
+  });
+
+  it("falls back to the Question for an answer that cannot be missing", () => {
+    // `outcomes_answers_its_question` is what makes these unreachable. The
+    // point of the fallback is that an Outcome quietly renamed to nothing
+    // would be a Multiplier with no words beside it.
+    expect(outcomeLabel(answer({ question: "method" }), corners)).toBe("Method of victory");
+    expect(outcomeLabel(answer({ question: "round" }), corners)).toBe("Round of victory");
   });
 });
 

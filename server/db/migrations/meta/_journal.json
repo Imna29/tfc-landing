@@ -43,6 +43,13 @@
       "when": 1787690531626,
       "tag": "0005_multipliers_and_opening_bouts",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788184137688,
+      "tag": "0006_fighter_records",
+      "breakpoints": true
     }
   ]
 }

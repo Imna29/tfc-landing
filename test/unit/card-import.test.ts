@@ -24,7 +24,11 @@ function fighter(
 ): PrismicReference {
   return {
     uid: "a-fighter",
-    data: { name: "A Fighter", image: { url: "https://images.prismic.io/tfc/a-fighter.png" } },
+    data: {
+      name: "A Fighter",
+      image: { url: "https://images.prismic.io/tfc/a-fighter.png" },
+      record: "10-0-0",
+    },
     ...overrides,
   };
 }
@@ -81,18 +85,23 @@ const REFERENCED: PrismicReference[] = [
     data: {
       name: "Giorgi Tsiklauri",
       image: { url: "https://images.prismic.io/tfc/tsiklauri.png" },
+      record: "12-3-0",
     },
   }),
   fighter({
     id: "fighter-blue",
     uid: "levan-beridze",
-    data: { name: "Levan Beridze", image: { url: "https://images.prismic.io/tfc/beridze.png" } },
+    data: {
+      name: "Levan Beridze",
+      image: { url: "https://images.prismic.io/tfc/beridze.png" },
+      record: "9-2-1",
+    },
   }),
   division("division-lightweight", "Lightweight"),
 ];
 
 describe("reading a card out of Prismic", () => {
-  it("resolves each corner's fighter document into the name and image a card shows", () => {
+  it("resolves each corner's fighter document into everything a card shows of them", () => {
     const { card, problem } = readCard(eventDocument(), REFERENCED);
 
     expect(problem).toBeUndefined();
@@ -110,12 +119,14 @@ describe("reading a card out of Prismic", () => {
             fighterId: "fighter-red",
             fighterUid: "giorgi-tsiklauri",
             imageUrl: "https://images.prismic.io/tfc/tsiklauri.png",
+            record: "12-3-0",
           },
           blue: {
             name: "Levan Beridze",
             fighterId: "fighter-blue",
             fighterUid: "levan-beridze",
             imageUrl: "https://images.prismic.io/tfc/beridze.png",
+            record: "9-2-1",
           },
           division: "Lightweight",
           scheduledRounds: 3,
@@ -155,6 +166,7 @@ describe("reading a card out of Prismic", () => {
       fighterId: null,
       fighterUid: null,
       imageUrl: null,
+      record: null,
     });
 
     expect(card?.bouts.at(1)).toMatchObject({
@@ -162,6 +174,22 @@ describe("reading a card out of Prismic", () => {
       mainEvent: true,
       titleFight: true,
     });
+  });
+
+  it("carries a fighter with no record typed into them, rather than refusing the card", () => {
+    // A record is what a fan judges a matchup on, and a fighter document is
+    // published before somebody has filled every field of it. A missing one is
+    // a gap on the card, not a reason a card cannot be predicted on.
+    const unrecorded = REFERENCED.map((document) =>
+      document.id === "fighter-red"
+        ? { ...document, data: { ...document.data, record: null } }
+        : document,
+    );
+
+    const { card, problem } = readCard(eventDocument(), unrecorded);
+
+    expect(problem).toBeUndefined();
+    expect(card?.bouts.at(0)?.red).toMatchObject({ name: "Giorgi Tsiklauri", record: null });
   });
 
   it("puts the Bouts in card order, whatever order the rows were authored in", () => {

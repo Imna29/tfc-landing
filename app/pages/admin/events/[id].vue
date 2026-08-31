@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { METHOD_LABELS, MULTIPLIER, QUESTION_LABELS, QUESTIONS } from "#shared/pricing";
+import { MULTIPLIER, outcomeLabel, QUESTION_LABELS, QUESTIONS } from "#shared/pricing";
 
 /**
  * Pricing one fight card, and opening its Bouts for predictions.
@@ -79,27 +79,12 @@ function questionsOf(bout: (typeof bouts.value)[number]) {
 }
 
 /**
- * What one Outcome is called: a fighter, a method, or a round.
- *
- * Read from the Question the Outcome answers, which is the column that says
- * which of the three it is. The Question's own name stands in for the answer
- * that cannot be missing — `outcomes_answers_its_question` is what makes that
- * branch unreachable, and a corner or a method quietly renamed to the empty
- * string would be a Multiplier box with nothing beside it.
+ * The two names this Bout is fought under, which is what a winner Outcome is
+ * called. `outcomeLabel` names the rest, and names them the same way the card
+ * a fan reads does.
  */
-function outcomeLabel(
-  bout: (typeof bouts.value)[number],
-  outcome: (typeof bout.outcomes)[number],
-): string {
-  if (outcome.question === "winner") {
-    return outcome.corner === "blue" ? bout.blueName : bout.redName;
-  }
-
-  if (outcome.question === "method") {
-    return outcome.method ? METHOD_LABELS[outcome.method] : QUESTION_LABELS.method;
-  }
-
-  return outcome.round === null ? QUESTION_LABELS.round : `Round ${outcome.round}`;
+function cornersOf(bout: (typeof bouts.value)[number]) {
+  return { red: bout.redName, blue: bout.blueName };
 }
 
 /** Where a Bout is: nobody has priced it, it is priced, or it is taking Predictions. */
@@ -205,7 +190,7 @@ async function openBout(bout: (typeof bouts.value)[number]) {
               :key="outcome.id"
               class="flex items-center gap-2 text-sm"
             >
-              <span class="min-w-32">{{ outcomeLabel(bout, outcome) }}</span>
+              <span class="min-w-32">{{ outcomeLabel(outcome, cornersOf(bout)) }}</span>
               <span aria-hidden="true">×</span>
               <input
                 v-model.number="typed[outcome.id]"
@@ -213,7 +198,7 @@ async function openBout(bout: (typeof bouts.value)[number]) {
                 :min="smallest"
                 :max="MULTIPLIER.maximum"
                 step="0.01"
-                :aria-label="`${asked.label}: ${outcomeLabel(bout, outcome)}`"
+                :aria-label="`${asked.label}: ${outcomeLabel(outcome, cornersOf(bout))}`"
                 class="w-24 border border-outline-variant/40 bg-surface px-2 py-1"
               />
               <span v-if="!outcome.priced" class="text-xs text-on-surface/60">seeded</span>

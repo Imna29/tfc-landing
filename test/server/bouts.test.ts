@@ -1,26 +1,41 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import type { FightCard } from "../../shared/fightCard";
+import {
+  boutState,
+  BOUT_STATE_LABELS,
+  PREDICTION_MESSAGES,
+  type CardPredictions,
+} from "../../shared/predictions";
 import { PRICING_MESSAGES } from "../../shared/pricing";
+import type { CardBout } from "../../server/utils/cardImport";
 import type { ImportedEvent } from "../../server/utils/events";
 import type { CardToPrice } from "../../server/utils/pricing";
 import { postJson, signUpAdmin } from "../helpers/accounts";
-import { boutOutcomes, cardBout, importedBouts, importTestCard } from "../helpers/cards";
+import { boutOutcomes, cardBout, corner, importedBouts, importTestCard } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
 import { setupTestServer } from "../helpers/server";
 import { fanId } from "../helpers/users";
 
 /**
- * Pricing a fight card and opening its Bouts for predictions.
+ * A fight card in the game: pricing it, opening its Bouts, and the card a fan
+ * reads once both are done.
  *
- * The half of ADR-0002 that costs somebody at TFC their time: Multipliers are
- * fixed by hand, so every card has to be priced before it opens, forever. What
- * makes that payable is that import seeds every Outcome from a table, and what
- * keeps it honest is that a seeded number is not a price — a Bout nobody has
- * looked at cannot be opened, and Postgres is what says so rather than the
+ * The first half is what ADR-0002 costs somebody at TFC in time. Multipliers
+ * are fixed by hand, so every card has to be priced before it opens, forever.
+ * What makes that payable is that import seeds every Outcome from a table, and
+ * what keeps it honest is that a seeded number is not a price — a Bout nobody
+ * has looked at cannot be opened, and Postgres is what says so rather than the
  * route that asks first.
+ *
+ * The second half is what all of that was for: the card a fan sees, which is
+ * where a seeded number becomes a Multiplier somebody is weighing up. Both
+ * halves are here rather than in a file of their own because they are the same
+ * card, arranged the same way, and a second file would be a second Nuxt build
+ * on every run.
  */
-describe("pricing a card and opening its Bouts", async () => {
+describe("a fight card in the game", async () => {
   await setupTestServer();
 
   /** An admin with a Season open, ready to import a card into. */
@@ -380,6 +395,275 @@ describe("pricing a card and opening its Bouts", async () => {
       const after = await listedCards(signedIn.cookie);
 
       expect(after[0]?.imported).toMatchObject({ bouts: 2, unpriced: 1, open: 1 });
+    });
+  });
+
+  describe("the card a fan reads", () => {
+    /**
+     * The public card, as the page asks for it.
+     *
+     * Typed from what the route answers with, for the same reason
+     * {@link cardToPrice} is.
+     */
+    function publicCard() {
+      return $fetch<{ card: FightCard | null; predictions: CardPredictions | null }>(
+        "/api/predictions/card",
+      );
+    }
+
+    /** The page itself, fetched the way a visitor with no account gets it. */
+    function publicPage() {
+      return $fetch<string>("/predictions");
+    }
+
+    /**
+     * A card starting a given number of minutes from now.
+     *
+     * Relative rather than a fixed date: the upcoming Event is the next one,
+     * so a card pinned to a day in 2026 would stop being upcoming on that day
+     * and take this suite with it. Minutes into the past are how a card that
+     * has already started is arranged — its first Bout has locked.
+     */
+    async function upcomingIn(minutes: number, bouts: CardBout[]) {
+      const signedIn = await admin();
+      const imported = await importTestCard(signedIn.id, {
+        scheduledStart: new Date(Date.now() + minutes * 60_000),
+        bouts,
+      });
+
+      return {
+        ...signedIn,
+        eventId: imported.id,
+        card: await cardToPrice(imported.id, signedIn.cookie),
+      };
+    }
+
+    it("says there is no card rather than showing an empty one", async () => {
+      const { card, predictions } = await publicCard();
+
+      expect(card).toBe(null);
+      expect(predictions).toBe(null);
+      expect(await publicPage()).toContain(PREDICTION_MESSAGES.noCard);
+    });
+
+    it("shows the upcoming Event with every Bout on it, in card order", async () => {
+      const { card } = await upcomingIn(120, [
+        cardBout({ cardOrder: 3, mainEvent: true }),
+        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 2 }),
+      ]);
+
+      expect(card.bouts.length).toBe(3);
+
+      const shown = await publicCard();
+
+      expect(shown.card).toMatchObject({ title: "TFC 12", venue: "Tbilisi Sports Palace" });
+      expect(shown.card?.bouts.map((bout) => bout.cardOrder)).toEqual([1, 2, 3]);
+    });
+
+    it("shows both fighters with their photos, records and profile pages", async () => {
+      await upcomingIn(120, [cardBout()]);
+
+      const { card } = await publicCard();
+
+      expect(card?.bouts[0]?.red).toEqual({
+        name: "Giorgi Tsiklauri",
+        fighterUid: "giorgi-tsiklauri",
+        imageUrl: "https://images.prismic.io/tfc/giorgi-tsiklauri.png",
+        record: "12-3-0",
+      });
+
+      const page = await publicPage();
+
+      expect(page).toContain("Giorgi Tsiklauri");
+      expect(page).toContain("12-3-0");
+      expect(page).toContain("https://images.prismic.io/tfc/giorgi-tsiklauri.png");
+      // The research a fan does before predicting is on the fighter's own page.
+      expect(page).toContain("/fighters/giorgi-tsiklauri");
+    });
+
+    it("shows a fallback name with no photo and nowhere to click", async () => {
+      // A late replacement booked days before the card, who has no `fighter`
+      // document yet. The Bout is predictable; the corner is a name.
+      await upcomingIn(120, [
+        cardBout({
+          blue: corner("Zurab Kapanadze", {
+            fighterId: null,
+            fighterUid: null,
+            imageUrl: null,
+            record: null,
+          }),
+        }),
+      ]);
+
+      const { card } = await publicCard();
+
+      expect(card?.bouts[0]?.blue).toEqual({
+        name: "Zurab Kapanadze",
+        fighterUid: null,
+        imageUrl: null,
+        record: null,
+      });
+
+      const page = await publicPage();
+
+      // The name is on the card. The photo and the link are the two things a
+      // corner only has when there is a document behind it, and the red corner
+      // beside them is the control: both are rendered by the same component.
+      expect(page).toContain("Zurab Kapanadze");
+      expect(page).toContain(`alt="Giorgi Tsiklauri"`);
+      expect(page).not.toContain(`alt="Zurab Kapanadze"`);
+      expect(page).toContain("/fighters/giorgi-tsiklauri");
+      expect(page).not.toContain("/fighters/zurab-kapanadze");
+    });
+
+    it("shows the weight class and how many rounds a Bout is scheduled for", async () => {
+      await upcomingIn(120, [cardBout({ division: "Featherweight", scheduledRounds: 5 })]);
+
+      const page = await publicPage();
+
+      expect(page).toContain("Featherweight");
+      expect(page).toMatch(/5 rounds/);
+    });
+
+    it("shows what every answer pays, once the Bout is open", async () => {
+      const { cookie, card } = await upcomingIn(120, [cardBout({ scheduledRounds: 3 })]);
+      const bout = card.bouts[0]!;
+
+      await priceEveryOutcome(bout, cookie, 2.5);
+      await open(bout.id, cookie);
+
+      const shown = await publicCard();
+      const offered = shown.predictions?.bouts[1];
+
+      // The whole set, in the order they are asked: two winners, three
+      // methods, and a round for each round scheduled.
+      expect(
+        offered?.outcomes.map((outcome) => [
+          outcome.question,
+          outcome.corner ?? outcome.method ?? outcome.round,
+        ]),
+      ).toEqual([
+        ["winner", "red"],
+        ["winner", "blue"],
+        ["method", "ko_tko"],
+        ["method", "submission"],
+        ["method", "decision"],
+        ["round", 1],
+        ["round", 2],
+        ["round", 3],
+      ]);
+
+      const page = await publicPage();
+
+      expect(page).toContain("×2.50");
+      expect(page).toMatch(/Method of victory/i);
+      expect(page).toMatch(/Round 2/);
+    });
+
+    it("offers nothing on a Bout nobody has opened, because nothing on it is priced", async () => {
+      // Every Outcome arrives seeded from a fixed table, and ADR-0002 is
+      // emphatic that a seeded number is not a price: nothing that wrote it
+      // knows which fighter is favoured. A Bout is open only once an admin has
+      // been through it, so those are the only numbers a fan is ever shown.
+      await upcomingIn(120, [cardBout()]);
+
+      const { predictions } = await publicCard();
+
+      expect(predictions?.bouts[1]).toMatchObject({ status: "closed", outcomes: [] });
+      expect(await publicPage()).toContain(PREDICTION_MESSAGES.notOpenYet);
+    });
+
+    it("renders the whole fight with no Multiplier anywhere on it", async () => {
+      // The half of the card that is not the game, rendered on its own. A
+      // lineup is worth showing wherever one is — a marketing page, an archive
+      // — and `app/components/FightCard.vue` takes what the game adds as an
+      // optional prop for exactly that reason. This is as far as a running
+      // server can carry that: a real card, rendered by the real component,
+      // with not one number from the game on it.
+      await upcomingIn(120, [
+        cardBout({ cardOrder: 1, division: "Featherweight", scheduledRounds: 5 }),
+      ]);
+
+      const page = await publicPage();
+
+      expect(page).toContain("Giorgi Tsiklauri");
+      expect(page).toContain("Levan Beridze");
+      expect(page).toContain("12-3-0");
+      expect(page).toContain("Featherweight");
+      expect(page).toMatch(/5 rounds/);
+      expect(page).toContain("/fighters/giorgi-tsiklauri");
+
+      // Nothing priced, so nothing paying: no Multiplier is rendered at all.
+      expect(page).not.toMatch(/×\d/);
+    });
+
+    it("tells an open Bout from one that has locked", async () => {
+      // The card started a minute ago: its first Bout locks automatically at
+      // the scheduled start (ADR-0006) and the rest are still live, which is
+      // the whole shape of a card being fought.
+      const { cookie, card } = await upcomingIn(-1, [
+        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 2, mainEvent: true }),
+      ]);
+
+      for (const bout of card.bouts) {
+        await priceEveryOutcome(bout, cookie);
+        await open(bout.id, cookie);
+      }
+
+      const { predictions } = await publicCard();
+      const now = Date.parse(predictions!.answeredAt);
+
+      expect(boutState(predictions!.bouts[1]!, now)).toBe("locked");
+      expect(boutState(predictions!.bouts[2]!, now)).toBe("open");
+
+      const page = await publicPage();
+
+      expect(page).toContain(BOUT_STATE_LABELS.locked);
+      expect(page).toContain(BOUT_STATE_LABELS.open);
+    });
+
+    it("counts down to the Lock on the Bout that locks by itself", async () => {
+      const { cookie, card } = await upcomingIn(120, [
+        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 2, mainEvent: true }),
+      ]);
+
+      for (const bout of card.bouts) {
+        await priceEveryOutcome(bout, cookie);
+        await open(bout.id, cookie);
+      }
+
+      const { card: shown, predictions } = await publicCard();
+
+      // Only the Bout fought first has a Lock a fan can be counted down to.
+      // An admin advances the rest as the card progresses, so a countdown on
+      // them would be a promise the game does not make.
+      expect(predictions?.bouts[1]?.locksAt).toBe(shown?.scheduledStart);
+      expect(predictions?.bouts[2]?.locksAt).toBe(null);
+
+      const page = await publicPage();
+
+      expect(page).toMatch(/Locks in/);
+      expect(page).toContain(PREDICTION_MESSAGES.locksWhenReached);
+    });
+
+    it("shows the whole card to a visitor with no account", async () => {
+      // A visitor should be able to see the game before deciding to join it,
+      // so nothing here asks who is asking.
+      const { cookie, card } = await upcomingIn(120, [cardBout()]);
+
+      await priceEveryOutcome(card.bouts[0]!, cookie, 1.9);
+      await open(card.bouts[0]!.id, cookie);
+
+      const response = await fetch("/predictions");
+      const page = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(page).toContain("Giorgi Tsiklauri");
+      expect(page).toContain("Levan Beridze");
+      expect(page).toContain("×1.90");
     });
   });
 

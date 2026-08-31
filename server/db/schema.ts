@@ -32,7 +32,7 @@ import {
 // alias Nuxt provides. Type-only, so the import is erased before either sees
 // it — the values these name are spelled out again in the check constraints
 // below, where Postgres can hold them.
-import type { Corner } from "../../shared/events";
+import type { BoutStatus, Corner } from "../../shared/events";
 import type { Method, Question } from "../../shared/pricing";
 
 /**
@@ -335,22 +335,6 @@ export const balanceCache = pgTable(
 );
 
 /**
- * Where a Bout is: not yet taking Predictions, or taking them.
- *
- * `closed` is where a Bout starts. An admin prices its Outcomes and opens it
- * (#9), and from that moment it is a Bout fans hold Coins against — which is
- * what {@link bouts} is careful about below.
- *
- * `locked` arrives with #12 and `settled` with #14, each added by that
- * ticket's own migration, for the reason given on {@link CoinTransactionKind}:
- * a state permitted before anything writes it is a state nobody has thought
- * about. Everything here that asks whether a Bout is still untouched asks
- * whether it is `closed`, so those two land without changing what this ticket
- * decided.
- */
-export type BoutStatus = "closed" | "open";
-
-/**
  * One TFC fight card, copied out of Prismic (ADR-0001).
  *
  * Prismic is where a card is authored and the marketing site reads it from.
@@ -416,7 +400,10 @@ export const events = pgTable(
  *
  * The images are URLs into Prismic's CDN rather than files of our own
  * (ADR-0009 rules out object storage), copied at import so the card renders
- * from one query rather than from Postgres and a CMS together.
+ * from one query rather than from Postgres and a CMS together. The records are
+ * copied for that same reason, and are the one thing on a corner that a
+ * published `fighter` document may still be missing — a gap on the card rather
+ * than a card that cannot be imported.
  *
  * **A Bout that is no longer closed is never deleted.** The migration that
  * creates this table also creates a trigger refusing it, so re-importing a
@@ -438,10 +425,12 @@ export const bouts = pgTable(
     redFighterId: text("red_fighter_id"),
     redFighterUid: text("red_fighter_uid"),
     redImageUrl: text("red_image_url"),
+    redRecord: text("red_record"),
     blueName: text("blue_name").notNull(),
     blueFighterId: text("blue_fighter_id"),
     blueFighterUid: text("blue_fighter_uid"),
     blueImageUrl: text("blue_image_url"),
+    blueRecord: text("blue_record"),
     /** The weight class, as the `division` document names it. */
     division: text("division").notNull(),
     scheduledRounds: integer("scheduled_rounds").notNull(),

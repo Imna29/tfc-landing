@@ -42,6 +42,7 @@ export function corner(name: string, overrides: Partial<CardCorner> = {}): CardC
     fighterId: `fighter-${uid}`,
     fighterUid: uid,
     imageUrl: `https://images.prismic.io/tfc/${uid}.png`,
+    record: "12-3-0",
     ...overrides,
   };
 }

@@ -1,8 +1,10 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
-import { signUp } from "../helpers/accounts";
+import { PREDICTION_MESSAGES } from "../../shared/predictions";
+import { postJson, signUp, signUpAdmin } from "../helpers/accounts";
+import { importTestCard } from "../helpers/cards";
 import { setupTestServer } from "../helpers/server";
-import { createUser } from "../helpers/users";
+import { createUser, fanId } from "../helpers/users";
 
 /**
  * ADR-0008: the marketing site is edge-cached, and anything that reads a
@@ -35,6 +37,36 @@ describe("the cache boundary", async () => {
     const response = await fetch("/api/health");
 
     expect(response.headers.get("cache-control") ?? "").not.toMatch(/max-age=[1-9]/);
+  });
+
+  it("does not tell anything downstream that the card page may be stored", async () => {
+    // A marketing page is the control, and it is the whole point of the pair:
+    // both are anonymous HTML that looks identical to every visitor, both are
+    // covered by the same `/**` rule, and only one of them may be kept.
+    const marketing = await fetch("/contest-rules");
+    const card = await fetch("/predictions");
+
+    expect(marketing.headers.get("cache-control")).toMatch(/max-age=[1-9]/);
+    expect(card.headers.get("cache-control") ?? "").not.toMatch(/max-age=[1-9]/);
+  });
+
+  it("serves the card a fan reads from Postgres, not from the cache in front of it", async () => {
+    // The one page here that is identical for every visitor and still must not
+    // be stored: a card ten minutes stale is a Bout shown open that locked
+    // eight minutes ago, and a Multiplier shown that has since been corrected.
+    // ADR-0008 exempts it for staleness rather than for privacy, which is the
+    // reason easiest to forget.
+    expect(await $fetch<string>("/predictions")).toContain(PREDICTION_MESSAGES.noCard);
+
+    const admin = await signUpAdmin();
+
+    await postJson("/api/admin/seasons", { name: "Season 1" }, admin.cookie);
+    await importTestCard(await fanId(admin.details.email), {
+      scheduledStart: new Date(Date.now() + 2 * 60 * 60 * 1000),
+    });
+
+    // A cached page would still say there is no card.
+    expect(await $fetch<string>("/predictions")).toContain("TFC 12");
   });
 
   it("serves a page that reads a session under one spelling only", async () => {
