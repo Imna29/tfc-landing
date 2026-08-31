@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   automaticLock,
-  isAutomatic,
   LOCK_KIND_LABELS,
   LOCK_KINDS,
   LOCK_MESSAGES,
@@ -52,13 +51,6 @@ describe("when a Bout locks by itself", () => {
 });
 
 describe("how a Bout came to be locked", () => {
-  it("is automatic unless an admin did it", () => {
-    expect(isAutomatic("manual")).toBe(false);
-    expect(isAutomatic("scheduled")).toBe(true);
-    expect(isAutomatic("sweep")).toBe(true);
-    expect(isAutomatic("result")).toBe(true);
-  });
-
   it("says which one it was in words an admin can hand to a fan", () => {
     expect(Object.keys(LOCK_KIND_LABELS).sort()).toEqual([...LOCK_KINDS].sort());
     expect(new Set(Object.values(LOCK_KIND_LABELS)).size).toBe(LOCK_KINDS.length);

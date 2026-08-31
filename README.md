@@ -485,9 +485,11 @@ certainty**, and an admin who forgets to lock one is the expected case, not the
 exceptional one. There are three:
 
 1. **The Bout fought first locks when the card reaches its scheduled start.**
-2. **Entering a result locks that Bout** if it is somehow still open (#14 calls
-   `lockBout` inside the transaction it settles from, which is what keeps
-   grading and locking from ever being half done).
+2. **Entering a result locks that Bout** if it is somehow still open. Result
+   entry itself is #14, so what exists here is the seam: `lockBout` takes the
+   connection to run on, and #14 must call it inside the transaction it settles
+   from, so grading, moving the Coins and closing the Bout can never be half
+   done. Until #14 lands this criterion is only as true as that seam.
 3. **The sweep**: every Bout still open `LOCK_SWEEP_HOURS` after the scheduled
    start — six by default — locks regardless.
 

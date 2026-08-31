@@ -20,7 +20,12 @@
  * There is no unlocking here, and there is nowhere else either: ADR-0006 makes
  * a Lock final, and `a_locked_bout_is_never_reopened` is what holds it.
  */
-import { type BoutLock, type LockKind, SWEEP_AFTER } from "#shared/locks";
+import {
+  type AttributedLockKind,
+  type BoutLock,
+  type CardLockKind,
+  SWEEP_AFTER,
+} from "#shared/locks";
 import { eq, inArray, sql } from "drizzle-orm";
 import type { DatabaseConnection } from "../db/client";
 import { boutLocks, bouts, events, users } from "../db/schema";
@@ -44,9 +49,12 @@ export const BOUT_LOCKS_ARE_APPEND_ONLY = "bout_locks_are_append_only";
  * without a deploy. Read on every call rather than once, because the tests
  * that prove the sweep works cannot wait six hours for it.
  *
- * A misspelled setting throws rather than falling back to the default. A
- * backstop that silently reverted to six hours because somebody typed
- * `LOCK_SWEEP_HOURS="4h"` would be found the night it mattered.
+ * A misspelled setting throws rather than falling back to the default, which
+ * takes the card and every submission with it until somebody fixes the
+ * environment. That is the intended blast radius, and it is the shape
+ * `useDatabase` already refuses a missing `DATABASE_URL` with: a typo is found
+ * in the first minute by whoever deployed it, rather than six hours into a
+ * live card by a backstop that quietly went back to being six hours long.
  */
 export function sweepWindow(): number {
   const setting = process.env.LOCK_SWEEP_HOURS;
@@ -62,10 +70,11 @@ export function sweepWindow(): number {
   return hours * 60 * 60 * 1000;
 }
 
-/** A Bout the game has locked, and the record it left behind. */
+/** A Bout the card locked on its own, and the record it left behind. */
 export interface LockedBout {
   boutId: string;
-  kind: LockKind;
+  kind: CardLockKind;
+  /** The moment it fell due, which is the moment it is recorded at. */
   at: Date;
 }
 
@@ -85,10 +94,16 @@ export interface LockedBout {
  * from — a result entered and a Bout still taking Predictions afterwards is
  * exactly the gap ADR-0006 asks for backstops against, and on a serverless
  * function there is no second connection to reach for anyway (ADR-0010).
+ *
+ * Only the two attributed kinds can be written here, because those are the
+ * only two anybody performs: the clock's own Locks are
+ * {@link applyAutomaticLocks}'s to write, and it dates them at the moment they
+ * fell due rather than at now. The type is what says so, so that
+ * `bout_locks_manual_is_attributed` is a rule this module cannot reach.
  */
 export async function lockBout(
   on: DatabaseConnection,
-  lock: { boutId: string; kind: LockKind; by: string | null },
+  lock: { boutId: string; kind: AttributedLockKind; by: string },
 ): Promise<boolean> {
   const locked = await on.execute<{ bout_id: string }>(sql`
     with locked as (
@@ -137,8 +152,12 @@ export async function applyAutomaticLocks(
 ): Promise<LockedBout[]> {
   const seconds = sweepWindow() / 1000;
 
-  const locked = await on.execute<{ bout_id: string; kind: LockKind; locked_at: Date }>(sql`
+  const locked = await on.execute<{ bout_id: string; kind: CardLockKind; locked_at: Date }>(sql`
     with still_open as (
+      -- Every open Bout in the game rather than one card's, deliberately: the
+      -- backstop a card most needs is the one on the card nobody is looking
+      -- at. There are a dozen Bouts to a card and a handful of cards, so this
+      -- is a small scan on a small table, not a query to be careful of.
       select
         bout.id,
         card.scheduled_start,

@@ -139,7 +139,7 @@ async function importCard(prismicId: string) {
               <button
                 type="button"
                 :disabled="
-                  !season || (card.imported?.started ?? 0) > 0 || importing === card.prismicId
+                  !season || (card.imported?.opened ?? 0) > 0 || importing === card.prismicId
                 "
                 class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-3 disabled:opacity-60"
                 @click="importCard(card.prismicId)"

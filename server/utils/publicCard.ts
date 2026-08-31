@@ -20,25 +20,6 @@ import { bouts, events, outcomes } from "../db/schema";
 import { useDatabase } from "./db";
 import { sweepWindow } from "./locks";
 
-/**
- * How long a card stays the card being shown after its scheduled start: until
- * the sweep behind it has closed everything on it.
- *
- * The upcoming Event is the next one, until it starts — and then it is still
- * the one a fan is watching, with Bouts locking one after another as it
- * progresses (ADR-0006). What ends it is the last backstop: past
- * `sweepWindow()` no Bout on the card can be open, so there is nothing left on
- * it to predict.
- *
- * One number rather than two that happened to agree. A card that stopped being
- * shown before its Bouts stopped taking Predictions would be a card a fan
- * could still submit into and no longer see, which is the worse half of
- * getting this wrong.
- */
-function aCardRunsFor(): number {
-  return sweepWindow();
-}
-
 /** A fight card and everything the game holds against it. */
 export interface UpcomingCard {
   card: FightCard;
@@ -70,7 +51,16 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
       venue: events.venue,
     })
     .from(events)
-    .where(gte(events.scheduledStart, new Date(now.getTime() - aCardRunsFor())))
+    // How long a card stays the card being shown: until the sweep behind it
+    // has closed everything on it. The upcoming Event is the next one until it
+    // starts, and then it is still the one a fan is watching, with Bouts
+    // locking one after another as it progresses (ADR-0006) — what ends it is
+    // the last backstop, because past `sweepWindow()` no Bout on the card can
+    // be open and there is nothing left on it to predict. One number rather
+    // than two that happened to agree: a card that stopped being shown while
+    // its Bouts were still taking Predictions would be a card a fan could
+    // submit into and no longer see.
+    .where(gte(events.scheduledStart, new Date(now.getTime() - sweepWindow())))
     .orderBy(asc(events.scheduledStart))
     .limit(1);
 

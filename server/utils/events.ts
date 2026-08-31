@@ -40,14 +40,14 @@ export interface ImportedEvent {
   /** How many have locked, and take no more Predictions (#12). */
   locked: number;
   /**
-   * How many are no longer closed, which is what refuses a re-import.
+   * How many have been opened at some point, which is what refuses a
+   * re-import.
    *
-   * One Bout that has been opened is enough, whether it is still open or has
-   * since locked: fans hold Coins against that row either way, and replacing
-   * it would leave their Predictions pointing at a fight that no longer exists
-   * (ADR-0001).
+   * One is enough, whether it is still open or has since locked: fans hold
+   * Coins against that row either way, and replacing it would leave their
+   * Predictions pointing at a fight that no longer exists (ADR-0001).
    */
-  started: number;
+  opened: number;
 }
 
 /**
@@ -83,7 +83,7 @@ export function importedEvents(): Promise<ImportedEvent[]> {
         sql<number>`count(distinct ${bouts.id}) filter (where ${bouts.status} = 'locked')`.mapWith(
           Number,
         ),
-      started:
+      opened:
         sql<number>`count(distinct ${bouts.id}) filter (where ${bouts.status} <> 'closed')`.mapWith(
           Number,
         ),

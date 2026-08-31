@@ -23,6 +23,11 @@ export interface ListedCard {
 export default defineEventHandler(async (event) => {
   await requireAdmin(event);
 
+  // The Locks that have fallen due, applied before the counts are read. This
+  // listing is where an admin decides whether a card can still be re-imported
+  // and how far through it is, and both answers are about where its Bouts are.
+  await applyAutomaticLocks();
+
   const season = await currentSeason();
   const imported = await importedEvents();
   const cards = await listCards();

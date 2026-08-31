@@ -52,8 +52,8 @@ export default defineEventHandler(async (event) => {
 
   // A re-import cannot have taken it: a Bout that is not closed is not
   // replaceable (ADR-0001). Answered as a missing Bout anyway rather than as a
-  // success with nothing in it.
-  if (!closed) throw refuse(409, LOCK_MESSAGES.boutNotOnACard);
+  // success with nothing in it, the way opening one does.
+  if (!closed) throw refuse(409, PRICING_MESSAGES.boutNotFound);
 
   return { bout: closed };
 });

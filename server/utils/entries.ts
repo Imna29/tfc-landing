@@ -124,10 +124,10 @@ export type Submission =
  *
  * `now` is passed in rather than read here so that the moment a Lock is judged
  * against is the moment the request was answered — the same decision the card
- * a fan is looking at was rendered from. `sweepAfter` comes the same way and
- * for the same reason: it is configuration (`sweepWindow` in
- * `server/utils/locks.ts`), and reading it twice in one request would be two
- * chances to disagree about when a Bout closed.
+ * a fan is looking at was rendered from. `sweepAfter` comes the same way for a
+ * different reason: it is configuration (`sweepWindow` in
+ * `server/utils/locks.ts`), and this module is easier to reason about, and to
+ * test, for not reading the environment itself.
  */
 export async function priceAnswers(
   answers: readonly PredictionAnswer[],
@@ -195,14 +195,16 @@ export async function priceAnswers(
     // `applyAutomaticLocks` writes those rows at the top of this request, so
     // the second half is a fraction of a second wide — and it is asked anyway,
     // because the Bout this is about is the one being fought right now.
-    const locks = automaticLock(
+    const automatic = automaticLock(
       bout.cardOrder,
       bout.firstOnTheCard,
       bout.scheduledStart.toISOString(),
       within.sweepAfter,
     );
 
-    if (boutState({ status: bout.status, locksAt: locks.at }, within.now.getTime()) !== "open") {
+    if (
+      boutState({ status: bout.status, locksAt: automatic.at }, within.now.getTime()) !== "open"
+    ) {
       return refuse(409, ENTRY_MESSAGES.boutNotOpen);
     }
 

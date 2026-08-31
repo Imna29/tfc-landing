@@ -39,20 +39,26 @@ export const LOCK_KINDS = [
   "result",
 ] as const satisfies readonly LockKind[];
 
-/** The two the clock decides, which is what {@link automaticLock} answers. */
-export type AutomaticLockKind = Extract<LockKind, "scheduled" | "sweep">;
+/**
+ * The two a card performs on itself, which is what {@link automaticLock}
+ * answers with.
+ *
+ * Deliberately not "the automatic ones": a `result` Lock is nobody's decision
+ * to lock that Bout either, and calling this subset automatic would leave the
+ * word meaning two things a hundred lines apart. These two are the ones no
+ * request and no person is behind — only the card reaching a moment.
+ */
+export type CardLockKind = Extract<LockKind, "scheduled" | "sweep">;
 
 /**
- * Whether nobody pressed anything.
+ * The two that happen because somebody did something, and so are recorded
+ * against them.
  *
- * A result-entry Lock counts as automatic even though an admin caused it: what
- * they did was enter a result, and the Bout locking was the game's doing. The
- * distinction the audit log is asked for is "did somebody decide to lock this
- * Bout at this moment", and for three of the four the answer is no.
+ * `bout_locks_manual_is_attributed` says the same thing in SQL, and this is
+ * what stops `lockBout` in `server/utils/locks.ts` writing a Lock that breaks
+ * it: the admin is required by the type rather than discovered as a 500.
  */
-export function isAutomatic(kind: LockKind): boolean {
-  return kind !== "manual";
-}
+export type AttributedLockKind = Extract<LockKind, "manual" | "result">;
 
 /**
  * What each kind is called where an admin reads one.
@@ -88,7 +94,7 @@ export const SWEEP_AFTER = 6 * 60 * 60 * 1000;
 export interface AutomaticLock {
   /** The moment itself, which is what a Lock record is dated with. */
   at: string;
-  kind: AutomaticLockKind;
+  kind: CardLockKind;
 }
 
 /**
@@ -143,8 +149,4 @@ export const LOCK_MESSAGES = {
   notOpen:
     "This Bout is not open for predictions, so there is nothing to lock. Open " +
     "it first — a Bout nobody has opened has taken nothing to stop taking.",
-  boutNotOnACard:
-    "That Bout is not on a card in the game any more. Reload the page: " +
-    "re-importing replaces every Bout, and one may have been replaced since " +
-    "this page was opened.",
 } as const satisfies Record<string, string>;

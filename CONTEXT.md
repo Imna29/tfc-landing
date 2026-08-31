@@ -39,8 +39,13 @@ to arrive.
 The four ways a Bout locks: an admin locks it (**manual**), the card reaches its
 scheduled start with the Bout fought first still open (**scheduled**), the [[sweep]]
 passes (**sweep**), or a result is entered on a Bout still open (**result**). Only the
-first is somebody deciding to lock that Bout at that moment; the other three are
-**automatic**.
+first is somebody deciding to close that Bout at that moment, and the other three are
+**automatic** — a result Lock included, because what the admin decided to do was enter a
+result.
+
+Two of them are recorded against the admin whose action caused them, manual and result;
+the two the card performs on its own are recorded against nobody, because nobody
+performed them.
 
 ### Sweep
 

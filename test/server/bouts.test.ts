@@ -12,7 +12,13 @@ import {
 import { PRICING_MESSAGES } from "../../shared/pricing";
 import type { CardBout } from "../../server/utils/cardImport";
 import type { ImportedEvent } from "../../server/utils/events";
-import { applyAutomaticLocks, lockBout } from "../../server/utils/locks";
+import {
+  applyAutomaticLocks,
+  A_LOCKED_BOUT_IS_NEVER_REOPENED,
+  BOUT_LOCKS_ARE_APPEND_ONLY,
+  lockBout,
+  LOCKED_BOUTS_ARE_RECORDED,
+} from "../../server/utils/locks";
 import type { CardToPrice } from "../../server/utils/pricing";
 import { postJson, signUpAdmin } from "../helpers/accounts";
 import { boutOutcomes, cardBout, corner, importedBouts, importTestCard } from "../helpers/cards";
@@ -546,11 +552,13 @@ describe("a fight card in the game", async () => {
 
       process.env.LOCK_SWEEP_HOURS = "0.5";
 
-      try {
-        await applyAutomaticLocks(new Date(), testDatabase());
-      } finally {
+      const locked = await applyAutomaticLocks(new Date(), testDatabase()).finally(() => {
         delete process.env.LOCK_SWEEP_HOURS;
-      }
+      });
+
+      // Both: the card started forty minutes ago, so the opener was due at the
+      // start and the headliner thirty minutes after it.
+      expect(locked.map((bout) => bout.kind).sort()).toEqual(["scheduled", "sweep"]);
 
       expect((await asAdminSeesIt(eventId, cookie))[1]).toMatchObject({
         status: "locked",
@@ -561,12 +569,14 @@ describe("a fight card in the game", async () => {
       });
     });
 
-    it("locks a Bout inside the transaction that enters its result", async () => {
-      // #14 settles a Bout by grading every Entry on it and moving Coins, all
-      // in one transaction. The Lock belongs in that transaction: a result
-      // entered and the Bout still taking Predictions afterwards is the gap
-      // the backstops exist for, and it would be a gap somebody could commit
-      // Coins into knowing the answer.
+    it("locks a Bout from inside a transaction, which is how a result will", async () => {
+      // Nothing enters a result yet — that is #14 — so this is the seam and
+      // not the whole criterion. What it proves is the part #12 owes: a Lock
+      // can be taken inside somebody else's transaction, so that #14 can grade
+      // every Entry, move the Coins and close the Bout together or not at all.
+      // A result entered with the Bout still taking Predictions is the gap the
+      // backstops exist for, and one somebody could commit Coins into knowing
+      // the answer.
       const { cookie, details, eventId, id } = await liveCard(120, twoBouts);
       const [opener] = await asAdminSeesIt(eventId, cookie);
 
@@ -609,7 +619,7 @@ describe("a fight card in the game", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(reopened).toMatch(/a_locked_bout_is_never_reopened/);
+      expect(reopened).toContain(A_LOCKED_BOUT_IS_NEVER_REOPENED);
     });
 
     it("refuses a Lock nobody recorded, even written by hand", async () => {
@@ -626,7 +636,7 @@ describe("a fight card in the game", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(unrecorded).toMatch(/locked_bouts_are_recorded/);
+      expect(unrecorded).toContain(LOCKED_BOUTS_ARE_RECORDED);
     });
 
     it("refuses a record of a Lock that did not happen", async () => {
@@ -640,7 +650,7 @@ describe("a fight card in the game", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(invented).toMatch(/locked_bouts_are_recorded/);
+      expect(invented).toContain(LOCKED_BOUTS_ARE_RECORDED);
     });
 
     it("refuses to rewrite the log afterwards", async () => {
@@ -658,7 +668,7 @@ describe("a fight card in the game", async () => {
           (refusal: Error) => `${refusal.message} ${refusal.cause}`,
         );
 
-      expect(erased).toMatch(/bout_locks_are_append_only/);
+      expect(erased).toContain(BOUT_LOCKS_ARE_APPEND_ONLY);
     });
 
     it("shows an admin how each Bout came to be locked, and when", async () => {
@@ -705,7 +715,7 @@ describe("a fight card in the game", async () => {
         unpriced: 2,
         open: 0,
         locked: 0,
-        started: 0,
+        opened: 0,
       });
 
       const card = await cardToPrice(imported.id, signedIn.cookie);
@@ -723,7 +733,7 @@ describe("a fight card in the game", async () => {
 
       // A locked Bout is no longer open, and still shuts the door on a
       // re-import: fans hold Coins against it whatever it is doing now.
-      expect(fought[0]?.imported).toMatchObject({ open: 0, locked: 1, started: 1 });
+      expect(fought[0]?.imported).toMatchObject({ open: 0, locked: 1, opened: 1 });
     });
   });
 

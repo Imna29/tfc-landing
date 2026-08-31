@@ -609,10 +609,14 @@ export const outcomes = pgTable(
  * button, or the one who entered the result that locked it behind them. It is
  * null for the two Locks the clock performs, and `bout_locks_manual_is_attributed`
  * holds the two in step — a Lock somebody caused is attributed to them, and
- * one nobody caused is attributed to nobody. Which of the four counted as
- * automatic is `isAutomatic` in `shared/locks.ts`, and is a different question:
- * a result-entry Lock has an admin against it and was still nobody's decision
- * to lock that Bout at that moment.
+ * one nobody caused is attributed to nobody. `AttributedLockKind` in
+ * `shared/locks.ts` is the same rule in TypeScript, so the only writer that
+ * can reach this table cannot break it.
+ *
+ * Attribution is not the same question as whether anybody decided to lock the
+ * Bout: a `result` Lock has an admin against it and was still nobody's
+ * decision to close that fight at that moment. What they decided to do was
+ * enter a result.
  *
  * The foreign key deliberately does not cascade, like the ones on
  * {@link predictions}: a Bout that has locked is never deleted — the trigger
