@@ -90,6 +90,25 @@ export const LOCK_KIND_LABELS = {
  */
 export const SWEEP_AFTER = 6 * 60 * 60 * 1000;
 
+/**
+ * Where a card starts: the smallest card order on it, which is the Bout fought
+ * first.
+ *
+ * Said here because three readers ask it and they must never disagree — the
+ * card a fan is counted down on (`locksAt` in `shared/predictions.ts`), the
+ * console working out which Lock each Bout is waiting on, and, in SQL because
+ * it has to be, `firstOnTheCard` in `server/utils/locks.ts`.
+ *
+ * Not the number 1: a Bout dropped from a lineup leaves the place it had.
+ *
+ * A card is in hand wherever this is asked, so a card with no Bouts is not a
+ * case worth answering — `Math.min()` of nothing is `Infinity`, and a card with
+ * no Bouts has nothing to lock or to count down either.
+ */
+export function firstFought(bouts: readonly { cardOrder: number }[]): number {
+  return Math.min(...bouts.map((bout) => bout.cardOrder));
+}
+
 /** When a Bout locks with nobody doing anything, and what that Lock is. */
 export interface AutomaticLock {
   /** The moment itself, which is what a Lock record is dated with. */

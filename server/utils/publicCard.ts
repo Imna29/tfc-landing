@@ -15,9 +15,10 @@
 import type { FightCard, FightCardBout } from "#shared/fightCard";
 import { locksAt, type BoutPredictions, type CardPredictions } from "#shared/predictions";
 import { inAskedOrder } from "#shared/pricing";
-import { asc, eq, gte } from "drizzle-orm";
-import { bouts, events, outcomes } from "../db/schema";
+import { asc, eq } from "drizzle-orm";
+import { bouts, outcomes } from "../db/schema";
 import { useDatabase } from "./db";
+import { cardBeingFought } from "./events";
 import { sweepWindow } from "./locks";
 
 /** A fight card and everything the game holds against it. */
@@ -43,26 +44,12 @@ interface Shown {
  * moment they were told it are one decision, made once per request.
  */
 export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard | null> {
-  const [event] = await useDatabase()
-    .select({
-      id: events.id,
-      title: events.title,
-      scheduledStart: events.scheduledStart,
-      venue: events.venue,
-    })
-    .from(events)
-    // How long a card stays the card being shown: until the sweep behind it
-    // has closed everything on it. The upcoming Event is the next one until it
-    // starts, and then it is still the one a fan is watching, with Bouts
-    // locking one after another as it progresses (ADR-0006) — what ends it is
-    // the last backstop, because past `sweepWindow()` no Bout on the card can
-    // be open and there is nothing left on it to predict. One number rather
-    // than two that happened to agree: a card that stopped being shown while
-    // its Bouts were still taking Predictions would be a card a fan could
-    // submit into and no longer see.
-    .where(gte(events.scheduledStart, new Date(now.getTime() - sweepWindow())))
-    .orderBy(asc(events.scheduledStart))
-    .limit(1);
+  // Which card that is is `cardBeingFought`'s to say, and it says it for the
+  // live lock console too: the next Event until it starts, and then the one
+  // being fought until the backstop behind it has closed everything on it. A
+  // card that stopped being shown while its Bouts were still taking
+  // Predictions would be a card a fan could submit into and no longer see.
+  const event = await cardBeingFought({ now, sweepAfter: sweepWindow() });
 
   if (!event) return null;
 

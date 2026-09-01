@@ -5,10 +5,10 @@ import type { Fan } from "#shared/fan";
  * The index of the admin area.
  *
  * Deliberately plain. There is no separate admin application and no design
- * pass on this side of the site — the live lock console (#20) is the one
- * screen that gets one, because it is the one used cageside on a phone. What
- * this page is for is being the place an admin starts from, listing the
- * capabilities as they get built.
+ * pass on this side of the site — the live lock console at `/admin/console` is
+ * the one screen that gets one, because it is the one used cageside on a
+ * phone. What this page is for is being the place an admin starts from,
+ * listing the capabilities as they get built.
  *
  * Nothing here is what keeps a fan out: `server/middleware/admin.ts` refuses
  * the request before this page is rendered at all.
@@ -41,6 +41,14 @@ if (!admin.value) throw noAnswerFrom(error.value);
  * locking Bouts, entering results, running Seasons.
  */
 const capabilities: { title: string; description: string; to: string }[] = [
+  {
+    title: "Live lock console",
+    description:
+      "The card being fought, in the order it is fought, with one control to lock the next Bout " +
+      "on it. The screen to run an evening from, on a phone, cageside. First in this list " +
+      "because it is the one reached in a hurry.",
+    to: "/admin/console",
+  },
   {
     title: "Events",
     description:

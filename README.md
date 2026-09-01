@@ -237,8 +237,8 @@ runs out of them.
 
 Everything an admin can do lives in the same app, at `/admin` and under
 `/api/admin` — one deliberately plain area, no separate admin application and no
-design pass. The live lock console (#20) is the one screen that gets one,
-because it is the only one used cageside on a phone.
+design pass. The live lock console at `/admin/console` is the one screen that
+gets one, because it is the only one used cageside on a phone.
 
 `server/middleware/admin.ts` refuses every request under those two prefixes
 before any handler runs: 401 for a signed-out visitor, 403 for a signed-in fan.
@@ -512,8 +512,8 @@ things make that honest rather than a fudge:
   sweep is what makes the state a fact and the audit log an answer.
 
 An admin locks a Bout with `POST /api/admin/bouts/[id]/lock`, from
-`/admin/events/[id]` today and from the cageside console when #20 lands. It
-names a Bout, which is both things ADR-0006 asks for: advancing the Lock as a
+`/admin/events/[id]` at a desk and from the cageside console below. It names a
+Bout, which is both things ADR-0006 asks for: advancing the Lock as a
 card progresses is locking the next Bout on it, and closing one early — a
 fighter withdrew — is locking that Bout and leaving the card alone. It is also
 why a double-tap in a dark arena is safe: the second press asks about the same
@@ -531,6 +531,72 @@ transaction leaving a Bout locked with no record, or a record with no Lock, and
 `bout_locks_are_append_only` refuses rewriting one afterwards for the reason
 ADR-0003 gives about the Coin ledger. An admin reads it down the card at
 `/admin/events/[id]`, beside the fight it belongs to.
+
+### The live lock console
+
+`/admin/console` is the screen an admin actually uses cageside: the card being
+fought, in the order it is being fought, and one control that locks the next
+Bout on it. It is the only part of the admin area with a design pass, and
+ADR-0011 says why — everything else is a form somebody sits down in front of
+before a card, and this is used on a phone, one-handed, in a dark arena, by
+somebody who is also watching the fights. Nothing here makes locking *possible*;
+all of it already worked. It makes locking quick.
+
+**There is no card in the URL.** `cardBeingFought` in `server/utils/events.ts`
+says which card the game is on — the next Event until it starts, then the one
+being fought until the backstop behind it has closed everything on it — and that
+is the same answer the public card is built from, so the card a fan is
+predicting on and the card an admin is locking can never be two different
+Events. A card an admin has to go and find first is a card they are finding
+while the next Bout walks out.
+
+Four decisions in the page are about a thumb in the dark:
+
+- **One control, and it names one Bout.** `nextToLock` in `shared/console.ts`
+  decides which — the open Bout fought first — and it is never a choice. A
+  screen of buttons, one per fight, is a screen where the wrong one gets
+  pressed. A Bout nobody opened is passed over, and so is one whose own
+  automatic moment has passed but whose Lock nothing has written down yet.
+- **The control is at the bottom of the screen and the height of a thumb**, on a
+  page whose layout is `false` so that the site header and footer do not take a
+  third of a phone screen — and so that the footer's Prismic round trip is not
+  on an arena connection. The card scrolls above it.
+- **It rests for four seconds after every press**, showing a statement where the
+  button was and no button at all. The control moves to the next fight the
+  moment a Lock lands, so an accidental double-tap would otherwise close two
+  Bouts, the second of them a fight nobody has finished. The route already
+  refuses a second press on the *same* Bout, because the control names a Bout by
+  id; the rest is what stops a second press reaching the *next* one. A refused
+  press rests too — every refusal it can meet is the card having moved
+  underneath it, which moves the control just the same.
+- **Before the card has started, it asks twice.** `hasStarted` in
+  `shared/console.ts` arms it. During the evening this screen is for, closing
+  the Bout being fought is one press; before the scheduled start the same
+  control would close a fight days out from being fought, on the one screen
+  built to be pressed without looking. An early Lock is still an admin's to make
+  cageside — a card running ahead of schedule is exactly the override ADR-0006
+  gives them — it just costs a second press. Where an early Lock is the whole
+  point rather than a hazard, a fighter withdrawing a week out, it is one press
+  at the desk on `/admin/events/[id]`.
+
+The console re-reads itself every fifteen seconds as well as after every press,
+because an admin is not the only thing that locks Bouts: the backstops fall due
+while nobody is looking, and a second admin may be locking from a second phone.
+Each read applies the Locks that have fallen due, so opening the console is also
+what closes the Bout a sweep was waiting on. Every Bout that has locked says
+how — "Locked automatically when the card started", or an admin's username —
+which is `lockLine` in `app/utils/locks.ts`, the same line `/admin/events/[id]`
+shows, on the screen where the locking is happening. A Lock that has fallen due
+with nothing written down yet says what it is about to be recorded as, rather
+than saying a Bout has locked and refusing to say why at first bell. The countdown in the header is the sweep: how long until everything
+still open locks regardless.
+
+The page is `app/pages/admin/console.vue`, it reads
+`GET /api/admin/console`, and it locks through the same
+`POST /api/admin/bouts/[id]/lock` every other screen uses. Once the sweep behind
+a card has passed, the card leaves the console: nothing on it can be open, so
+there is nothing left to lock, and a Lock is read back afterwards at
+`/admin/events/[id]` beside the fight it belongs to.
 
 ### The card a fan reads
 

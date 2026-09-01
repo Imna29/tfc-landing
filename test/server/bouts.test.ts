@@ -1,6 +1,7 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { CONSOLE_MESSAGES, nextToLock, type LockConsole } from "../../shared/console";
 import type { FightCard } from "../../shared/fightCard";
 import { LOCK_KIND_LABELS, LOCK_MESSAGES, SWEEP_AFTER } from "../../shared/locks";
 import {
@@ -698,6 +699,238 @@ describe("a fight card in the game", async () => {
 
       expect(predictions?.bouts[1]?.status).toBe("locked");
       expect(await $fetch<string>("/predictions")).toContain(BOUT_STATE_LABELS.locked);
+    });
+
+    /**
+     * The screen an admin actually uses cageside: the card being fought, in the
+     * order it is being fought, with one control on it.
+     *
+     * Here rather than in a file of its own because it is the same card
+     * arranged the same way — and because it is the same capability as the
+     * cases above, seen from the phone rather than from the desk. What the
+     * console adds to `POST /api/admin/bouts/[id]/lock` is knowing which Bout
+     * that is without an admin reading a form to work it out.
+     */
+    describe("the live lock console", () => {
+      /**
+       * The console as the page asks for it, or nothing when no card is being
+       * fought. Typed from what the route answers with, for the same reason
+       * {@link cardToPrice} is.
+       */
+      function liveConsole(cookie: string) {
+        return $fetch<{ card: LockConsole | null }>("/api/admin/console", { headers: { cookie } });
+      }
+
+      /** Three fights with three different pairs of names, so a control that
+       * names one is unmistakably about it. */
+      const threeBouts = [
+        cardBout({ cardOrder: 1 }),
+        cardBout({
+          cardOrder: 2,
+          red: corner("Zurab Kapanadze"),
+          blue: corner("Irakli Nadiradze"),
+        }),
+        cardBout({
+          cardOrder: 3,
+          mainEvent: true,
+          red: corner("Davit Chkheidze"),
+          blue: corner("Sandro Gogia"),
+        }),
+      ];
+
+      it("lists the card being fought in card order, with where each Bout has got to", async () => {
+        // A minute past the scheduled start: the opener has locked by itself,
+        // nobody having pressed anything, and the rest of the card is what the
+        // admin is about to advance the Lock through.
+        const { cookie, eventId, scheduledStart } = await liveCard(-1, threeBouts);
+
+        const { card } = await liveConsole(cookie);
+
+        expect(card).toMatchObject({
+          eventId,
+          title: "TFC 12",
+          venue: "Tbilisi Sports Palace",
+          scheduledStart: scheduledStart.toISOString(),
+        });
+        expect(card?.bouts.map((bout) => [bout.cardOrder, bout.status])).toEqual([
+          [1, "locked"],
+          [2, "open"],
+          [3, "open"],
+        ]);
+        expect(card?.bouts[2]).toMatchObject({
+          redName: "Davit Chkheidze",
+          blueName: "Sandro Gogia",
+          mainEvent: true,
+        });
+      });
+
+      it("carries what the one control is decided from, and moves it down the card", async () => {
+        const { cookie, eventId } = await liveCard(-1, threeBouts);
+
+        const before = await liveConsole(cookie);
+
+        expect(nextToLock(before.card!.bouts, Date.parse(before.card!.answeredAt))).toMatchObject({
+          cardOrder: 2,
+          redName: "Zurab Kapanadze",
+        });
+
+        const [, second] = await asAdminSeesIt(eventId, cookie);
+
+        await lock(second!.id, cookie);
+
+        const after = await liveConsole(cookie);
+
+        expect(nextToLock(after.card!.bouts, Date.parse(after.card!.answeredAt))).toMatchObject({
+          cardOrder: 3,
+        });
+      });
+
+      it("says which Bouts locked themselves, and which an admin locked", async () => {
+        const { cookie, details, eventId, scheduledStart } = await liveCard(-1, threeBouts);
+        const [, second] = await asAdminSeesIt(eventId, cookie);
+
+        await lock(second!.id, cookie);
+
+        const { card } = await liveConsole(cookie);
+
+        // The audit log where the locking happens: an admin who looked away
+        // for two fights reads what closed behind them and what closed it.
+        expect(card?.bouts[0]?.lock).toEqual({
+          kind: "scheduled",
+          at: scheduledStart.toISOString(),
+          by: null,
+        });
+        expect(card?.bouts[1]?.lock).toMatchObject({ kind: "manual", by: details.username });
+        expect(card?.bouts[2]?.lock).toBe(null);
+      });
+
+      it("carries the moment everything still open locks regardless", async () => {
+        const { cookie, scheduledStart } = await liveCard(-1, threeBouts);
+        const sweep = new Date(scheduledStart.getTime() + SWEEP_AFTER).toISOString();
+
+        const { card } = await liveConsole(cookie);
+
+        expect(card?.sweepAt).toBe(sweep);
+
+        // And each Bout's own moment with it: the opener locks when the card
+        // starts, and everything behind it at the backstop.
+        expect(card?.bouts.map((bout) => bout.locksAt)).toEqual([
+          scheduledStart.toISOString(),
+          sweep,
+          sweep,
+        ]);
+      });
+
+      it("says there is no card being fought rather than showing an empty one", async () => {
+        const { cookie } = await admin();
+
+        expect((await liveConsole(cookie)).card).toBe(null);
+      });
+
+      it("leaves a card behind once the backstop has closed everything on it", async () => {
+        // Seven hours past the start, which is past the six the window
+        // defaults to: every Bout on it has locked and none of them can ever
+        // reopen, so there is nothing left on that card for this screen to do.
+        const { cookie } = await liveCard(-7 * 60, threeBouts);
+
+        expect((await liveConsole(cookie)).card).toBe(null);
+      });
+
+      /** The console itself, fetched the way an admin's phone gets it. */
+      function consolePage(cookie: string) {
+        return $fetch<string>("/admin/console", { headers: { cookie } });
+      }
+
+      it("puts one control on the screen, about the fight being locked next", async () => {
+        const { cookie } = await liveCard(-1, threeBouts);
+
+        const page = await consolePage(cookie);
+
+        // Unambiguous is the acceptance criterion, and ambiguity in a dark
+        // arena is an admin locking the wrong fight. The opener has locked and
+        // the main event is two fights away; only Bout 2 is offered.
+        expect(page).toContain(CONSOLE_MESSAGES.lock(2));
+        expect(page).not.toContain(CONSOLE_MESSAGES.lock(1));
+        expect(page).not.toContain(CONSOLE_MESSAGES.lock(3));
+
+        // Named by the fight rather than only by its place, because the place
+        // is what an admin is least sure of between two rounds.
+        expect(page).toContain("Zurab Kapanadze");
+        expect(page).toContain("Irakli Nadiradze");
+      });
+
+      it("lists every Bout on the card, in the order they are fought", async () => {
+        const { cookie } = await liveCard(-1, threeBouts);
+
+        const page = await consolePage(cookie);
+        // The places as the list writes them, `>Bout 2<`, which is not how the
+        // control at the bottom writes the one it is about: `>Lock Bout 2<`.
+        const places = [...page.matchAll(/>Bout (\d)</g)].map((found) => found[1]);
+
+        expect(places).toEqual(["1", "2", "3"]);
+        expect(page).toContain("Davit Chkheidze");
+      });
+
+      it("says on the page which Bouts locked themselves, and which an admin did", async () => {
+        const { cookie, details, eventId } = await liveCard(-1, threeBouts);
+        const [, second] = await asAdminSeesIt(eventId, cookie);
+
+        await lock(second!.id, cookie);
+
+        const page = await consolePage(cookie);
+
+        expect(page).toContain(LOCK_KIND_LABELS.scheduled);
+        expect(page).toContain(LOCK_KIND_LABELS.manual);
+        expect(page).toContain(details.username);
+      });
+
+      it("shows how long is left before the backstop closes the card", async () => {
+        const { cookie } = await liveCard(-1, threeBouts);
+
+        const page = await consolePage(cookie);
+
+        expect(page).toContain(CONSOLE_MESSAGES.sweep);
+        // Six hours less the minute the card has been running, as a clock.
+        expect(page).toMatch(/5:5\d:\d\d/);
+      });
+
+      it("asks twice before the card has started, where a Lock is not a reflex", async () => {
+        // The console is armed by the card rather than by an admin remembering
+        // which of two screens they are looking at. Two hours out, the same
+        // control is offering to close a fight nobody is fighting — and a Lock
+        // is never taken back.
+        const { cookie } = await liveCard(120, threeBouts);
+
+        const page = await consolePage(cookie);
+
+        expect(page).toContain(CONSOLE_MESSAGES.lockEarly(1));
+        expect(page).toContain(CONSOLE_MESSAGES.early);
+      });
+
+      it("says there is no card being fought rather than showing an empty console", async () => {
+        const { cookie } = await admin();
+
+        expect(await consolePage(cookie)).toContain(CONSOLE_MESSAGES.noCard);
+      });
+
+      it("says so, rather than offering a control, once the whole card has locked", async () => {
+        const { cookie, eventId } = await liveCard(-1, threeBouts);
+        const [, second, headliner] = await asAdminSeesIt(eventId, cookie);
+
+        await lock(second!.id, cookie);
+        await lock(headliner!.id, cookie);
+
+        const page = await consolePage(cookie);
+
+        expect(page).toContain(CONSOLE_MESSAGES.everythingLocked);
+        expect(page).not.toContain(CONSOLE_MESSAGES.lock(3));
+      });
+
+      it("is one tap from the admin index, since it is reached mid-event", async () => {
+        const { cookie } = await admin();
+
+        expect(await $fetch<string>("/admin", { headers: { cookie } })).toContain("/admin/console");
+      });
     });
   });
 

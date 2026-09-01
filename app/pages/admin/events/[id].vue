@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { isFinish } from "#shared/entries";
 import type { Corner } from "#shared/events";
-import { LOCK_KIND_LABELS } from "#shared/locks";
 import { MULTIPLIER, outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
 import {
   boutEndingLabel,
@@ -35,10 +34,11 @@ import {
  * one after another while the card is fought, and keeping the later ones open
  * is the engagement case for the whole product.
  *
- * This is not the screen an admin locks from cageside — #20 builds that, on a
- * phone, one-handed, in the dark. What this is is where the Locks can be read
- * back afterwards: each Bout says how it came to be locked and when, which is
- * the answer to a fan who thinks theirs closed too early.
+ * This is not the screen an admin locks from cageside: `/admin/console` is
+ * that, on a phone, one-handed, in the dark. What this is is where the Locks
+ * are read back afterwards, in `lockLine`'s words — each Bout says how it came
+ * to be locked and when, which is the answer to a fan who thinks theirs closed
+ * too early.
  *
  * The result form is the most consequential control in the product, and it is
  * deliberately the plainest thing on the page. Entering a result grades every
@@ -148,24 +148,6 @@ function stateOf(bout: (typeof bouts.value)[number]): string {
   return bout.priced ? "Priced, not yet open" : "Nobody has priced this Bout";
 }
 
-/**
- * How a Bout came to be locked, in one line: what did it, when, and — where
- * somebody's action did it — who.
- *
- * The Lock audit log, read where the fight is. The moment is the one the Bout
- * stopped taking Predictions at, which is the only moment a fan asking about
- * it cares about. A Lock the clock performed names nobody, because naming the
- * admin who happened to be signed in would put a person against the clock's
- * work.
- */
-function lockOf(bout: (typeof bouts.value)[number]): string | null {
-  const lock = bout.lock;
-
-  if (!lock) return null;
-
-  return [LOCK_KIND_LABELS[lock.kind], inTbilisi(lock.at), lock.by].filter(Boolean).join(" · ");
-}
-
 async function priceBout(bout: (typeof bouts.value)[number]) {
   working.value = bout.id;
   problem.value = "";
@@ -269,7 +251,7 @@ function settledAs(bout: (typeof bouts.value)[number]): string | null {
  * One correction in a line: what the Bout used to be recorded as, who changed
  * it, and when.
  *
- * The same shape `lockOf` writes a Lock in, because they are read for the same
+ * The same shape `lockLine` writes a Lock in, because they are read for the same
  * reason — a fan is unhappy about one fight, and somebody has to be able to
  * say what happened to it.
  */
@@ -466,7 +448,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
         </header>
 
         <p class="mt-2 text-sm font-bold">{{ stateOf(bout) }}</p>
-        <p v-if="lockOf(bout)" class="mt-1 text-sm text-on-surface/70">{{ lockOf(bout) }}</p>
+        <p v-if="bout.lock" class="mt-1 text-sm text-on-surface/70">{{ lockLine(bout.lock) }}</p>
         <p v-if="settledAs(bout)" class="mt-1 text-sm text-on-surface/70">
           Result: {{ settledAs(bout) }}
         </p>

@@ -58,6 +58,11 @@ describe("routes that read a session", () => {
     "/profile/entries",
     "/admin",
     "/admin/events/tfc-12",
+    // The console an admin runs a live card from, which is as personalised as
+    // the rest of the admin area and staler faster than any of it: a copy ten
+    // minutes old is a Bout shown open that locked eight minutes ago.
+    "/admin/console",
+    "/api/admin/console",
     "/leaderboard",
     // What a Season finished as is as personalised as the leaderboard: a fan
     // reads the place they came, however far down it they were.

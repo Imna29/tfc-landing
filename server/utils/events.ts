@@ -12,10 +12,11 @@
  * looks imported, and the Bouts that did not land are fights fans cannot
  * predict on with no sign that anything is missing.
  */
-import { desc, eq, sql } from "drizzle-orm";
+import { asc, desc, eq, gte, sql } from "drizzle-orm";
 import { bouts, events, outcomes, seasons } from "../db/schema";
 import type { Card } from "./cardImport";
 import { useDatabase } from "./db";
+import type { AsAt } from "./locks";
 import { seedOutcomes } from "./pricing";
 
 /** The name of the trigger that refuses to replace a Bout fans are on. */
@@ -94,6 +95,50 @@ export function importedEvents(): Promise<ImportedEvent[]> {
     .leftJoin(outcomes, eq(outcomes.boutId, bouts.id))
     .groupBy(events.id, seasons.name)
     .orderBy(desc(events.scheduledStart));
+}
+
+/** An Event without its Bouts: the card itself, as the game reads one. */
+export interface CardBeingFought {
+  id: string;
+  title: string;
+  scheduledStart: Date;
+  venue: string;
+}
+
+/**
+ * The card the game is on: the next Event until it starts, and then the one
+ * being fought until nothing on it can be open any more.
+ *
+ * One rule with two readers, and they must never disagree. The public card
+ * shows this Event and the live lock console (#20) runs it, so a card that
+ * stopped being one before it stopped being the other would be a card a fan
+ * could submit into and an admin could no longer lock, or the reverse.
+ *
+ * What ends it is the last backstop rather than the scheduled start, because a
+ * card is at its most interesting after it has begun: Bouts lock one after
+ * another while it is fought (ADR-0006), and only past `sweepAfter` can no Bout
+ * on it be open at all. From that moment there is nothing on it left to predict
+ * and nothing left to lock.
+ *
+ * Takes the moment and the window together, as `AsAt` in
+ * `server/utils/locks.ts` requires of everything that works out where a Bout
+ * is: one moment for a whole request, and a window that is configuration read
+ * at the edge rather than in here.
+ */
+export async function cardBeingFought({ now, sweepAfter }: AsAt): Promise<CardBeingFought | null> {
+  const [event] = await useDatabase()
+    .select({
+      id: events.id,
+      title: events.title,
+      scheduledStart: events.scheduledStart,
+      venue: events.venue,
+    })
+    .from(events)
+    .where(gte(events.scheduledStart, new Date(now.getTime() - sweepAfter)))
+    .orderBy(asc(events.scheduledStart))
+    .limit(1);
+
+  return event ?? null;
 }
 
 /** What Postgres already holds for one Prismic card. */

@@ -23,6 +23,12 @@ One TFC fight card: a set of Bouts on a single date at a single venue. Authored 
 and [[import]]ed into Postgres by an admin, which is what the game runs on from then on.
 Belongs to exactly one Season. See [[adr-0001]].
 
+One Event at a time is **the card being fought**: the next one until it starts, and then
+that same one until the [[sweep]] behind it has closed every Bout on it. It is the card a
+fan is offered and the card an admin runs from the live lock console, and it is one answer
+rather than two that agree — a card that stopped being the first before it stopped being
+the second would be a card a fan could commit Coins to and nobody could lock.
+
 ### Lock
 
 The moment a Bout stops accepting Predictions. Bouts lock individually: the first

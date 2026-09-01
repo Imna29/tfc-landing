@@ -84,6 +84,16 @@ describe("the admin area", async () => {
       // competition and freeze the standings every Prize is decided on.
       expect((await postJson(`/api/admin/seasons/${anyId}/close`, {}, cookie)).status).toBe(403);
       expect((await postJson(`/api/admin/seasons/${anyId}/close`, {})).status).toBe(401);
+
+      // The live lock console is #20's, and what it shows lives in
+      // `test/server/bouts.test.ts`. It is the one admin screen with a design
+      // pass and the one reached from a phone, neither of which changes who
+      // may reach it: it lists the card being fought and the state of every
+      // Bout on it, which is the card a fan is predicting against.
+      expect((await fetch("/api/admin/console", { headers: { cookie } })).status).toBe(403);
+      expect((await fetch("/api/admin/console")).status).toBe(401);
+      expect((await fetch("/admin/console", { headers: { cookie } })).status).toBe(403);
+      expect((await fetch("/admin/console")).status).toBe(401);
     });
 
     it("refuses a fan an admin page", async () => {

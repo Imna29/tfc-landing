@@ -13,6 +13,7 @@
  */
 import type { BoutStatus } from "./events";
 import type { FightCard, FightCardBout } from "./fightCard";
+import { firstFought } from "./locks";
 import type { OutcomeAnswer } from "./pricing";
 
 /**
@@ -74,9 +75,7 @@ export function boutState(
  * of the card gets is `PREDICTION_MESSAGES.locksWhenReached`.
  */
 export function locksAt(bout: FightCardBout, card: FightCard): string | null {
-  const first = Math.min(...card.bouts.map((one) => one.cardOrder));
-
-  return bout.cardOrder === first ? card.scheduledStart : null;
+  return bout.cardOrder === firstFought(card.bouts) ? card.scheduledStart : null;
 }
 
 /** One answer a fan can give, and what it pays. */
