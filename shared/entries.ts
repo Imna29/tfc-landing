@@ -101,6 +101,20 @@ export const COMBINED_MULTIPLIER_CAP = 100;
  */
 export type EntryStatus = "open" | "won" | "lost" | "cancelled" | "refunded";
 
+/**
+ * The five, in the order a fan is offered them as a filter on their history.
+ *
+ * Open first because it is the one a fan is looking for while a card is being
+ * fought, then the two a Bout decided, then the two that returned the Amount.
+ */
+export const ENTRY_STATUSES = [
+  "open",
+  "won",
+  "lost",
+  "cancelled",
+  "refunded",
+] as const satisfies readonly EntryStatus[];
+
 /** What each status is called wherever a fan reads one of their Entries. */
 export const ENTRY_STATUS_LABELS = {
   open: "Open",
@@ -109,6 +123,11 @@ export const ENTRY_STATUS_LABELS = {
   cancelled: "Cancelled",
   refunded: "Refunded",
 } as const satisfies Record<EntryStatus, string>;
+
+/** Whether this is one of the five places an Entry can be. */
+export function isEntryStatus(value: unknown): value is EntryStatus {
+  return ENTRY_STATUSES.includes(value as EntryStatus);
+}
 
 /**
  * A fan's answer to one Bout, as they are building it.
@@ -189,8 +208,8 @@ export interface PredictedBout {
  * did. It is what `settledPrice` in `shared/results.ts` reprices the answer
  * with, so the ×1.0 a No Result contributes is the number on the screen.
  *
- * This is not the graded history — that is #17's, goes back through every
- * Season, and says of each Prediction whether it landed.
+ * This is not the graded history — that is `shared/history.ts`, which goes
+ * back through every Season and says of each Prediction whether it landed.
  */
 export interface CommittedPrediction extends DraftPrediction, PredictedBout {
   /** How its Bout ended, or null while that Bout has not settled. */

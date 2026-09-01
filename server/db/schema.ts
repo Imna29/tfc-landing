@@ -1014,9 +1014,17 @@ export const entries = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    // Every Entry a fan has in a Season, which is the profile history (#17)
-    // and what settlement re-reads.
+    // Every Entry a fan holds in one Season: the listing beside the card
+    // (`committedEntries`), and what settlement re-reads.
     index("entries_by_fan").on(table.seasonId, table.userId),
+    // Every Entry a fan has ever committed, newest first, which is the profile
+    // history (`entryHistory` in `server/utils/history.ts`). A second index
+    // rather than a reordering of the one above, because they are read by two
+    // different questions: that one always knows the Season, and this one is
+    // for the page that deliberately does not narrow to it — history is kept
+    // forever, so the query behind it has to stay affordable as the Seasons
+    // pile up rather than only while a fan has played one.
+    index("entries_by_fan_over_time").on(table.userId, table.submittedAt.desc()),
     check(
       "entries_status_known",
       sql`${table.status} in ('open', 'won', 'lost', 'cancelled', 'refunded')`,

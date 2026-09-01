@@ -96,7 +96,7 @@ export interface CancelledEntry {
  * Scoped to one Season because that is what a Balance is scoped to, and
  * because the Entries worth showing beside a card are the ones being played on
  * it. The history that goes back through every Season, with each Prediction
- * graded, is the profile page's (#17).
+ * graded, is the profile page's (`entryHistory` in `server/utils/history.ts`).
  *
  * A cancelled Entry is listed like any other. It is Coins that moved and a
  * decision the fan made, and a listing it disappeared from would be a fan

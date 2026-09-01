@@ -20,7 +20,14 @@
  * has to decide which of them is right the day they differ.
  */
 import { coinsLabel } from "./coins";
-import type { BoutPick, EntryStatus, PricedPrediction } from "./entries";
+import {
+  potentialReward,
+  predictionMultiplier,
+  type BoutPick,
+  type EntryStatus,
+  type PotentialReward,
+  type PricedPrediction,
+} from "./entries";
 import type { Corner } from "./events";
 import { multiplierLabel } from "./predictions";
 import { isMethod, isRound, METHODS, METHOD_LABELS, type Method } from "./pricing";
@@ -164,6 +171,23 @@ export type BoutEnding =
 export type PredictionGrade = "correct" | "wrong" | "no result" | "unresolved";
 
 /**
+ * What each grade is called where a fan reads one, which is beside the answer
+ * they gave in their Entry history.
+ *
+ * Won and Lost rather than "correct" and "wrong", because a fan reading a
+ * chain is reading it against the Entry above it, and one word for the
+ * Prediction and another for the Entry would make that comparison work they
+ * have to do in their head. `unresolved` is written as the waiting it is: the
+ * Bout has not been fought, and nothing about the answer is decided yet.
+ */
+export const PREDICTION_GRADE_LABELS = {
+  correct: "Won",
+  wrong: "Lost",
+  "no result": "No Result",
+  unresolved: "Still open",
+} as const satisfies Record<PredictionGrade, string>;
+
+/**
  * Whether this Prediction landed.
  *
  * Every answer the fan gave has to be right, and every answer they did not
@@ -269,6 +293,55 @@ export function settledPrice(
   if (ending.result.method !== "disqualification") return prediction;
 
   return { ...prediction, methodMultiplier: null, roundMultiplier: null };
+}
+
+/** A Prediction beside how the Bout it answered ended. */
+export interface AnsweredBout extends PricedPrediction {
+  /** How its Bout ended, or null while that Bout has not settled. */
+  ending: BoutEnding | null;
+}
+
+/** What an Entry and each answer in it are worth against what happened. */
+export interface EntryAsItStands {
+  /** What each Prediction pays now, in the order they were given. */
+  multipliers: number[];
+  /** The combined Multiplier after the ×100 cap, and the Coins at it. */
+  returns: PotentialReward;
+}
+
+/**
+ * What an Entry is worth now its Bouts have started being decided.
+ *
+ * {@link settledPrice} over every answer and `potentialReward` over the chain
+ * they make, which is the whole of the arithmetic settlement pays on
+ * (`rewardFor` in `server/utils/results.ts` is these two functions in the same
+ * order).
+ *
+ * **Said once because a fan can have it on the screen twice.** The listing
+ * beside the card and the Entry history on the profile both show what a chain
+ * is worth, and two copies of these four lines would be two Rewards for one
+ * Entry on two pages — the same failure `priceOf` is shared to prevent at the
+ * other end of an Entry's life.
+ *
+ * A Prediction whose Bout has not settled is left at what it was priced, which
+ * is what "returns this if every Prediction lands" means while a card is still
+ * being fought. On a chain that is already Lost the same number reads as the
+ * counterfactual it is — what it was going for, priced against what happened —
+ * and `HISTORY_MESSAGES.lost` is where it is said in those words, because a
+ * Multiplier standing on its own beside "No Reward" invites the wrong reading.
+ */
+export function entryAsItStands(entry: {
+  amount: number;
+  predictions: readonly AnsweredBout[];
+}): EntryAsItStands {
+  const settled = entry.predictions.map((prediction) =>
+    settledPrice(prediction, prediction.ending),
+  );
+
+  return {
+    multipliers: settled.map(predictionMultiplier),
+    returns: potentialReward(entry.amount, settled),
+  };
 }
 
 /**
@@ -389,8 +462,8 @@ export function endingNote(pick: BoutPick, ending: BoutEnding | null): string | 
  *
  * Counted rather than listed. An admin entering the result of a main event
  * needs to know that it landed and roughly how big it was; who won what is the
- * fans' own history (#17), and a list of five hundred usernames on a phone at
- * cageside is not an answer to anything.
+ * fans' own history (`shared/history.ts`), and a list of five hundred
+ * usernames on a phone at cageside is not an answer to anything.
  *
  * Here rather than in `server/utils/results.ts` because it is what the sentence
  * below is written from, and the admin page reads both.

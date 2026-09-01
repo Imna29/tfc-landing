@@ -1,22 +1,87 @@
 <script setup lang="ts">
 import { EMAIL_MESSAGES } from "#shared/emails";
+import type { FanHistory } from "#shared/history";
+// Aliased because `FanStanding` is also the component that renders one, and
+// this file uses both: the auto-imported component in the template, and the
+// shape it takes here.
+import type { FanStanding as Standing } from "#shared/standings";
 
 /**
- * What a fan sees of their own account.
+ * What a fan sees of their own: where they stand, everything they have ever
+ * predicted, and the account underneath it.
  *
- * Balance, Entry history and leaderboard rank belong here and arrive with #17.
- * Today it is the identity page: it is what proves a session survives a reload
- * and reaches a server-rendered route, where a signed-out visitor is asked to
- * sign in, and where a fan whose verification email never arrived asks for
- * another one.
+ * Three answers rather than one, because they change at different moments and
+ * cost different things. The account is `useFan`, shared with every page that
+ * asks who is signed in; the standing is one Balance and one Rank; the history
+ * is re-read every time the fan moves a filter, and re-reading their Rank
+ * alongside it would be asking the Season to be ordered again to answer a
+ * question nobody asked.
+ *
+ * **The filter lives in the URL.** A fan who reloads, or presses back, is
+ * looking at the same page they left, and the server renders the filtered
+ * history rather than sending all of it for the browser to hide most of. That
+ * matters more every Season: history is kept forever.
+ *
+ * Never edge-cached and server-rendered per request (ADR-0008). It is the most
+ * personal page in the application — and `/PROFILE` is a 404 rather than a
+ * second spelling that could miss that rule (ADR-0012).
  */
 const route = useRoute();
 const { data: fan, refresh } = await useFan();
 const { forget: forgetBalance } = useBalance();
 
+/**
+ * Through `useRequestFetch` for the reason `useFan` uses it: these run during
+ * server rendering too, and a plain `$fetch` there carries no cookie — both
+ * routes would answer 401 and the page would fail to render for exactly the
+ * fans it is for.
+ */
+const request = useRequestFetch();
+
+const { data: standing } = await useAsyncData<Standing | null>(
+  "fan-standing",
+  async () => (fan.value ? await request<Standing>("/api/coins/standing") : null),
+  { watch: [fan] },
+);
+
+/** What the fan is asking to see, as the two controls put it in the URL. */
+const asked = computed(() => ({
+  season: typeof route.query.season === "string" ? route.query.season : undefined,
+  status: typeof route.query.status === "string" ? route.query.status : undefined,
+}));
+
+const { data: history } = await useAsyncData<FanHistory | null>(
+  "entry-history",
+  async () =>
+    fan.value
+      ? await request<FanHistory>("/api/predictions/history", { query: asked.value })
+      : null,
+  { watch: [fan, asked] },
+);
+
+/**
+ * Moves the filter, which is a navigation.
+ *
+ * The rest of the query string is kept: a fan who arrived from sign-up is
+ * being told their confirmation email did not go out, and filtering their
+ * history is not news about that.
+ */
+function ask(filter: { season: string; status: string }) {
+  return navigateTo({
+    query: {
+      ...route.query,
+      // Dropped rather than sent empty, so that the whole history — which is
+      // where the page starts — is the plain URL a fan arrives at rather than
+      // one spelling "every" out in two parameters.
+      season: filter.season === "" ? undefined : filter.season,
+      status: filter.status === "" ? undefined : filter.status,
+    },
+  });
+}
+
 useSeoMeta({
   title: "Your account",
-  description: "Your TFC Predictions account.",
+  description: "Your TFC Predictions Balance, Rank and Entry history.",
   robots: "noindex",
 });
 
@@ -79,8 +144,12 @@ async function signOut() {
   <PageHeading text="Your account" />
 
   <section class="px-6 md:px-20 pb-24">
-    <div class="max-w-xl mx-auto">
+    <div class="max-w-3xl mx-auto">
       <template v-if="fan">
+        <FanStanding :standing="standing ?? null" class="mb-10" />
+
+        <EntryHistory v-if="history" :history="history" class="mb-16" @ask="ask" />
+
         <dl class="grid gap-px bg-outline-variant/20 border border-outline-variant/20">
           <div class="bg-surface-container-low p-8">
             <dt

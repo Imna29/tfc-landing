@@ -1,5 +1,5 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { inject } from "vitest";
 import type { Question } from "../../shared/pricing";
 import type { EnteredEnding } from "../../shared/results";
@@ -78,6 +78,19 @@ export function card(overrides: Partial<Card> = {}): Card {
     bouts: [cardBout()],
     ...overrides,
   };
+}
+
+/**
+ * Closes the Season being played, so that another can be opened behind it.
+ *
+ * Written by hand because closing a Season is #19's route and does not exist
+ * yet, and a history that goes back through Seasons needs more than one to go
+ * back through. Replace it with the route when that ticket lands.
+ */
+export async function closeOpenSeason(): Promise<void> {
+  await testDatabase().execute(
+    sql`update seasons set status = 'closed', closed_at = now() where status = 'open'`,
+  );
 }
 
 /** The Season being played, which a card is imported into. */
@@ -244,6 +257,15 @@ export async function cardInTheGame(
     bouts?: CardBout[];
     multipliers?: Record<Question, number>;
     open?: boolean;
+    /**
+     * Anything else about the card, for a test that needs a second one.
+     *
+     * A `prismicId` is one Event however many times it is imported, so a test
+     * arranging two cards has to say which is which — re-importing under the
+     * default id would replace the first card rather than add to it, and is
+     * refused outright once a Bout on it is open.
+     */
+    card?: Partial<Card>;
   } = {},
 ): Promise<CardInTheGame> {
   const admin = options.admin ?? (await adminWithASeason());
@@ -251,6 +273,7 @@ export async function cardInTheGame(
   const imported = await importTestCard(admin.id, {
     ...(options.scheduledStart ? { scheduledStart: options.scheduledStart } : {}),
     ...(options.bouts ? { bouts: options.bouts } : {}),
+    ...options.card,
   });
 
   const priced = await cardToPrice(imported.id, admin.cookie);

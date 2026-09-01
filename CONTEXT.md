@@ -55,9 +55,13 @@ remembered to do.
 
 Not a scheduled job. There is nothing to run one on ([[adr-0009]], [[adr-0010]]), so it
 is applied by the requests that care where a Bout is: the public card, an Entry being
-submitted or cancelled, the listing a fan reads their own Entries in, and the admin area.
-A card nobody is looking at locks the moment somebody looks, and the [[lock]] is still
-dated at the moment it fell due.
+submitted or cancelled, the listing a fan reads the Entries they can still cancel in, and
+the admin area. A card nobody is looking at locks the moment somebody looks, and the
+[[lock]] is still dated at the moment it fell due.
+
+Not the Entry history on the profile, which is the one listing of Entries that does not
+apply it: nothing there can be cancelled, and a Prediction is graded against what its
+Bout produced rather than against the moment it stopped taking answers.
 
 ### Result
 
@@ -321,6 +325,20 @@ A **materialised Balance** is a stored copy of that total, per user per Season, 
 or a leaderboard does not add the ledger up on every request. It is derived data and can
 always be rebuilt from the Coin Transactions — it is never a source of truth, and never the
 mutable balance column [[adr-0003]] rules out.
+
+### Rank
+
+Where a [[fan]] sits in a Season's standings: 1 is the top. Ordered by [[balance]], and
+where two fans hold the same, by who reached that total first — so that a Rank is
+predictable rather than arbitrary, and does not reorder between one page load and the
+next.
+
+Read from the materialised [[balance]] rather than by adding the ledger up, because the
+leaderboard asks for a page of them and every profile asks for one.
+
+A fan reads their own Rank on their profile however far down it they are, which is the
+question the top ten cannot answer for somebody sitting at 340th. What a Rank is worth
+outside the game is a [[prize]], and only a Season's final standings decide those.
 
 ### No Result
 

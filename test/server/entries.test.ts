@@ -292,10 +292,11 @@ describe("the Entry a fan commits, and takes back", async () => {
 
       await priceBout(card.bouts[0]!, card.admin.cookie, { winner: 5, method: 2.5, round: 3 });
 
-      // Read back out of the database rather than from an endpoint, because
-      // the one that lists a fan's Entries is #17. What is being proved is
-      // that the row did not move: the Reward is worked out from what the
-      // Prediction stored, by the same function the panel showed it with.
+      // Read back out of the database rather than through a listing, which
+      // would work the answer out from the same row and prove nothing about
+      // it. What is being proved is that the row did not move: the Reward is
+      // worked out from what the Prediction stored, by the same function the
+      // panel showed it with.
       const held = await predictionsIn(entry.id);
 
       expect(held[0]?.winnerMultiplier).toBe(2);

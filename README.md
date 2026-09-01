@@ -713,8 +713,8 @@ function the route decides with — so the panel stops offering to cancel at the
 instant the first Bout in an Entry locks, rather than at the next time somebody
 asks the server, and a fan who presses it in that last second is refused in the
 words already on the page. This is not the Entry history: that goes back through
-every Season and grades each Prediction of a chain, and belongs on the profile
-(#17).
+every Season and grades each Prediction of a chain, and is on the profile — see
+the section below.
 
 The same layers as submission, and the same reason for each: the page asks
 while the fan is looking, the route asks again of what arrived, and Postgres
@@ -812,6 +812,93 @@ update` before anything is read; the Entries are taken under the same kind of
 lock settlement uses, and for the same reason. `test/server/corrections.test.ts`
 is the suite, and it asserts the ledger trail as hard as it asserts the
 statuses.
+
+### The profile: where a fan stands, and everything they predicted
+
+`/profile` is the page a fan comes back to. It answers three separate requests
+and they are separate on purpose:
+
+- **`/api/accounts/me`** is who is signed in, shared with every page that asks.
+- **`/api/coins/standing`** is the Season being played, the fan's Balance in it,
+  and their Rank. It sits beside `/api/coins/balance` rather than inside it
+  because the two are asked at different rates and cost different things: the
+  Balance is in the site header on every page a fan opens and is one indexed
+  row, and a Rank orders every fan in the Season. Folding the second into the
+  first would charge every page for it.
+- **`/api/predictions/history`** is every Entry the fan has ever committed,
+  filtered.
+
+**A Rank is an ordering of the materialised Balance and nothing else**
+(`server/utils/standings.ts`), and `CONTEXT.md` defines it. Ties are broken by
+who reached the total first —
+the moment a fan's materialised Balance last moved — and then by the fan's own
+id, because two fans granted their starting Coins by the same statement did
+reach a hundred at the same instant and an ordering still has to answer. Without
+that, two fans on the same Coins swap places between one page load and the next.
+It is one statement that always answers a row: the count is of the Season and
+the Rank is of one fan in it, and asking separately would let a fan be told they
+are 12th of 11. The leaderboard (#18) is the same ordering, read a page at a
+time.
+
+**Nothing on this page is stored.** The combined Multiplier, the Reward and each
+Prediction's own grade are worked out from the Predictions and the Results every
+time the page is read. That is ADR-0013 applied to a whole page: a history that
+quoted a Reward written down beside the Entry would be a second answer to a
+question settlement has already answered, and the day they differed nothing
+could say which was right.
+
+`entryAsItStands` in `shared/results.ts` is the arithmetic — `settledPrice` over
+every answer, `potentialReward` over the chain they make, which is `rewardFor`
+in `server/utils/results.ts` in the same order. It is one function because a fan
+can have it on the screen twice: the listing beside the card and the Entry
+history both price the same Entry, and two copies of those four lines would be
+two Rewards on two pages. `shared/history.ts` adds only the reading — `readEntry`
+grades each answer beside it, `bySeason` groups, `rewardOf` decides whether the
+Coins beside an Entry are a promise, a payment, an Amount coming back, or
+nothing at all.
+
+The number a **Lost** Entry shows is worth a sentence. It is derived exactly
+like every other Entry's, so on a dead chain it is a counterfactual — what the
+Entry was going for, priced against what happened. `HISTORY_MESSAGES.lost` names
+it as one, because a bare "No Reward" under a Multiplier reads as Coins the game
+decided not to hand over.
+
+**Every Prediction says where it stands, whatever the Entry did.** A chain that
+is already Lost still shows how the Bouts already fought went and that the rest
+are still to come. That is #14's "remaining Predictions are still graded for
+display" kept where a fan can actually see it: "I was one Bout away" is the most
+engaging sentence on this page, and it works because a grade is derived from the
+Bout's Result at read time rather than written onto the Prediction when the
+Entry was graded — so a Bout that settles *after* the chain died still shows its
+true grade.
+
+**The page opens on the whole history**, grouped by Season with the current one
+first. Narrowing is the fan's move, not the page's opening position: a status
+filter over one Season would answer "find my wins" with some of them, and the
+grouping is what stops the old Entries drowning the current ones. `bySeason`
+does the grouping; `entries_by_fan_over_time` — `(user_id, submitted_at desc)`,
+added in `0013_profile_and_entry_history.sql` — is what keeps that affordable
+when history is kept forever, because `entries_by_fan` leads with the Season
+this query deliberately does not narrow to.
+
+**The filter is in the URL**, read by `historyFilter` in `shared/history.ts` and
+answered back on `filter` so the controls and the listing cannot disagree. It is
+handed the Seasons the fan has actually played, which is what keeps a Season id
+somebody typed into a URL from reaching Postgres as a cast: an id that is not
+one of theirs is answered with the whole history, the same as a real Season they
+never played, because that is the honest reading of both. Nothing here is ever
+refused — a filter is a way of looking at a page, and a page that returned an
+error over a word in a query string would be worse than one that showed
+everything.
+
+**One fan's history is one fan's.** There is no parameter naming a fan on either
+route: the answer is always `requireFan`'s, so there is nothing to send that
+would ask for somebody else's. Both routes and the page are exempt from the edge
+cache (ADR-0008), and `/PROFILE` is a 404 rather than a second spelling that
+could miss the exemption (ADR-0012).
+
+Real names never appear. `shared/fan.ts` has no field for one and no endpoint
+returns one — see ADR-0007 and the Accounts section.
 
 ### Pushing the model
 

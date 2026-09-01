@@ -15,10 +15,10 @@
  * fan between Seasons holds no Entries to cancel, which is not a mistake
  * anybody made.
  *
- * This is not the Entry history. That is the profile page's, goes back through
- * every Season, and grades each Prediction of a chain (#17); this is the
- * Entries a fan can still do something about, beside the card they were
- * committed on.
+ * This is not the Entry history. That is `/api/predictions/history`, which the
+ * profile reads: it goes back through every Season and grades each Prediction
+ * of a chain. This is the Entries a fan can still do something about, beside
+ * the card they were committed on.
  */
 export default defineEventHandler(async (event) => {
   const fan = await requireFan(event);

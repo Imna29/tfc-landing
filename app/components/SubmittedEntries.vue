@@ -4,13 +4,11 @@ import {
   CANCELLATION_MESSAGES,
   ENTRY_STATUS_LABELS,
   cancellationOf,
-  potentialReward,
   predictionLabel,
-  predictionMultiplier,
   type CommittedEntry,
 } from "#shared/entries";
 import { multiplierLabel } from "#shared/predictions";
-import { endingNote, settledPrice } from "#shared/results";
+import { endingNote, entryAsItStands } from "#shared/results";
 
 /**
  * The Entries a fan has committed on this Season, and the one thing they can
@@ -20,7 +18,7 @@ import { endingNote, settledPrice } from "#shared/results";
  * cancels is almost always the card — a fighter withdrew, a Bout moved — and
  * the moment they want the button is the moment they are looking at what
  * changed. The history that goes back through every Season, with each
- * Prediction of a chain graded, is #17's and belongs on the profile.
+ * Prediction of a chain graded, is `EntryHistory` on the profile.
  *
  * **Whether an Entry can be cancelled is decided here, from the clock.** Every
  * Prediction carries where its Bout stands and the moment it locks by itself,
@@ -38,14 +36,20 @@ import { endingNote, settledPrice } from "#shared/results";
  * cancel" under a settled Entry is a sentence about a button nobody was
  * looking for, and the status beside the Amount already says where it is.
  *
+ * What the chain is worth is `entryAsItStands` in `shared/results.ts`, which
+ * is also what the Entry history on the profile prices its Entries with — so
+ * one Entry cannot come to be worth two different numbers on the two pages a
+ * fan can have open at the same time.
+ *
  * **A Prediction whose answers stopped counting says so, and says why.** It is
  * the only place a fan finds out that a Bout was cancelled, lost a fighter,
  * drew, was ruled a no contest, or ended in the disqualification that leaves
  * their method and round with nothing to grade — and a Multiplier that quietly
  * dropped to ×1.0 with no sentence beside it reads as the game having taken
  * something away rather than as ADR-0005 protecting them from it. The sentence
- * is `endingNote`'s and the number is `settledPrice`'s, so what the chain is
- * worth here is what settlement will actually pay on it.
+ * is `endingNote`'s and the number is `settledPrice`'s, reached through the
+ * same function settlement reaches it through — so what the chain is worth
+ * here is what settlement will actually pay on it.
  */
 const props = defineProps<{
   /** Every Entry this fan holds this Season, newest first. */
@@ -74,18 +78,16 @@ const done = ref("");
  */
 const held = computed(() =>
   props.entries.map((entry) => {
-    const settled = entry.predictions.map((prediction) =>
-      settledPrice(prediction, prediction.ending),
-    );
+    const { multipliers, returns } = entryAsItStands(entry);
 
     return {
       entry,
       predictions: entry.predictions.map((prediction, at) => ({
         prediction,
-        multiplier: predictionMultiplier(settled[at]!),
+        multiplier: multipliers[at]!,
         note: endingNote(prediction, prediction.ending),
       })),
-      returns: potentialReward(entry.amount, settled),
+      returns,
       cancellation: cancellationOf(entry, now.value),
     };
   }),

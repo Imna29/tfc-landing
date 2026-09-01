@@ -48,6 +48,10 @@ describe("routes that read a session", () => {
     "/account/sign-in",
     "/account/sign-up",
     "/api/entries",
+    // The two the profile reads, both as personal as an answer gets: a fan's
+    // own Balance and Rank, and every Entry they have ever committed.
+    "/api/coins/standing",
+    "/api/predictions/history",
     "/predictions",
     "/predictions/tfc-12",
     "/profile",

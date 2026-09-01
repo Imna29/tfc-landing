@@ -1,6 +1,8 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import type { CommittedEntries } from "../../shared/entries";
+import type { FanHistory } from "../../shared/history";
+import type { FanStanding } from "../../shared/standings";
 import type { Corner } from "../../shared/events";
 import type { Correction, NoResultReason, RecordedMethod, Settlement } from "../../shared/results";
 import { coinTransactions, entries } from "../../server/db/schema";
@@ -44,12 +46,16 @@ export async function fanWithCoins() {
 }
 
 /** A card two hours out, which is a card every Bout on is still open. */
-export function upcomingCard(bouts: number): Promise<CardInTheGame> {
+export function upcomingCard(
+  bouts: number,
+  options: Omit<Parameters<typeof cardInTheGame>[0], "scheduledStart" | "bouts"> = {},
+): Promise<CardInTheGame> {
   return cardInTheGame({
     scheduledStart: new Date(Date.now() + 120 * 60_000),
     bouts: Array.from({ length: bouts }, (_, place) =>
       cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1 }),
     ),
+    ...options,
   });
 }
 
@@ -191,6 +197,28 @@ export function ledgerFor(userId: string) {
     .from(coinTransactions)
     .where(eq(coinTransactions.userId, userId))
     .orderBy(coinTransactions.createdAt, coinTransactions.amount);
+}
+
+/**
+ * The Entry history this fan reads on their profile.
+ *
+ * The filter goes on the query string because that is where the page puts it:
+ * a fan changing it navigates, so a test that passed it any other way would be
+ * testing a request the profile never makes.
+ */
+export function historyFor(
+  cookie: string,
+  filter: { season?: string; status?: string } = {},
+): Promise<FanHistory> {
+  return $fetch<FanHistory>("/api/predictions/history", {
+    headers: { cookie },
+    query: filter,
+  });
+}
+
+/** Where this fan stands in the Season being played. */
+export function standingFor(cookie: string): Promise<FanStanding> {
+  return $fetch<FanStanding>("/api/coins/standing", { headers: { cookie } });
 }
 
 /** What the site header would show this fan. */
