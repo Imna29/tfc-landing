@@ -443,6 +443,17 @@ async function materialiseMoved(
  *
  * `forFans` is the fans whose rows just moved. Passing nothing recomputes the
  * whole Season, which is what a rebuild is.
+ *
+ * **`updated_at` is derived too, and that is not decoration.** It is the
+ * moment the fan's last Coin Transaction in the Season was written, taken from
+ * the ledger beside the sum — never `now()`, which is the moment this
+ * statement happened to run. A Rank breaks a tie by who reached the total
+ * first (`CONTEXT.md`, `BY_STANDING` in `server/utils/standings.ts`), so
+ * stamping the write time here would mean {@link rebuildBalanceCache} came
+ * back with every tied fan in a new order — the leaderboard reshuffled by a
+ * repair that is supposed to change nothing. ADR-0003 says this table is
+ * derived data; a column nothing derives it from is the one place that could
+ * quietly stop being true.
  */
 async function materialiseBalances(
   tx: DatabaseTransaction,
@@ -457,13 +468,13 @@ async function materialiseBalances(
     : sql``;
 
   await tx.execute(sql`
-    insert into ${balanceCache} (season_id, user_id, balance)
-    select season_id, user_id, sum(amount)
+    insert into ${balanceCache} (season_id, user_id, balance, updated_at)
+    select season_id, user_id, sum(amount), max(created_at)
     from ${coinTransactions}
     where season_id = ${seasonId}::uuid ${onlyTheseFans}
     group by season_id, user_id
     on conflict (season_id, user_id) do update
-      set balance = excluded.balance, updated_at = now()
+      set balance = excluded.balance, updated_at = excluded.updated_at
   `);
 }
 

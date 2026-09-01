@@ -11,6 +11,7 @@ const navLinks = [
   { to: "/events", label: "Events" },
   { to: "/fighters", label: "Fighters" },
   { to: "/predictions", label: "Predictions" },
+  { to: "/leaderboard", label: "Leaderboard" },
   { to: "/media", label: "Media" },
   { to: "/prizes", label: "Prizes" },
   { to: "/about", label: "About Us" },

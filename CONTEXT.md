@@ -340,6 +340,23 @@ A fan reads their own Rank on their profile however far down it they are, which 
 question the top ten cannot answer for somebody sitting at 340th. What a Rank is worth
 outside the game is a [[prize]], and only a Season's final standings decide those.
 
+### Leaderboard
+
+The public scoreboard of a Season: the ten fans holding the most Coins, by [[rank]], with
+the signed-in fan's own row pinned below them however far down they are. A fan already in
+the top ten is marked in it rather than shown twice.
+
+Each row is a [[username]], a [[balance]] and the **Entries played** — the Entries that
+fan has committed in the Season, a [[cancellation]] never being one they played. Real
+names never appear here or anywhere else ([[adr-0007]]).
+
+Public, and personalised anyway: a visitor with no account reads the top ten, which is how
+somebody sizes up a competition before joining it, and it is the pinned row that makes the
+page as a whole uncacheable ([[adr-0008]]).
+
+Singular, and always of one Season. A Season that has ended has **final standings** and
+they decide [[prize]]s; the leaderboard is the one being played.
+
 ### No Result
 
 A Bout that produced nothing gradable, and which of four it was: **cancelled**,

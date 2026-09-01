@@ -36,6 +36,7 @@ import {
   type CardInTheGame,
 } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
+import { cancel } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 import { confirmEmail, fanId } from "../helpers/users";
 
@@ -697,11 +698,6 @@ describe("the Entry a fan commits, and takes back", async () => {
   });
 
   describe("cancelling an Entry", () => {
-    /** Cancels an Entry the way the button beside it in the listing does. */
-    function cancel(entryId: string, cookie?: string) {
-      return postJson(`/api/predictions/entries/${entryId}/cancel`, {}, cookie);
-    }
-
     /** The Entries a fan is holding, as their own listing reads them. */
     function listing(cookie: string) {
       return $fetch<CommittedEntries>("/api/predictions/entries", { headers: { cookie } });

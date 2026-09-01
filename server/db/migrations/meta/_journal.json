@@ -99,6 +99,13 @@
       "when": 1788249759017,
       "tag": "0013_profile_and_entry_history",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788250806690,
+      "tag": "0014_season_leaderboard",
+      "breakpoints": true
     }
   ]
 }

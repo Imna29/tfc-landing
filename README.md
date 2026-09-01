@@ -300,6 +300,9 @@ Postgres. It is derived data. `server/utils/coins.ts` only ever writes it as a
 `select` back out of the ledger — there is deliberately no "add this much"
 path — so `rebuildBalanceCache` is the same statement with nothing narrowing
 it, and `test/server/coins.test.ts` corrupts the cache and proves it comes back.
+Both of its columns are derived, the `updated_at` beside the total included: it
+is the moment of the fan's last Coin Transaction in the Season, because that is
+what a Rank breaks a tie by. See the leaderboard section.
 
 ### Where Coins come from, and nowhere else
 
@@ -837,8 +840,9 @@ reach a hundred at the same instant and an ordering still has to answer. Without
 that, two fans on the same Coins swap places between one page load and the next.
 It is one statement that always answers a row: the count is of the Season and
 the Rank is of one fan in it, and asking separately would let a fan be told they
-are 12th of 11. The leaderboard (#18) is the same ordering, read a page at a
-time.
+are 12th of 11. The leaderboard is the same ordering read a page at a time —
+`BY_STANDING` is written once and embedded in both — and the section below is
+about that page.
 
 **Nothing on this page is stored.** The combined Multiplier, the Reward and each
 Prediction's own grade are worked out from the Predictions and the Results every
@@ -899,6 +903,73 @@ could miss the exemption (ADR-0012).
 
 Real names never appear. `shared/fan.ts` has no field for one and no endpoint
 returns one — see ADR-0007 and the Accounts section.
+
+### The leaderboard: the top ten, and the row under it
+
+`/leaderboard` is the public scoreboard of the Season being played, and
+`/api/leaderboard` is the whole of it: the ten fans holding the most Coins, and
+the row of whoever is reading it. A visitor with no account is answered the top
+ten rather than a 401, because sizing up the competition is how somebody
+decides to join it.
+
+**The signed-in fan's own row is pinned below the top ten at their true Rank,
+even at 340th.** That is the point of the page: a leaderboard a fan can never
+appear on stops being motivating after one event, and "how far am I from the
+top?" is a question ten rows cannot answer. A fan already inside the top ten is
+marked in it instead — `Leaderboard` in `shared/standings.ts` carries `you` only
+when `top` does not, so showing the same fan twice is not a mistake the page can
+make. `whereYouStand` tells apart the four different things an empty `you`
+means: a visitor, a fan in the top ten, a fan the Season has granted nothing,
+and no Season at all.
+
+**It is one statement** (`leaderboardOf` in `server/utils/standings.ts`), and one
+that reads the materialised Balance rather than adding the ledger up — the
+aggregate ADR-0003 put `balance_cache` there to avoid, and the one ADR-0009
+rules out putting Redis in front of. `BY_STANDING` is the ordering, written once
+and embedded in both this and the profile's `standingIn`, so that the Rank a fan
+reads on their own page and the Rank they read here cannot come to disagree:
+Balance, then who reached that total first, then the fan's own id. The new index
+`balance_cache_by_standing` — `(season_id, balance desc, updated_at, user_id)`,
+added in `0014_season_leaderboard.sql` — is that order per Season, so reading the
+top of one is an index scan rather than a sort of everybody in it. The primary
+key leads with the Season too, but it answers "what does this fan hold?" and
+cannot answer "who holds the most?".
+
+Two details in that ordering are worth knowing, because both fail silently.
+**`nulls last` is written into `BY_STANDING` deliberately**: Postgres orders a
+`desc` column nulls first and a btree index declares them last, and the planner
+matches an ordering to an index including that flag — so `order by balance desc`
+alone matches nothing and sorts the whole Season, on a column that is `not null`
+and could never have answered differently either way. Measured on 200,000 rows:
+a sequential scan and a sort of all of them, against an index-only scan with the
+two words written in.
+
+And **`balance_cache.updated_at` is derived, like the total beside it**. It is
+`max(created_at)` over the fan's Coin Transactions in the Season, taken in the
+same statement as the sum (`materialiseBalances`), never the clock at the moment
+the row was written. It is what breaks a tie, so stamping it with `now()` meant
+`rebuildBalanceCache` handed back the same Balances with every tied fan in a new
+order — a leaderboard reshuffled by a repair that is supposed to change nothing.
+`test/server/leaderboard.test.ts` rebuilds the cache mid-test and asserts the
+page is unchanged.
+
+Asking for the ten and the eleventh row in one statement is what stops them
+being two readings taken a moment apart — a fan shown under a top ten they are
+already in. **Entries played is counted per row shown**, at most eleven index
+lookups on `entries_by_fan`, rather than for every fan in the Season only to
+throw all but eleven away. A cancelled Entry is not one a fan played: its Coins
+are already back in the Balance, so the ranking excludes it by arithmetic, and
+this column has to exclude it by asking.
+
+The page is **public and personalised at once**, which is exactly the shape
+ADR-0008 warns about: the CDN keys on the path and ignores the cookie, so a
+stored copy is one fan's Rank served to everybody who follows them onto it.
+`route-rules.ts` exempts `/leaderboard` and server-renders it per request, and
+`test/server/cache-boundary.test.ts` puts a cache in front of a real server and
+proves the next visitor does not get the last one's row.
+
+Only usernames leave the route. There is no column on the answer a real name
+could travel in, and no endpoint anywhere that would return one (ADR-0007).
 
 ### Pushing the model
 

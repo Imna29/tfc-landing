@@ -1,6 +1,7 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
 import { PREDICTION_MESSAGES } from "../../shared/predictions";
+import { LEADERBOARD_MESSAGES, STANDING_MESSAGES } from "../../shared/standings";
 import { postJson, signUp, signUpAdmin } from "../helpers/accounts";
 import { importTestCard } from "../helpers/cards";
 import { setupTestServer } from "../helpers/server";
@@ -67,6 +68,27 @@ describe("the cache boundary", async () => {
 
     // A cached page would still say there is no card.
     expect(await $fetch<string>("/predictions")).toContain("TFC 12");
+  });
+
+  it("never serves one fan's own place on the leaderboard to whoever asks next", async () => {
+    // The page ADR-0008 names: public, and personalised anyway, because it
+    // carries the signed-in fan's own row. A CDN keys on the path and ignores
+    // the cookie, so a stored copy of this one is a fan's Rank shown to
+    // everybody who follows them onto it.
+    const admin = await signUpAdmin();
+
+    await postJson("/api/admin/seasons", { name: "Season 1" }, admin.cookie);
+
+    const fan = await signUp();
+    const theirs = await $fetch<string>("/leaderboard", { headers: { cookie: fan.cookie } });
+
+    // Two fans hold the Season's hundred, and this one reached it second.
+    expect(theirs).toContain(STANDING_MESSAGES.ranked(2, 2));
+
+    const anybody = await $fetch<string>("/leaderboard");
+
+    expect(anybody).not.toContain(STANDING_MESSAGES.ranked(2, 2));
+    expect(anybody).toContain(LEADERBOARD_MESSAGES.signedOut);
   });
 
   it("serves a page that reads a session under one spelling only", async () => {

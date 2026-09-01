@@ -446,9 +446,34 @@ export const balanceCache = pgTable(
       .notNull()
       .references(() => users.id),
     balance: integer("balance").notNull(),
+    /**
+     * When this Balance last moved, taken from the fan's last Coin Transaction
+     * in the Season rather than from the clock at the moment the row was
+     * written. It is what breaks a tie between two fans holding the same
+     * Coins, so it has to be derived like the total beside it: a rebuild that
+     * restamped it would come back with the leaderboard in a different order.
+     * See `materialiseBalances` in `server/utils/coins.ts`.
+     */
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.seasonId, table.userId] })],
+  (table) => [
+    primaryKey({ columns: [table.seasonId, table.userId] }),
+    // The standings of one Season, in the order they are read in: Balance
+    // first, then who reached that total first, then the fan's own id — the
+    // ordering `BY_STANDING` in `server/utils/standings.ts` decides a Rank by.
+    // The leaderboard reads the top ten of it and every profile reads one row,
+    // and without this both sort every fan in the Season to answer.
+    //
+    // The primary key leads with the Season too, so it answers "what does this
+    // fan hold?" and cannot answer "who holds the most?" — a Balance is not
+    // what it is ordered by.
+    index("balance_cache_by_standing").on(
+      table.seasonId,
+      table.balance.desc(),
+      table.updatedAt,
+      table.userId,
+    ),
+  ],
 );
 
 /**

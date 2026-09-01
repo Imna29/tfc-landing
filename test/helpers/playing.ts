@@ -2,7 +2,7 @@ import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import type { CommittedEntries } from "../../shared/entries";
 import type { FanHistory } from "../../shared/history";
-import type { FanStanding } from "../../shared/standings";
+import type { FanStanding, Leaderboard } from "../../shared/standings";
 import type { Corner } from "../../shared/events";
 import type { Correction, NoResultReason, RecordedMethod, Settlement } from "../../shared/results";
 import { coinTransactions, entries } from "../../server/db/schema";
@@ -216,9 +216,27 @@ export function historyFor(
   });
 }
 
+/** Takes an Entry back, the way the button on the listing does. */
+export function cancel(entryId: string, cookie?: string): Promise<Response> {
+  return postJson(`/api/predictions/entries/${entryId}/cancel`, {}, cookie);
+}
+
 /** Where this fan stands in the Season being played. */
 export function standingFor(cookie: string): Promise<FanStanding> {
   return $fetch<FanStanding>("/api/coins/standing", { headers: { cookie } });
+}
+
+/**
+ * The Season's leaderboard, as whoever holds this cookie reads it.
+ *
+ * No cookie is a visitor with no account, which is a case the page has to
+ * answer rather than refuse: the top ten is public, and only the row pinned
+ * under it belongs to anybody.
+ */
+export function leaderboardFor(cookie?: string): Promise<Leaderboard> {
+  return $fetch<Leaderboard>("/api/leaderboard", {
+    headers: cookie === undefined ? {} : { cookie },
+  });
 }
 
 /** What the site header would show this fan. */
