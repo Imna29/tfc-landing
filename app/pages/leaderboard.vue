@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { Leaderboard } from "#shared/standings";
+import {
+  LEADERBOARD_MESSAGES,
+  PAST_SEASONS_MESSAGES,
+  type ClosedSeason,
+  type Leaderboard,
+} from "#shared/standings";
 
 /**
  * The public scoreboard: the top ten of the Season, and where the fan reading
@@ -21,6 +26,14 @@ import type { Leaderboard } from "#shared/standings";
  * Season nobody is playing — and only the session tells the first from the
  * rest. The board is asked again when it changes, because signing in is what
  * puts a row of their own on the page.
+ *
+ * **Seasons that have ended are listed under it.** This is the page a fan
+ * comes to for standings, so it is where the ones that are frozen have to be
+ * reachable from — and it matters most in exactly the state where the table
+ * above is empty: between Seasons, when the leaderboard says there is nothing
+ * to rank and the last Season's final standings are what somebody actually
+ * came for. `/standings/<id>` is that page (`CONTEXT.md` keeps the two words
+ * apart: the leaderboard is the Season being played).
  */
 const request = useRequestFetch();
 const { data: fan } = await useFan();
@@ -32,6 +45,13 @@ const { data: leaderboard } = await useAsyncData<Leaderboard>(
   // — the page would render without the one row it was not cached for.
   () => request<Leaderboard>("/api/leaderboard"),
   { watch: [fan] },
+);
+
+// A second request rather than a field on the first: the list is the same for
+// everybody and the board is not, and folding an anonymous list into a
+// personalised answer would make every leaderboard request pay for it.
+const { data: ended } = await useAsyncData<{ seasons: ClosedSeason[] }>("ended-seasons", () =>
+  request<{ seasons: ClosedSeason[] }>("/api/standings"),
 );
 
 useSeoMeta({
@@ -46,7 +66,38 @@ useSeoMeta({
 
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-3xl mx-auto">
-      <SeasonLeaderboard v-if="leaderboard" :leaderboard="leaderboard" :signed-in="!!fan" />
+      <SeasonStandings
+        v-if="leaderboard"
+        :standings="leaderboard"
+        :signed-in="!!fan"
+        :words="LEADERBOARD_MESSAGES"
+      />
+
+      <section class="mt-16 border-t border-outline-variant/20 pt-10">
+        <h2 class="font-headline text-2xl font-black italic uppercase">
+          {{ PAST_SEASONS_MESSAGES.heading }}
+        </h2>
+
+        <p class="mt-2 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
+          {{ PAST_SEASONS_MESSAGES.what }}
+        </p>
+
+        <ul v-if="ended && ended.seasons.length > 0" class="mt-6 grid gap-3">
+          <li v-for="season in ended.seasons" :key="season.id">
+            <NuxtLink
+              :to="`/standings/${season.id}`"
+              class="flex items-baseline justify-between gap-4 border-b border-outline-variant/15 pb-3 hover:text-primary-container"
+            >
+              <span class="font-bold">{{ season.name }}</span>
+              <span class="text-sm text-on-surface/60">Ended {{ inTbilisi(season.closedAt) }}</span>
+            </NuxtLink>
+          </li>
+        </ul>
+
+        <p v-else class="mt-6 max-w-xl text-sm text-on-surface/70 leading-relaxed">
+          {{ PAST_SEASONS_MESSAGES.none }}
+        </p>
+      </section>
     </div>
   </section>
 

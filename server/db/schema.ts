@@ -159,9 +159,16 @@ export const verifications = pgTable("verifications", {
 /**
  * Whether a Season is being played, or is over.
  *
- * Closing one freezes its final standings and is #19's work; what this ticket
- * needs from it is the `seasons_one_open` index below, which is what makes
- * "the current Season" a fact rather than whichever row happens to sort last.
+ * The road runs one way. Closing a Season freezes its final standings into
+ * {@link finalStandings} and there is no route back — `a_closed_season_is_never_reopened`
+ * refuses the `update` that would try, for the reason ADR-0006 makes a Lock
+ * final: the frozen standings are the evidence behind every Prize awarded
+ * under ADR-0007, and a Season that could be reopened is a record that could
+ * be made to say something else afterwards.
+ *
+ * `seasons_one_open` below is what makes "the current Season" a fact rather
+ * than whichever row happens to sort last, and closing is what lets the next
+ * one open at all.
  *
  * Spelled out here and again in `seasons_status_known`, for the reason given
  * on {@link Role}.
@@ -176,10 +183,13 @@ export type SeasonStatus = "open" | "closed";
  * top-ups: a fan who reaches zero waits for the next Season. That rule is only
  * as good as the Coin ledger's constraints — see {@link coinTransactions}.
  *
- * `openedBy` is which admin opened it. Nothing reads it yet; it is recorded
- * because "who did this, and when" is the question a Season nobody remembers
- * opening will be asked, and it cannot be answered later if it was not
- * written down at the time.
+ * `openedBy` and `closedBy` are which admin did each. Nothing reads either;
+ * they are recorded because "who did this, and when" is the question a Season
+ * nobody remembers opening will be asked, and it cannot be answered later if
+ * it was not written down at the time. Closing is the higher-consequence of
+ * the two — it is what freezes the standings a Prize is decided on — which is
+ * why `seasons_closing_is_recorded` holds the admin and the date to the status
+ * together rather than leaving either optional.
  */
 export const seasons = pgTable(
   "seasons",
@@ -192,6 +202,7 @@ export const seasons = pgTable(
       .notNull()
       .references(() => users.id),
     closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedBy: uuid("closed_by").references(() => users.id),
   },
   (table) => [
     // A Season's name is how a fan tells last year's standings from this
@@ -213,6 +224,13 @@ export const seasons = pgTable(
     check(
       "seasons_closed_is_dated",
       sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`,
+    ),
+    // And carries the admin who closed it, for the same reason. A Season that
+    // froze its standings with nobody's name against the decision is the one
+    // row a disputed Prize cannot be traced back through.
+    check(
+      "seasons_closing_is_recorded",
+      sql`(${table.status} = 'closed') = (${table.closedBy} is not null)`,
     ),
   ],
 );
@@ -473,6 +491,69 @@ export const balanceCache = pgTable(
       table.updatedAt,
       table.userId,
     ),
+  ],
+);
+
+/**
+ * What a Season finished as: every fan's final Balance and the Rank it put
+ * them at, written once when the Season closed and never again.
+ *
+ * The one table in this schema that is neither derived nor append-only but
+ * **write-once**. {@link balanceCache} is a copy of the ledger that can be
+ * thrown away and rebuilt; this is a record of a moment, and the moment does
+ * not come back. `final_standings_are_frozen` refuses every `update` and
+ * `delete`, the way `coin_transactions_are_append_only` does, because this is
+ * the evidence behind every Prize awarded under ADR-0007 — and evidence that
+ * can be edited afterwards is not evidence.
+ *
+ * **The Rank is stored rather than derived, and that is the whole point.** It
+ * could be worked out again from `balance_cache` — the rows are still there
+ * after a Season closes — but only as long as that cache still holds what it
+ * held on the day. A Rank breaks a tie by `updated_at` (`BY_STANDING` in
+ * `server/utils/standings.ts`), a correction on a closed Season's Bout would
+ * move both columns, and a Prize decided on second place would then be a Prize
+ * the standings no longer explain. `freezeFinalStandings` writes this in the
+ * same statement it reads the order in, so the Rank here is that reading and
+ * not a later one.
+ *
+ * `entriesPlayed` is frozen for the same reason it is shown at all: it is the
+ * column beside the Coins on the standings a fan reads, and reading it live
+ * from a Season nobody is playing any more would be a second query answering a
+ * question this row has already answered.
+ *
+ * Neither foreign key cascades, like the ledger's: a fan who finished a Season
+ * cannot be deleted out from under the record of where they finished.
+ */
+export const finalStandings = pgTable(
+  "final_standings",
+  {
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** Where they finished, 1 being the top. */
+    rank: integer("rank").notNull(),
+    /** The Coins they finished on, which is what the Rank is an ordering of. */
+    balance: integer("balance").notNull(),
+    /** The Entries they played in the Season, a cancelled one never being one. */
+    entriesPlayed: integer("entries_played").notNull(),
+    /** When the Season closed, which is the moment all of this was true. */
+    frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seasonId, table.userId] }),
+    // One fan per place, and the order the standings are read back in. Two
+    // fans sharing 2nd is what a snapshot ordered by Balance alone would
+    // produce — `BY_STANDING` breaks that tie on purpose, and this is Postgres
+    // refusing to store a record that did not.
+    uniqueIndex("final_standings_one_fan_per_place").on(table.seasonId, table.rank),
+    // 1 is the top and there is no 0th place. A rank of zero would be an
+    // off-by-one in the window that wrote it, silently handing somebody a
+    // Prize a place early.
+    check("final_standings_rank_is_a_place", sql`${table.rank} >= 1`),
+    check("final_standings_entries_played_is_counted", sql`${table.entriesPlayed} >= 0`),
   ],
 );
 

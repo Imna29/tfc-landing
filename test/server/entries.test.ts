@@ -30,6 +30,7 @@ import {
   adminWithASeason,
   cardBout,
   cardInTheGame,
+  closeOpenSeason,
   enterResult,
   lockBout,
   priceBout,
@@ -684,11 +685,17 @@ describe("the Entry a fan commits, and takes back", async () => {
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
-      // Closing a Season is #19's, so reaching this state means writing it by
-      // hand — the card and its Coins outlive the Season being open.
-      await testDatabase().execute(
-        sql`update seasons set status = 'closed', closed_at = now() where status = 'open'`,
+      // The Season is closed the way an admin closes one, which means
+      // finishing its card first. The Bout being settled is not what refuses
+      // the Entry below: `entries.post.ts` asks whether a Season is being
+      // played before it looks at a single Bout.
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+      await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "decision", round: null },
+        card.admin.cookie,
       );
+      await closeOpenSeason(card.admin.cookie);
 
       const response = await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie);
 

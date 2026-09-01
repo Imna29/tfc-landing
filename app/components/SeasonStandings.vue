@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import {
-  LEADERBOARD_MESSAGES,
   STANDING_MESSAGES,
   rankLabel,
   whereYouStand,
   type Leaderboard,
+  type StandingsWords,
 } from "#shared/standings";
 
 /**
- * The top ten of the Season, and the row of the fan reading it.
+ * The top ten of a Season, and the row of the fan reading it.
  *
  * The one page where fans see each other, so the only thing it shows of
  * anybody is the username they chose (ADR-0007). There is no column here a
@@ -24,28 +24,46 @@ import {
  * `whereYouStand` decides between the four different things an empty `you`
  * means, because the sentence under the table is a different one each time.
  *
+ * **Two pages, one table.** The Season being played and a Season that has
+ * finished are the same rows in the same order, and everything that differs
+ * between them is a sentence — so `words` is the vocabulary and this is the
+ * markup. `LEADERBOARD_MESSAGES` is the present tense, `FINAL_STANDINGS_MESSAGES`
+ * the past. The `standings` type is the shape both answer in, `FinalStandings`
+ * being a `Leaderboard` whose Season is never null.
+ *
  * Rendered on the server, which is what the page's exemption from the edge
  * cache is spent on (ADR-0008): a row filled in by the browser afterwards
  * would be paying that cost for nothing.
  */
-const props = defineProps<{ leaderboard: Leaderboard; signedIn: boolean }>();
+const props = defineProps<{
+  standings: Leaderboard;
+  signedIn: boolean;
+  /**
+   * What this table says about itself, which is what tells the two apart.
+   *
+   * Required rather than defaulting to the leaderboard's: a page of standings
+   * that did not say which Season it was a page of would read as the one being
+   * played, and a Season that finished would quietly invite fans to climb it.
+   */
+  words: StandingsWords;
+}>();
 
 /** The fan's own place: the row to pin, and what to say about it. */
-const standing = computed(() => whereYouStand(props.leaderboard, props.signedIn));
+const standing = computed(() => whereYouStand(props.standings, props.signedIn, props.words));
 </script>
 
 <template>
   <section>
-    <template v-if="leaderboard.season">
+    <template v-if="standings.season">
       <p class="font-headline text-sm font-black uppercase tracking-widest text-on-surface/60">
-        {{ leaderboard.season.name }}
+        {{ standings.season.name }}
       </p>
 
       <p class="mt-2 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
-        {{ LEADERBOARD_MESSAGES.what }}
+        {{ words.what }}
       </p>
 
-      <div v-if="leaderboard.top.length > 0" class="mt-8 overflow-x-auto">
+      <div v-if="standings.top.length > 0" class="mt-8 overflow-x-auto">
         <table class="w-full border-collapse text-left">
           <thead>
             <tr
@@ -60,7 +78,7 @@ const standing = computed(() => whereYouStand(props.leaderboard, props.signedIn)
 
           <tbody>
             <tr
-              v-for="place in leaderboard.top"
+              v-for="place in standings.top"
               :key="place.rank"
               class="border-b border-outline-variant/10"
               :class="place.you ? 'bg-primary-container/10' : ''"
@@ -97,7 +115,7 @@ const standing = computed(() => whereYouStand(props.leaderboard, props.signedIn)
                 colspan="4"
                 class="pt-6 pb-2 font-headline text-xs font-black uppercase tracking-widest text-on-surface/60 text-left"
               >
-                {{ LEADERBOARD_MESSAGES.yourRow }}
+                {{ words.yourRow }}
               </th>
             </tr>
             <tr class="bg-primary-container/10">
@@ -113,7 +131,7 @@ const standing = computed(() => whereYouStand(props.leaderboard, props.signedIn)
       </div>
 
       <p v-else class="mt-8 max-w-xl text-sm text-on-surface/70 leading-relaxed">
-        {{ LEADERBOARD_MESSAGES.nobodyYet }}
+        {{ words.nobodyYet }}
       </p>
 
       <p v-if="standing.note" class="mt-6 max-w-xl text-sm text-on-surface/80 leading-relaxed">

@@ -35,9 +35,15 @@ import { setupTestServer } from "../helpers/server";
  * notice if there ever were.
  */
 
-/** A second Season, opened behind the one that is being played. */
+/**
+ * A second Season, opened behind the one that is being played.
+ *
+ * The Season being played has to have finished its card first — closing is
+ * refused while a Bout is still open or waiting on a Result — which is the
+ * arrangement a real rollover happens from.
+ */
 async function nextSeason(admin: CardAdmin, name: string): Promise<void> {
-  await closeOpenSeason();
+  await closeOpenSeason(admin.cookie);
 
   const opened = await postJson("/api/admin/seasons", { name }, admin.cookie);
 
@@ -96,7 +102,11 @@ describe("a fan's own profile", async () => {
     it("has nothing to rank when no Season is being played", async () => {
       const card = await upcomingCard(1);
 
-      await closeOpenSeason();
+      // The card has to be finished before its Season can close. Nobody
+      // committed anything to this Bout, so settling it moves no Coins and the
+      // admin still holds the hundred they started on.
+      await settle(card, 0, { winner: "red" });
+      await closeOpenSeason(card.admin.cookie);
 
       expect(await standingFor(card.admin.cookie)).toEqual({
         season: null,
@@ -223,6 +233,10 @@ describe("a fan's own profile", async () => {
 
       await submit(fan, 10, [{ boutId: first.bouts[0]!.id }]);
 
+      // Season 1 finishes its card before it rolls over, which is what closing
+      // one requires: their Entry wins, and stays in the history as a Season
+      // that is over.
+      await settle(first, 0, { winner: "red" });
       await nextSeason(first.admin, "Season 2");
 
       const second = await upcomingCard(1, {
@@ -268,9 +282,7 @@ describe("a fan's own profile", async () => {
     it("finds a win in a Season that is over", async () => {
       // The reason the page opens on every Season: a status filter that only
       // ever searched the current one would answer this with nothing.
-      const { fan, first } = await twoSeasonsPlayed();
-
-      await settle(first, 0, { winner: "red" });
+      const { fan } = await twoSeasonsPlayed();
 
       const won = await historyFor(fan.cookie, { status: "won" });
 

@@ -15,13 +15,21 @@
  * questions, and what they must never disagree about — the order — is
  * {@link BY_STANDING}, written once and embedded in both.
  *
+ * A third shape reads the same order out of a Season that is over
+ * ({@link finalStandingsOf}), and a fourth is the one that put it there:
+ * {@link freezeFinalStandings}, which is the only write in this file. It is
+ * here rather than beside `closeSeason` precisely so that the Rank it stores
+ * comes from {@link BY_STANDING} in the same statement, rather than from a
+ * fresh window over a cache a later rebuild could have re-dated.
+ *
  * Here rather than beside `balanceOf` in `server/utils/coins.ts` because that
- * module is the ledger's write path and this only reads: nothing in this file
- * moves a Coin, and nothing in it may.
+ * module is the ledger's write path and this only reads the Balance: nothing
+ * in this file moves a Coin, and nothing in it may.
  */
 import { LEADERBOARD_PLACES, type Leaderboard, type LeaderboardPlace } from "#shared/standings";
-import { sql } from "drizzle-orm";
-import { balanceCache, entries, users } from "../db/schema";
+import { sql, type SQL } from "drizzle-orm";
+import type { DatabaseTransaction } from "../db/client";
+import { balanceCache, entries, finalStandings, users } from "../db/schema";
 import { useDatabase } from "./db";
 
 /**
@@ -55,6 +63,30 @@ import { useDatabase } from "./db";
  * against an index-only scan with `nulls last` written in.
  */
 const BY_STANDING = sql`order by balance desc nulls last, updated_at asc, user_id asc`;
+
+/**
+ * How many Entries a fan played in a Season, as a scalar subquery.
+ *
+ * One definition rather than three. **A cancelled Entry is not one a fan
+ * played** (`CONTEXT.md`): its Coins are back in the Balance, so a ranking by
+ * Balance excludes it by arithmetic, and this column has to exclude it by
+ * asking. Written once because the leaderboard asks it, the frozen standings
+ * were written with it, and a copy that forgot the `<> 'cancelled'` would be a
+ * different number beside the same fan on two pages.
+ *
+ * Takes both sides as fragments because its two callers name them differently:
+ * one has a CTE aliasing the Balance rows, the other is inside the `insert`
+ * that freezes them.
+ */
+function entriesPlayedBy(seasonId: SQL, userId: SQL): SQL {
+  return sql`(
+    select count(*)
+    from ${entries}
+    where ${entries.seasonId} = ${seasonId}
+      and ${entries.userId} = ${userId}
+      and ${entries.status} <> 'cancelled'
+  )::int`;
+}
 
 /**
  * Where one fan stands in a Season, and how many they stand among.
@@ -103,7 +135,13 @@ export async function standingIn(seasonId: string, userId: string): Promise<Seas
   return standing ?? { fans: 0, rank: null, balance: null };
 }
 
-/** One row of {@link leaderboardOf}'s answer, as Postgres spells it. */
+/**
+ * One row of a page of standings, as Postgres spells it.
+ *
+ * The shape both {@link leaderboardOf} and {@link finalStandingsOf} answer in,
+ * so that a Season being played and a Season that is over reach the page
+ * through the same {@link pageOf} and the same `LeaderboardPlace`.
+ */
 type PlaceRow = {
   rank: number;
   fans: number;
@@ -166,13 +204,7 @@ export async function leaderboardOf(
       )::int as fans,
       standings.balance::int as balance,
       ${users.username} as username,
-      (
-        select count(*)
-        from ${entries}
-        where ${entries.seasonId} = ${seasonId}::uuid
-          and ${entries.userId} = standings.user_id
-          and ${entries.status} <> 'cancelled'
-      )::int as entries_played,
+      ${entriesPlayedBy(sql`${seasonId}::uuid`, sql`standings.user_id`)} as entries_played,
       standings.user_id = ${fanId}::uuid as you
     from standings
     join ${users} on ${users.id} = standings.user_id
@@ -180,10 +212,109 @@ export async function leaderboardOf(
     order by standings.rank
   `);
 
-  // The `where` above has already decided which rows are the top ten, and the
-  // `order by` has put them first — so this splits the answer rather than
-  // asking the same question of it again. Whatever is past them is the one row
-  // the `or` let through, which is the fan's own and nobody else's.
+  return pageOf(rows);
+}
+
+/**
+ * Freezes what a Season finished as: every fan's Balance and the Rank it puts
+ * them at, written into `final_standings` once and never again. Answers how
+ * many fans were frozen.
+ *
+ * **The Rank comes from {@link BY_STANDING} in the same statement that reads
+ * the Balances.** That is the whole reason this function is here rather than
+ * beside `closeSeason`: a snapshot ordered by Balance alone would hand a Prize
+ * to whichever of two tied fans Postgres returned first, and one that
+ * re-derived the order later would be reading a cache a `rebuildBalanceCache`
+ * could have re-dated. `final_standings_one_fan_per_place` is Postgres
+ * refusing a record that came out of a window with no tie-break in it.
+ *
+ * One `insert ... select` rather than a row per fan, for the reason
+ * `grantStartingCoins` is one: a Season closes on every fan in it at once, and
+ * a round trip each would hold the closing transaction open for as long as the
+ * promotion has an audience.
+ *
+ * Reads the materialised Balance rather than the ledger, like everything else
+ * in this file — and unlike everything else, it is reading it for the last
+ * time that matters. Whatever moves afterwards moves the ledger and not this.
+ *
+ * Takes the transaction to run inside: a Season marked closed whose standings
+ * were not frozen is a Season with no record of what it finished as, and
+ * nothing could write one afterwards.
+ */
+export async function freezeFinalStandings(
+  tx: DatabaseTransaction,
+  seasonId: string,
+): Promise<number> {
+  const frozen = await tx.execute<{ user_id: string }>(sql`
+    insert into ${finalStandings} (season_id, user_id, rank, balance, entries_played)
+    select
+      season_id,
+      user_id,
+      row_number() over (${BY_STANDING}),
+      balance,
+      ${entriesPlayedBy(sql`${balanceCache.seasonId}`, sql`${balanceCache.userId}`)}
+    from ${balanceCache}
+    where season_id = ${seasonId}::uuid
+    returning user_id
+  `);
+
+  return frozen.length;
+}
+
+/**
+ * What a Season finished as: the top of its final standings, and the row of
+ * whoever is reading them.
+ *
+ * {@link leaderboardOf} asked of a Season that is over. The same page at the
+ * same shape, and the two differences are the point of the ticket that added
+ * it: the Rank and the Balance are read rather than derived, so nothing that
+ * happens to the ledger afterwards moves them; and there is no ordering here
+ * at all beyond `order by rank`, because the ordering already happened, once,
+ * in {@link freezeFinalStandings}.
+ *
+ * `final_standings_one_fan_per_place` is the index this reads the top ten out
+ * of, so it is the same index scan the leaderboard does rather than a sort of
+ * everybody who finished the Season.
+ */
+export async function finalStandingsOf(
+  seasonId: string,
+  fanId: string | null,
+): Promise<Omit<Leaderboard, "season">> {
+  const rows = await useDatabase().execute<PlaceRow>(sql`
+    select
+      ${finalStandings.rank}::int as rank,
+      (
+        select count(*)
+        from ${finalStandings}
+        where season_id = ${seasonId}::uuid
+      )::int as fans,
+      ${finalStandings.balance}::int as balance,
+      ${users.username} as username,
+      ${finalStandings.entriesPlayed}::int as entries_played,
+      ${finalStandings.userId} = ${fanId}::uuid as you
+    from ${finalStandings}
+    join ${users} on ${users.id} = ${finalStandings.userId}
+    where ${finalStandings.seasonId} = ${seasonId}::uuid
+      and (
+        ${finalStandings.rank} <= ${LEADERBOARD_PLACES}
+        or ${finalStandings.userId} = ${fanId}::uuid
+      )
+    order by ${finalStandings.rank}
+  `);
+
+  return pageOf(rows);
+}
+
+/**
+ * The rows of one reading, split into the ten and the row under them.
+ *
+ * The `where` above whichever statement produced these has already decided
+ * which rows are the top ten, and its `order by` has put them first — so this
+ * splits the answer rather than asking the same question of it again.
+ * Whatever is past them is the one row the `or` let through, which is the
+ * fan's own and nobody else's.
+ */
+function pageOf(rows: readonly PlaceRow[]): Omit<Leaderboard, "season"> {
   const places = rows.map(placeFrom);
   const beyond = places.slice(LEADERBOARD_PLACES);
 

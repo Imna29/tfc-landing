@@ -2,7 +2,12 @@ import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import type { CommittedEntries } from "../../shared/entries";
 import type { FanHistory } from "../../shared/history";
-import type { FanStanding, Leaderboard } from "../../shared/standings";
+import type {
+  ClosedSeason,
+  FanStanding,
+  FinalStandings,
+  Leaderboard,
+} from "../../shared/standings";
 import type { Corner } from "../../shared/events";
 import type { Correction, NoResultReason, RecordedMethod, Settlement } from "../../shared/results";
 import { coinTransactions, entries } from "../../server/db/schema";
@@ -237,6 +242,24 @@ export function leaderboardFor(cookie?: string): Promise<Leaderboard> {
   return $fetch<Leaderboard>("/api/leaderboard", {
     headers: cookie === undefined ? {} : { cookie },
   });
+}
+
+/**
+ * What a Season finished as, as whoever holds this cookie reads it.
+ *
+ * No cookie is a visitor with no account, for the reason
+ * {@link leaderboardFor} takes none: what a Season finished as is public, and
+ * only the row pinned under the top ten belongs to anybody.
+ */
+export function finalStandingsFor(seasonId: string, cookie?: string): Promise<FinalStandings> {
+  return $fetch<FinalStandings>(`/api/standings/${seasonId}`, {
+    headers: cookie === undefined ? {} : { cookie },
+  });
+}
+
+/** Every Season that has ended, as the leaderboard lists them. */
+export function endedSeasons(): Promise<{ seasons: ClosedSeason[] }> {
+  return $fetch<{ seasons: ClosedSeason[] }>("/api/standings");
 }
 
 /** What the site header would show this fan. */

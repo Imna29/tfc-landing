@@ -332,8 +332,8 @@ stops one being added by accident is in the schema, not in a review:
   in `0003_seasons_and_the_coin_ledger.sql` and nothing but the test suite will
   notice if it goes missing.
 
-Closing a Season and rolling into the next one arrive with #19. Until then a
-Season opens and stays open.
+`POST /api/admin/seasons/<id>/close` is the other end of it — see **Closing a
+Season, and rolling into the next** below, under the leaderboard.
 
 ### Repairing a fan with no Coins
 
@@ -970,6 +970,94 @@ proves the next visitor does not get the last one's row.
 
 Only usernames leave the route. There is no column on the answer a real name
 could travel in, and no endpoint anywhere that would return one (ADR-0007).
+
+### Closing a Season, and rolling into the next
+
+`POST /api/admin/seasons/<id>/close` ends a Season, and it is the
+highest-consequence button in the admin area after entering a result. It does two things in one
+transaction: marks the Season closed, and **freezes its final standings** into
+`final_standings` — every fan's closing Balance and the Rank it put them at.
+That table is the record TFC awards Prizes from (ADR-0007), so it is write-once:
+a `final_standings_are_frozen` trigger refuses every `update` and `delete`, and
+`a_closed_season_is_never_reopened` refuses the `update` that would put the
+Season back. Both are hand-written in `0015_closing_a_season.sql` for the reason
+the ledger's trigger is, and only `test/server/seasons.test.ts` will notice if
+either goes missing.
+
+**The Rank is stored rather than re-derived, and that is the point.**
+`freezeFinalStandings` writes it from `BY_STANDING` in the same statement that
+reads the Balances, so the frozen order is the order the leaderboard was
+actually showing. A snapshot ordered by Balance alone would hand a Prize to
+whichever of two tied fans Postgres returned first; one re-derived later would
+be reading a cache a `rebuildBalanceCache` could have re-dated, since
+`balance_cache.updated_at` is the tie-break. `final_standings_one_fan_per_place`
+is Postgres refusing a record that came out of a window with no tie-break in it.
+
+**A Season will not close over a Bout that is `open` or `locked`**, and the
+refusal names every one of them — which card, where on it, who is fighting — so
+an admin can go and finish them. Those two states are exactly "Coins could still
+move here": an open Bout is taking Entries, and a locked one has Entries riding
+on it with no Result to grade them. A Bout still `closed` deliberately does
+*not* block, because it took no Predictions, holds nobody's Coins, and can never
+settle at all — entering a result on a Bout nobody opened is refused outright, so
+blocking on one would leave the Season open forever with no route that could
+clear it. A card nobody played is taken off by importing it again (ADR-0001).
+
+`outstandingBouts` is asked **inside the closing transaction**, and only there.
+Asking in the route first so the sentence could name them, and again underneath
+so the decision was sound, would be two reads that could disagree; one read that
+both decides and writes the sentence cannot. At Postgres's default isolation it
+sees every settlement committed by the moment it runs, so a result entered while
+an admin was reaching for the button refuses the close rather than being closed
+over.
+
+Closing resets nothing. It leaves every fan holding what they finished on, in a
+Season nobody is playing — the leaderboard says so in words, `/api/coins/standing`
+answers nulls, and no Entry can be committed. **Opening the next Season is what
+resets them**, by the same `grantStartingCoins` that has always run: one
+`season_grant` row per fan, worth 100, in the new Season. There is no reset path
+and no balance being written anywhere — ADR-0003 again, a Balance is what the
+ledger adds up to. Entry history is untouched and stays grouped by Season, which
+is the whole of "the reset is to the economy, not to the record".
+
+One consequence worth knowing: **a correction entered on a closed Season's Bout
+moves the ledger and never the frozen standings.** That is what "frozen" means
+rather than a gap — the standings are what the Season finished as, the ledger is
+what turned out to be true, and both are kept and readable. `test/server/seasons.test.ts`
+corrects a result after the rollover and asserts the record does not follow it.
+
+### What a Season finished as
+
+`/standings/<season>` is the frozen record, one page per Season. There is
+deliberately no `/standings` index page: `GET /api/standings` answers every
+Season that has final standings, newest first, and the **leaderboard** renders
+that list at the bottom of itself — which is where somebody looking for last
+Season's standings actually goes, and where it matters most, because between
+Seasons the table above it is empty and says so.
+
+It is a second surface rather than `/leaderboard` with an id on it, because
+`CONTEXT.md` keeps the two words apart: the leaderboard is the Season being
+played, and a Season that has ended has final standings. The difference is real
+— these rows come out of `final_standings` rather than out of the materialised
+Balance — and a Season still being played answers 404 at `/standings/<its id>`,
+because "final" is what it does not have yet.
+
+Like the leaderboard, the page shows the top ten and the reading fan's own row
+wherever they finished. Every fan the Season ranked is in `final_standings`, not
+just the ten — that is what makes it evidence — but nothing renders the whole
+table today. A hall-of-fame page is the ticket that would.
+
+The table is one component, `SeasonStandings.vue`, rendered twice. Everything
+that differs between a Season being played and one that is over is a sentence,
+so the vocabulary is a parameter (`StandingsWords`): `LEADERBOARD_MESSAGES` is
+the present tense and `FINAL_STANDINGS_MESSAGES` the past. Nothing on a closed
+Season fills up, nobody climbs it, and a fan who is not in it will not be.
+
+It is public and personalised at once, exactly like the leaderboard, so
+`route-rules.ts` exempts `/standings` and `test/server/cache-boundary.test.ts`
+proves a real server does not serve one fan's final Rank to whoever asks next.
+This is the easier of the two to forget, because it arrived on a path of its own
+after ADR-0008 was written.
 
 ### Pushing the model
 

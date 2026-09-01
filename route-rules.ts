@@ -83,6 +83,12 @@ export const routeRules = {
   // the top ten, so the page as a whole is personalised (ADR-0008).
   ...section("/leaderboard", { ...uncached, ssr: true }),
 
+  // And so is what a Season finished as, for exactly the same reason: a
+  // visitor reads the top ten of it, and a fan reads the place they came,
+  // however far down. A stored copy would be one fan's final Rank served to
+  // everybody who followed them onto it.
+  ...section("/standings", { ...uncached, ssr: true }),
+
   // ── Exempt for staleness rather than for privacy ──
   // The card a fan reads is the same HTML for every visitor, signed in or
   // out, which is exactly the shape of page the marketing rule would happily

@@ -124,6 +124,31 @@ export interface Leaderboard {
   fans: number;
 }
 
+/**
+ * The words one page of standings is read in.
+ *
+ * A page of standings is the same table twice — the Season being played and a
+ * Season that finished — and every sentence on it is a different one. "The ten
+ * fans holding the most Coins this Season" is not what a Season four years old
+ * says, and "you are not in the standings *yet*" is a promise a closed Season
+ * cannot keep. So the table is one component and the vocabulary is a parameter,
+ * rather than two copies of the same markup drifting apart a row at a time.
+ */
+export interface StandingsWords {
+  /** What this table is, said above it. */
+  what: string;
+  /** What to say when nobody is in it at all. */
+  nobodyYet: string;
+  /** What to say to a visitor with no account. */
+  signedOut: string;
+  /** The heading over the fan's own row, pinned below the ten. */
+  yourRow: string;
+  /** Their place, said in words, however far down they are. */
+  ranked: (rank: number, fans: number) => string;
+  /** What to say to a fan who has no row here at all. */
+  unranked: string;
+}
+
 /** Everything the leaderboard says beside the names on it. */
 export const LEADERBOARD_MESSAGES = {
   what:
@@ -137,7 +162,91 @@ export const LEADERBOARD_MESSAGES = {
     "Nobody holds Coins in this Season yet. The standings fill up as fans " +
     "join and Bouts settle.",
   yourRow: "Your place in the Season",
-} as const;
+  // The two the profile says as well, said here in the same words: a fan
+  // reading "12th of 340" on one page and something else on the other would be
+  // reading two answers to one question.
+  ranked: STANDING_MESSAGES.ranked,
+  unranked: STANDING_MESSAGES.unranked,
+} as const satisfies StandingsWords;
+
+/**
+ * A Season that has ended, and whose final standings are frozen.
+ *
+ * What the leaderboard offers as a link and what `/standings/<id>` is read by.
+ * The id is a Season's own uuid rather than a slug of its name, because a name
+ * is typed by an admin and a link a fan bookmarked has to keep working
+ * whatever anybody types next.
+ */
+export interface ClosedSeason {
+  id: string;
+  name: string;
+  /** When it closed, which is the moment its standings became final. */
+  closedAt: string;
+}
+
+/**
+ * What a Season finished as: the top of it, and the fan reading it back.
+ *
+ * A {@link Leaderboard} with the Season narrowed to one that has ended — the
+ * same rows in the same order, so the page renders through the same component,
+ * and the same `you` that is null when the ten already hold that fan.
+ *
+ * It is a second surface rather than the leaderboard with a different id, and
+ * `CONTEXT.md` is why: the leaderboard is the Season being played, and a
+ * Season that has ended has final standings, which is a record rather than a
+ * scoreboard. They are read out of `final_standings` and not out of the
+ * materialised Balance, so nothing that happens afterwards moves them.
+ */
+export interface FinalStandings extends Leaderboard {
+  /** Never null: these are the standings of a Season that has ended. */
+  season: ClosedSeason;
+}
+
+/**
+ * Everything a Season's final standings say beside the names on them.
+ *
+ * The past tense throughout, and that is the whole difference from
+ * {@link LEADERBOARD_MESSAGES}: nothing here fills up, nobody climbs it, and a
+ * fan who is not in it will not be.
+ */
+export const FINAL_STANDINGS_MESSAGES = {
+  what:
+    "How this Season finished. These standings were frozen the moment it " +
+    "closed and have not changed since — they are the record TFC awards " +
+    "Prizes from, and every Balance has started over on a new Season.",
+  nobodyYet: "Nobody held Coins in this Season, so it closed with nothing in its " + "standings.",
+  signedOut:
+    "Sign in to see where you finished. Every fan who played has a place in " +
+    "these standings, however far down them.",
+  yourRow: "Where you finished",
+  ranked: (rank: number, fans: number) =>
+    `You finished ${rankLabel(rank)} of ${fans} ${fans === 1 ? "fan" : "fans"}.`,
+  unranked:
+    "You have no place in this Season. It closed without any Coins of yours " +
+    "in it — every Season you did play is still listed on the leaderboard.",
+} as const satisfies StandingsWords;
+
+/**
+ * What the leaderboard says about the Seasons before this one, and what a
+ * link to a Season that has none says instead.
+ *
+ * Beside {@link FINAL_STANDINGS_MESSAGES} rather than inside it, because that
+ * one is the vocabulary a page of standings is rendered in and these are the
+ * page around it: a heading, a list, and a refusal.
+ */
+export const PAST_SEASONS_MESSAGES = {
+  heading: "Seasons that have ended",
+  what:
+    "Every Season before this one, with the standings it finished on. " +
+    "Nothing is ever removed: a Season played four years ago still says who " +
+    "came where in it.",
+  none:
+    "No Season has ended yet. The first set of final standings is frozen the " +
+    "moment this one closes.",
+  notFound:
+    "No Season has final standings under that link. A Season has them from " +
+    "the moment it closes, and never before.",
+} as const satisfies Record<string, string>;
 
 /** What the leaderboard says about the fan reading it, under the top ten. */
 export interface YourStanding {
@@ -162,17 +271,26 @@ export interface YourStanding {
  * the screen.** "42nd of 340" is the number the leaderboard exists to give a
  * fan who will never be in the top ten, and a highlighted row three places
  * down still leaves "of how many?" unanswered.
+ *
+ * `words` is which Season this is a page of — the one being played, or one that
+ * finished — because all four of those sentences are different in the past
+ * tense. The reading is the same either way, which is why it is a parameter
+ * rather than a second copy of this function.
  */
-export function whereYouStand(board: Leaderboard, signedIn: boolean): YourStanding {
-  if (!signedIn) return { pinned: null, note: LEADERBOARD_MESSAGES.signedOut };
+export function whereYouStand(
+  board: Leaderboard,
+  signedIn: boolean,
+  words: StandingsWords,
+): YourStanding {
+  if (!signedIn) return { pinned: null, note: words.signedOut };
   if (!board.season) return { pinned: null, note: "" };
 
   const listed = board.you ?? board.top.find((place) => place.you);
 
-  if (!listed) return { pinned: null, note: STANDING_MESSAGES.unranked };
+  if (!listed) return { pinned: null, note: words.unranked };
 
   return {
     pinned: board.you,
-    note: STANDING_MESSAGES.ranked(listed.rank, board.fans),
+    note: words.ranked(listed.rank, board.fans),
   };
 }

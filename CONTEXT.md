@@ -379,3 +379,32 @@ Never "void". See [[adr-0005]].
 An admin-declared block of Events. Every user starts each Season with 100 Coins, and there
 are no mid-Season top-ups — a user who reaches zero waits for the next Season. Leaderboards
 are scoped to a Season; Entry history is kept forever and grouped by Season.
+
+An admin **opens** one and, when its last Bout has settled, **closes** it. Closing freezes
+its [[final-standings]] and is the end of the road: a closed Season is never reopened, for
+the reason a [[lock]] is never lifted. Opening the next one grants every fan the same 100
+Coins again, which is what makes "no top-ups" survivable rather than terminal — and what
+stops a fan who joined at Event 1 holding an insurmountable lead over one who joined at
+Event 9. The two together are a **rollover**, and between them no Season is being played:
+there is no Balance, nothing to rank, and no Entry can be committed.
+
+A Season will not close while a Bout on one of its Events is still open or still waiting on
+a [[result]], because a Balance frozen then is a Balance about to move. A Bout nobody ever
+opened does not stop it: it took no Predictions and can never settle.
+
+### Final standings
+
+What a Season finished as: every fan's closing [[balance]] and the [[rank]] it put them at,
+frozen the moment the Season closed and never written again. The record TFC awards
+[[prize]]s from ([[adr-0007]]), and the evidence behind one that is disputed.
+
+Not the [[leaderboard]], which is the Season being played and moves with every settlement.
+The final standings are read from a table of their own rather than from the materialised
+[[balance]], so a [[correction]] entered on a settled Bout years later moves the Coin ledger
+and never them. They keep the [[rank]]'s full ordering, ties and all — a snapshot ordered by
+Balance alone would hand a Prize to whichever of two tied fans the database happened to
+return first.
+
+A Season has them from the moment it closes and never before. They are public, at
+`/standings/<season>`, and personalised the way the leaderboard is: a visitor reads the top
+ten, and a fan reads the place they came, however far down it they were.

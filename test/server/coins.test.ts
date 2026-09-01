@@ -5,6 +5,7 @@ import { STARTING_BALANCE } from "../../shared/coins";
 import { balanceCache, coinTransactions, seasons } from "../../server/db/schema";
 import { rebuildBalanceCache } from "../../server/utils/coins";
 import { postJson, signUp, signUpAdmin } from "../helpers/accounts";
+import { closeOpenSeason } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
 import { setupTestServer } from "../helpers/server";
 import { createUser, fanId } from "../helpers/users";
@@ -93,12 +94,10 @@ describe("Seasons and the Coin ledger", async () => {
       const admin = await signUpAdmin();
       await openSeason(admin.cookie, "Season 1");
 
-      // Closing is #19's, so reaching a second Season here means writing the
-      // first one closed by hand.
-      await testDatabase()
-        .update(seasons)
-        .set({ status: "closed", closedAt: new Date() })
-        .where(eq(seasons.status, "open"));
+      // A second Season needs the first one closed, which is the route an
+      // admin presses. Nothing has been imported into it, so there is no card
+      // to finish first.
+      await closeOpenSeason(admin.cookie);
 
       const response = await openSeason(admin.cookie, "SEASON 1");
 

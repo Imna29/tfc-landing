@@ -228,7 +228,7 @@ describe("the Season leaderboard", async () => {
         expect.objectContaining({ username: fan.details.username, balance: 120, entriesPlayed: 1 }),
       );
 
-      await closeOpenSeason();
+      await closeOpenSeason(card.admin.cookie);
 
       const opened = await postJson("/api/admin/seasons", { name: "Season 2" }, card.admin.cookie);
 
@@ -249,8 +249,9 @@ describe("the Season leaderboard", async () => {
     });
 
     it("has nothing to rank between Seasons", async () => {
-      await seasonOf([100]);
-      await closeOpenSeason();
+      const { admin } = await seasonOf([100]);
+
+      await closeOpenSeason(admin.cookie);
 
       expect(await leaderboardFor()).toEqual({ season: null, top: [], you: null, fans: 0 });
     });

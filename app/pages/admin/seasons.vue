@@ -1,22 +1,26 @@
 <script setup lang="ts">
 import { STARTING_BALANCE, coinsLabel } from "#shared/coins";
-import { SEASON_NAME_LENGTH } from "#shared/seasons";
+import { CLOSE_MESSAGES, SEASON_NAME_LENGTH } from "#shared/seasons";
 
 /**
- * Opening a Season, and the record of the ones that have been.
+ * Running a Season: opening one, closing it, and the record of the ones that
+ * have been.
  *
  * Deliberately plain, like the rest of the admin area (ADR-0011): a form, a
  * table, and the sentence the server answered with. Nothing here decides who
- * may open a Season — `server/middleware/admin.ts` refused everyone else
- * before this page was rendered at all.
+ * may open or close a Season — `server/middleware/admin.ts` refused everyone
+ * else before this page was rendered at all.
  *
- * Closing a Season and freezing its final standings arrive with #19. Until
- * then a Season opens and stays open, which is why there is exactly one row
- * here that says "Open".
+ * **Closing is the one button on this page that cannot be taken back**, so it
+ * says so beside itself and asks first. What it does — freeze what every fan
+ * finished on, as the record Prizes are decided from — is argued in
+ * `server/api/admin/seasons/[id]/close.post.ts`; what an admin needs from this
+ * page is to know it is final before they press it, and to be told which Bouts
+ * are outstanding when it refuses.
  */
 useSeoMeta({
   title: "Seasons",
-  description: "Opening a Season of TFC Predictions.",
+  description: "Opening and closing a Season of TFC Predictions.",
   robots: "noindex",
 });
 
@@ -39,6 +43,42 @@ const name = ref("");
 const problem = ref("");
 const opened = ref("");
 const opening = ref(false);
+
+/** What closing said, and which Season is being closed while it runs. */
+const refusedClose = ref("");
+const closed = ref("");
+const closing = ref("");
+
+/**
+ * Closes a Season, having asked first.
+ *
+ * The confirmation is not ceremony. Every other button in the admin area
+ * either does something reversible or refuses on its own; this one freezes a
+ * record the whole contest is decided on, and `a_closed_season_is_never_reopened`
+ * means an accidental press cannot be undone anywhere — not by a route, and
+ * not by hand in SQL.
+ */
+async function closeSeason(season: { id: string; name: string }) {
+  if (!confirm(`Close ${season.name}? ${CLOSE_MESSAGES.what}`)) return;
+
+  closing.value = season.id;
+  refusedClose.value = "";
+  closed.value = "";
+
+  try {
+    const { season: it, fansRanked } = await $fetch(`/api/admin/seasons/${season.id}/close`, {
+      method: "POST",
+    });
+
+    closed.value = CLOSE_MESSAGES.closed(it.name, fansRanked);
+
+    await refresh();
+  } catch (error) {
+    refusedClose.value = problemFrom(error);
+  } finally {
+    closing.value = "";
+  }
+}
 
 async function openSeason() {
   opening.value = true;
@@ -98,7 +138,7 @@ async function openSeason() {
           </button>
 
           <p v-if="anyOpen" class="mt-3 text-sm text-on-surface/70">
-            A Season is open already. Closing one arrives with #19.
+            A Season is open already. Close it below before opening the next one.
           </p>
         </div>
 
@@ -107,6 +147,11 @@ async function openSeason() {
 
       <h2 class="font-headline text-2xl font-black italic uppercase mt-16">Every Season</h2>
 
+      <p class="mt-2 text-sm text-on-surface/70 leading-relaxed">{{ CLOSE_MESSAGES.what }}</p>
+
+      <p v-if="closed" class="mt-4 text-sm text-on-surface/80" role="status">{{ closed }}</p>
+      <p v-if="refusedClose" class="mt-4 text-sm text-error" role="alert">{{ refusedClose }}</p>
+
       <table v-if="seasons.length > 0" class="mt-6 w-full text-left text-sm">
         <thead class="font-headline text-xs font-black uppercase tracking-widest">
           <tr class="border-b border-outline-variant/30">
@@ -114,7 +159,8 @@ async function openSeason() {
             <th scope="col" class="py-3 pr-4">State</th>
             <th scope="col" class="py-3 pr-4">Opened</th>
             <th scope="col" class="py-3 pr-4">Closed</th>
-            <th scope="col" class="py-3">Fans started</th>
+            <th scope="col" class="py-3 pr-4">Fans started</th>
+            <th scope="col" class="py-3"><span class="sr-only">Close</span></th>
           </tr>
         </thead>
         <tbody>
@@ -123,7 +169,26 @@ async function openSeason() {
             <td class="py-3 pr-4">{{ season.status === "open" ? "Open" : "Closed" }}</td>
             <td class="py-3 pr-4">{{ inTbilisi(season.openedAt) }}</td>
             <td class="py-3 pr-4">{{ inTbilisi(season.closedAt) }}</td>
-            <td class="py-3">{{ season.fansGranted }}</td>
+            <td class="py-3 pr-4">{{ season.fansGranted }}</td>
+            <td class="py-3">
+              <button
+                v-if="season.status === 'open'"
+                type="button"
+                :disabled="closing === season.id"
+                class="bg-primary-container text-white font-headline text-xs font-black uppercase tracking-widest px-4 py-2 disabled:opacity-60"
+                @click="closeSeason(season)"
+              >
+                {{ closing === season.id ? "Closing…" : "Close the Season" }}
+              </button>
+
+              <NuxtLink
+                v-else
+                :to="`/standings/${season.id}`"
+                class="text-sm underline underline-offset-4"
+              >
+                Final standings
+              </NuxtLink>
+            </td>
           </tr>
         </tbody>
       </table>

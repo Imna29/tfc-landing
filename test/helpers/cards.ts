@@ -1,5 +1,5 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { inject } from "vitest";
 import type { Question } from "../../shared/pricing";
 import type { EnteredEnding } from "../../shared/results";
@@ -81,16 +81,42 @@ export function card(overrides: Partial<Card> = {}): Card {
 }
 
 /**
- * Closes the Season being played, so that another can be opened behind it.
+ * Closes the Season being played, through the route an admin presses, so that
+ * another can be opened behind it.
  *
- * Written by hand because closing a Season is #19's route and does not exist
- * yet, and a history that goes back through Seasons needs more than one to go
- * back through. Replace it with the route when that ticket lands.
+ * Was a hand-written `update` until #19 gave closing a route. Going through
+ * the real one is what makes every suite that rolls a Season over — history,
+ * the leaderboard, Entries, Coins — proof that the real path leaves what they
+ * assert still true, rather than proof about an `update` nothing in production
+ * runs.
+ *
+ * It refuses a Season with a Bout still open or waiting on a Result, so a test
+ * that rolls over has to have finished its card first. That is the arrangement
+ * a real Season rolls over from, and a helper that let a test skip it would be
+ * arranging something that cannot happen.
  */
-export async function closeOpenSeason(): Promise<void> {
-  await testDatabase().execute(
-    sql`update seasons set status = 'closed', closed_at = now() where status = 'open'`,
-  );
+export async function closeOpenSeason(cookie: string): Promise<{ fansRanked: number }> {
+  const closed = await closeSeasonRequest(await openedSeasonId(), cookie);
+
+  if (!closed.ok) throw new Error(`Closing the Season was refused: ${await closed.text()}`);
+
+  return (await closed.json()) as { fansRanked: number };
+}
+
+/**
+ * Closes one Season, the way the button in the admin area does.
+ *
+ * Hands the raw response back rather than throwing, for the reason
+ * {@link enterResult} does: closing is refused more ways than it is accepted,
+ * and the refusals are what most of the cases are about.
+ *
+ * `Request` on the end the way `signUpRequest` has it, and not only for
+ * symmetry: `closeSeason` is already the transaction in
+ * `server/utils/seasons.ts`, and a suite that reads both would have two things
+ * under one name.
+ */
+export function closeSeasonRequest(seasonId: string, cookie?: string): Promise<Response> {
+  return postJson(`/api/admin/seasons/${seasonId}/close`, {}, cookie);
 }
 
 /** The Season being played, which a card is imported into. */

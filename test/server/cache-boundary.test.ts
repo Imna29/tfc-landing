@@ -1,9 +1,13 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { describe, expect, it } from "vitest";
 import { PREDICTION_MESSAGES } from "../../shared/predictions";
-import { LEADERBOARD_MESSAGES, STANDING_MESSAGES } from "../../shared/standings";
+import {
+  FINAL_STANDINGS_MESSAGES,
+  LEADERBOARD_MESSAGES,
+  STANDING_MESSAGES,
+} from "../../shared/standings";
 import { postJson, signUp, signUpAdmin } from "../helpers/accounts";
-import { importTestCard } from "../helpers/cards";
+import { closeOpenSeason, importTestCard, openedSeasonId } from "../helpers/cards";
 import { setupTestServer } from "../helpers/server";
 import { createUser, fanId } from "../helpers/users";
 
@@ -89,6 +93,30 @@ describe("the cache boundary", async () => {
 
     expect(anybody).not.toContain(STANDING_MESSAGES.ranked(2, 2));
     expect(anybody).toContain(LEADERBOARD_MESSAGES.signedOut);
+  });
+
+  it("never serves one fan's own place in a Season that is over to whoever asks next", async () => {
+    // The leaderboard's twin, and exempt for the same reason: what a Season
+    // finished as is public, and it still carries the row of whoever is
+    // reading it. This one is the easier of the two to forget, because it
+    // arrived on a path of its own after ADR-0008 was written.
+    const admin = await signUpAdmin();
+
+    await postJson("/api/admin/seasons", { name: "Season 1" }, admin.cookie);
+
+    const fan = await signUp();
+    const standings = `/standings/${await openedSeasonId()}`;
+
+    await closeOpenSeason(admin.cookie);
+
+    const theirs = await $fetch<string>(standings, { headers: { cookie: fan.cookie } });
+
+    expect(theirs).toContain(FINAL_STANDINGS_MESSAGES.ranked(2, 2));
+
+    const anybody = await $fetch<string>(standings);
+
+    expect(anybody).not.toContain(FINAL_STANDINGS_MESSAGES.ranked(2, 2));
+    expect(anybody).toContain(FINAL_STANDINGS_MESSAGES.signedOut);
   });
 
   it("serves a page that reads a session under one spelling only", async () => {

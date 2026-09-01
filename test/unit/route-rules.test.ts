@@ -59,6 +59,11 @@ describe("routes that read a session", () => {
     "/admin",
     "/admin/events/tfc-12",
     "/leaderboard",
+    // What a Season finished as is as personalised as the leaderboard: a fan
+    // reads the place they came, however far down it they were.
+    "/standings",
+    "/standings/a-season",
+    "/api/standings/a-season",
   ];
 
   it.each(sessionPaths)("%s is exempt from the edge cache", (path) => {
@@ -69,7 +74,7 @@ describe("routes that read a session", () => {
     expect(rulesFor(path).cache).toBe(false);
   });
 
-  it.each(["/predictions", "/profile", "/admin", "/leaderboard"])(
+  it.each(["/predictions", "/profile", "/admin", "/leaderboard", "/standings"])(
     "%s is server-rendered",
     (path) => {
       expect(rulesFor(path).ssr).toBe(true);
@@ -112,7 +117,14 @@ function vercelExemptsFromEdgeCache(path: string) {
 }
 
 describe("section index paths", () => {
-  const sectionIndexes = ["/api", "/predictions", "/profile", "/admin", "/leaderboard"];
+  const sectionIndexes = [
+    "/api",
+    "/predictions",
+    "/profile",
+    "/admin",
+    "/leaderboard",
+    "/standings",
+  ];
 
   it.each(sectionIndexes)("%s is exempt in Nitro's router", (path) => {
     expect(rulesFor(path).isr).toBe(false);
@@ -125,12 +137,14 @@ describe("section index paths", () => {
     expect(vercelExemptsFromEdgeCache(path)).toBe(true);
   });
 
-  it.each(["/predictions/tfc-12", "/profile/entries", "/admin/events/tfc-12"])(
-    "%s is exempt in Vercel's route table",
-    (path) => {
-      expect(vercelExemptsFromEdgeCache(path)).toBe(true);
-    },
-  );
+  it.each([
+    "/predictions/tfc-12",
+    "/profile/entries",
+    "/admin/events/tfc-12",
+    "/standings/a-season",
+  ])("%s is exempt in Vercel's route table", (path) => {
+    expect(vercelExemptsFromEdgeCache(path)).toBe(true);
+  });
 
   it.each(["/", "/some-prismic-page", "/fighters/some-fighter"])(
     "%s still goes to the cached catch-all",
