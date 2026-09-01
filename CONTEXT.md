@@ -7,9 +7,20 @@ and UI copy, and avoid the synonyms each entry rules out.
 
 This product is a free-to-play prediction game, not a sportsbook, and the language has to
 hold that line everywhere — schema, API, UI copy. **Banned: bet, wager, slip, stake, odds,
-parlay, accumulator, bookmaker, payout, void, punter, bankroll.** The replacements below
-are the approved vocabulary. When a new concept needs a name, pick the word a quiz or
+parlay, accumulator, bookmaker, payout, void, punter, bankroll, market.** The replacements
+below are the approved vocabulary. When a new concept needs a name, pick the word a quiz or
 fantasy-league product would use, not the word a betting site would.
+
+The list is enforced rather than remembered: `test/unit/vocabulary.test.ts` sweeps every file
+a fan can read and every decision record in `docs/adr/`, matching inflections, so a word
+reached for out of habit fails a run rather than a review.
+
+Two deliberate exceptions. **marketing** never counts, though banning "market" catches it: it
+is the word for the site TFC runs beside the game and has no synonym, the rule is about the
+game's vocabulary rather than the company's, and a guard that fires on legitimate copy is a
+guard somebody switches off. And **this file is not swept**: it is the rule rather than prose
+subject to it, and it cannot ban a word without naming it — every entry below that says never
+"odds" or never a "stake" would fail a check that cannot tell a mention from a use.
 
 ## Prediction Game
 
@@ -72,8 +83,8 @@ Bout produced rather than against the moment it stopped taking answers.
 ### Result
 
 What happened in a [[bout]], as an admin records it: who won, the method it ended by, and
-the round it ended in. A [[bout]] that ends in a Decision has no round, for the same reason
-a Prediction of one has none.
+the round it ended in. A [[bout]] that ends in a Decision has no round: going the distance is
+precisely not ending in one.
 
 Recorded once per Bout and only after it has locked — entering one locks a Bout still open
 — and the Bout is **settled** from that moment, which is the end of the road its status
@@ -115,10 +126,9 @@ Grading every Entry affected by a Bout's [[result]] and writing the resulting Co
 Transactions, as one transaction. An Entry becomes Lost the instant any of its Predictions
 loses, without waiting for its remaining Bouts. See [[adr-0003]].
 
-A Prediction is **correct** only if every answer in it is: the winner, and the method and
-round where the fan named them. Whether one landed is worked out from the Bout's Result
-whenever it is shown, never written onto the Prediction — the [[result]] is the only record
-of what happened.
+A Prediction is **correct** when the one answer it holds is what the Bout produced. Whether
+it landed is worked out from the Bout's Result whenever it is shown, never written onto the
+Prediction — the [[result]] is the only record of what happened.
 
 ### Bout
 
@@ -162,8 +172,12 @@ Not a "sync": nothing goes back the other way, and nothing repeats it on a sched
 One thing asked about a Bout. There are three: **winner**, **method of victory**, and
 **round of victory**.
 
+Each is asked and answered on its own terms: a Prediction answers exactly one of them, and
+each carries its own [[multiplier]] ([[adr-0014]]).
+
 A Question is never an answer — "KO/TKO" is not a Question. Previously called a "market";
-renamed because "market" reads as sportsbook.
+renamed because "market" reads as sportsbook, and now banned outright by the naming rule
+above.
 
 ### Outcome
 
@@ -178,25 +192,30 @@ A Multiplier is copied onto a Prediction when the Entry is submitted and never r
 Editing an Outcome's Multiplier afterwards never changes an Entry that already exists.
 See [[adr-0002]].
 
+Every Multiplier stands for its own answer outright ([[adr-0014]]): a method of ×3.2 means
+×3.2 if the Bout ends that way, whoever wins it. Multipliers combine only across different
+Bouts, never between the Questions asked about one.
+
 Every Outcome is [[import]]ed carrying a **seeded** Multiplier from a fixed table, so that
-pricing a card is eight numbers per Bout adjusted rather than eight authored from blank. A
+pricing a card is eight to ten numbers per Bout adjusted rather than authored from blank. A
 seeded Multiplier is deliberately not a price: an Outcome is **priced** only once an admin
-has set it, and a Bout with an **unpriced** Outcome cannot be opened. Method and round
-Multipliers are priced conditionally on the winner the fan picked ([[adr-0004]]) — a method
-of ×3.2 means ×3.2 *given that* the fighter they chose wins.
+has set it, and a Bout with an **unpriced** Outcome cannot be opened.
 
 ### Prediction
 
-A user's answer for **one Bout**: a required winner Outcome, plus optionally a method
-Outcome and a round Outcome. Its Multiplier is the product of the Outcomes chosen.
+A fan's answer to **one Question on one Bout**: a single Outcome — a winner, a method of
+victory, or a round of victory — carrying the Multiplier that Outcome pays. Never a compound
+answer: a fan who has a read on only one of the three says only that, and it is a whole
+Prediction.
 
-An Entry holds **at most one Prediction per Bout** — deepening a Prediction with method and
-round is how you increase its Multiplier, and chaining across different Bouts is how you
-combine. See [[adr-0004]].
+An Entry holds **at most one Prediction per Bout**, which is what keeps the game's arithmetic
+honest: within a Bout there is one answer, and chaining is across different Bouts, which are
+independent of each other, so nothing correlated is ever multiplied. See [[adr-0014]]. A fan
+holding two views on one Bout commits two Entries.
 
-A round of victory only goes with a **KO/TKO or a Submission**: a Decision is the Bout going
-the distance, so there is no round it ends in, and "it ended in round 2" with no method named
-is not something a result could grade either way.
+A round of victory stands on its own — a fan can say a Bout ends in round 2 without naming
+who wins it or how. A Bout that goes to a Decision ended in no round, so a round Prediction
+on one is graded wrong rather than refused when it is made.
 
 ### Entry
 
@@ -374,9 +393,10 @@ The reason is recorded and shown, because a fan told their Prediction counted fo
 and not why is reading an outcome that looks arbitrary.
 
 It is also what a single Question becomes where the Bout answered the others. A
-disqualification settles the winner and leaves the method and round Questions No Results —
-so a No Result is a thing that happens to a Question, and a Bout that produced nothing is
-the case where it happens to all three.
+disqualification settles the winner Question and leaves the method and round Questions No
+Results, so a winner Prediction on that Bout is graded normally while a method or round
+Prediction on it counts for nothing. A No Result is a thing that happens to a Question, and a
+Bout that produced nothing gradable is the case where it happens to all three.
 
 Never "void". See [[adr-0005]].
 

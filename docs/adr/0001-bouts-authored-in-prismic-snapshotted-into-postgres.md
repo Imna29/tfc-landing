@@ -13,7 +13,8 @@ But Prismic must never be the source of truth once Coins are at risk: it has no
 transactional guarantees, no audit trail, a 10-minute ISR cache lag, and any editor can
 silently rewrite a Bout after Entries are submitted. So when an admin opens a card, the Event
 and its Bouts are **copied into Postgres**, and from that moment settlement reads only
-Postgres. Editing the Prismic document afterwards changes marketing copy, never a Market.
+Postgres. Editing the Prismic document afterwards changes marketing copy, never a Bout a fan
+has predicted on.
 
 ## Consequences
 

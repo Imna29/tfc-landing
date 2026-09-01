@@ -21,7 +21,17 @@ export const BANNED_TERMS = [
   "void",
   "punter",
   "bankroll",
+  "market",
 ] as const;
+
+/**
+ * Words no term reports, whichever one's inflections caught them.
+ *
+ * There is exactly one. Banning "market" also fires on "marketing", which is
+ * the word for the site TFC runs beside the game and has no synonym — the
+ * naming rule in `CONTEXT.md` carries that decision and the reasoning for it.
+ */
+const ALLOWED_WORDS: ReadonlySet<string> = new Set(["marketing"]);
 
 export interface BannedTermMatch {
   /** The term as `CONTEXT.md` bans it. */
@@ -72,6 +82,10 @@ export function findBannedTerms(text: string): BannedTermMatch[] {
 
     for (const { term, regex } of PATTERNS) {
       for (const match of lineText.matchAll(regex)) {
+        if (ALLOWED_WORDS.has(match[0].toLowerCase())) {
+          continue;
+        }
+
         onThisLine.push({
           at: match.index ?? 0,
           found: { term, match: match[0], line: index + 1 },
@@ -114,6 +128,27 @@ export function contentSurfaceFiles(): ContentSurfaceFile[] {
     ...walk(join(REPO_ROOT, "customtypes"), (name) => name === "index.json"),
   ];
 
+  return read(paths);
+}
+
+/**
+ * The decision records in `docs/adr/`.
+ *
+ * Not copy a fan reads, so not part of the content surface — but prose the
+ * project writes about itself, in the vocabulary it made a rule of. Swept for
+ * the reason ADR-0001 is worth reading: it carried a capital-M "Market" for
+ * months after the rename to Question, because nothing was asking.
+ *
+ * `CONTEXT.md` is deliberately not here. It is the rule rather than prose
+ * subject to it, and it cannot ban a word without naming it — every entry that
+ * says never "odds" or never a "stake" would fail a sweep that cannot tell a
+ * mention from a use.
+ */
+export function decisionRecordFiles(): ContentSurfaceFile[] {
+  return read(walk(join(REPO_ROOT, "docs", "adr"), (name) => name.endsWith(".md")));
+}
+
+function read(paths: string[]): ContentSurfaceFile[] {
   return paths.sort().map((path) => ({
     path: relative(REPO_ROOT, path),
     text: readFileSync(path, "utf8"),

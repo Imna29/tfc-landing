@@ -1,27 +1,27 @@
 ---
-status: accepted
+status: superseded by ADR-0014
 ---
 
 # An Entry holds at most one Prediction per Bout
 
-Winner, method and round are not independent events. "Fighter A wins" and "A wins by KO"
-overlap heavily, so treating them as separate chained items whose Multipliers multiply pays
-out as though the user predicted two things when they nearly predicted one — a systematic
-overpayment users would find and farm. Some combinations are also impossible outright
-("Decision" and "Round 2").
+**Superseded by [[adr-0014]], which restates the rule in the title and replaces everything
+under it.** The rule itself still holds — an Entry may contain only one Prediction per Bout,
+and chaining happens *across* Bouts — and ADR-0014 carries it together with the correlation
+argument that makes it necessary. Read that record, not this one.
 
-So a Prediction is a single compound answer for one Bout — required winner, optional method,
-optional round — and an Entry may contain only one Prediction per Bout. Chaining happens
-*across* Bouts. Adding method and round deepens a Prediction rather than lengthening the
-chain. The admin prices the method and round Outcomes knowing they are multiplied onto a
-winner pick, i.e. as conditional on the winner the user chose.
+What this record decided beyond the title is no longer true. A Prediction was a single
+**compound** answer for one Bout — a required winner plus an optional method and an optional
+round, whose Multipliers multiplied into one number — so adding a method and a round deepened
+a Prediction rather than lengthening the chain, and an admin priced those two Questions
+*conditionally on the winner the fan picked*.
 
-Rejected: pricing every full combination by hand (2 winners × 3 methods × up to 5 rounds is
-30+ numbers per Bout, which nobody will maintain before every card).
+That conditional pricing was never real: method and round Outcomes carry no corner, so there
+has only ever been one Submission price per Bout rather than one per fighter. ADR-0014 gives
+each Question a standalone Multiplier, stops the three multiplying together, and lets a fan
+answer any one of them on its own. It also inverts this record's surviving consequence — a
+round Prediction no longer needs a finish named beside it, and a round Prediction on a Bout
+that went to a Decision is graded wrong rather than refused at submission.
 
-## Consequences
-
-- Not probabilistically pure — the conditional pricing is an admin's judgement, not a
-  derived number. Acceptable because Coins have no monetary value.
-- Validation must reject impossible Predictions: a round Outcome is only selectable
-  alongside KO/TKO or Submission, never Decision.
+The alternative rejected here, pricing every full combination by hand (2 winners × 3 methods
+× up to 5 rounds is 30+ numbers per Bout, which nobody will maintain before every card), is
+moot under ADR-0014: there are no combinations to price, only answers.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentSurfaceFiles, findBannedTerms } from "../helpers/vocabulary";
+import { contentSurfaceFiles, decisionRecordFiles, findBannedTerms } from "../helpers/vocabulary";
 
 /**
  * `CONTEXT.md` bans sportsbook vocabulary outright: this is a free-to-play
@@ -35,6 +35,20 @@ describe("findBannedTerms", () => {
     expect(findBannedTerms("a better slipper than the last one")).toEqual([]);
   });
 
+  it("bans the sportsbook word this project renamed a Question away from", () => {
+    expect(findBannedTerms("one market per Bout")).toEqual([
+      { term: "market", match: "market", line: 1 },
+    ]);
+    expect(findBannedTerms("the markets are open").at(0)?.term).toBe("market");
+  });
+
+  it("keeps the one inflection of it this project needs", () => {
+    // Decided in `CONTEXT.md`: the site TFC runs beside the game is a
+    // marketing site, and there is no other word for it.
+    expect(findBannedTerms("the marketing site links to the card")).toEqual([]);
+    expect(findBannedTerms("Marketing")).toEqual([]);
+  });
+
   it("says which line each one is on", () => {
     expect(findBannedTerms("clean\nyour stake\nclean\nthe payout")).toEqual([
       { term: "stake", match: "stake", line: 2 },
@@ -61,6 +75,30 @@ describe("the content surface", () => {
   it("covers the modules that hold copy of their own", () => {
     expect(files.map((file) => file.path)).toContain("app/utils/eligibilityRules.ts");
     expect(files.map((file) => file.path)).toContain("shared/signUp.ts");
+  });
+
+  it.each(files.map((file) => [file.path, file.text] as const))(
+    "%s uses the approved vocabulary",
+    (path, text) => {
+      const found = findBannedTerms(text);
+      const report = found.map((m) => `${path}:${m.line} — "${m.match}" (banned: ${m.term})`);
+
+      expect(report).toEqual([]);
+    },
+  );
+});
+
+/**
+ * The rule polices the prose the project writes about itself, not only the copy
+ * a fan reads: `CONTEXT.md` is where a term is retired, and a decision record
+ * written a month later in the word it replaced is how a retirement quietly
+ * fails. ADR-0001 carried a capital-M "Market" for exactly that long.
+ */
+describe("the decision records", () => {
+  const files = decisionRecordFiles();
+
+  it("is actually finding files to check", () => {
+    expect(files.length).toBeGreaterThan(10);
   });
 
   it.each(files.map((file) => [file.path, file.text] as const))(
