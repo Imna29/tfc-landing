@@ -95,6 +95,15 @@ describe("a fight card in the game", async () => {
     );
   }
 
+  /** What a Bout's rounds were seeded at, in the order they are fought. */
+  async function seededRounds(boutId: string) {
+    const stored = await boutOutcomes(boutId);
+
+    return stored
+      .filter((outcome) => outcome.question === "round")
+      .map((outcome) => outcome.multiplier);
+  }
+
   /** Opens a Bout for predictions, as the button does. */
   function open(boutId: string, cookie: string) {
     return postJson(`/api/admin/bouts/${boutId}/open`, {}, cookie);
@@ -110,7 +119,8 @@ describe("a fight card in the game", async () => {
   }
 
   describe("importing a card", () => {
-    it("seeds a Multiplier on every Outcome of every Bout, priced by nobody", async () => {
+    /** A card of both formats TFC books: a three-round opener, a five-round headliner. */
+    async function importedFormats() {
       const { id } = await admin();
 
       const imported = await importTestCard(id, {
@@ -122,9 +132,15 @@ describe("a fight card in the game", async () => {
 
       const [threeRounder, fiveRounder] = await importedBouts(imported.id);
 
+      return { threeRounder: threeRounder!, fiveRounder: fiveRounder! };
+    }
+
+    it("seeds a Multiplier on every Outcome of every Bout, priced by nobody", async () => {
+      const { threeRounder, fiveRounder } = await importedFormats();
+
       // Two winners, three methods, and a round for each round scheduled.
-      const opener = await boutOutcomes(threeRounder!.id);
-      const headliner = await boutOutcomes(fiveRounder!.id);
+      const opener = await boutOutcomes(threeRounder.id);
+      const headliner = await boutOutcomes(fiveRounder.id);
 
       expect(opener.length).toBe(8);
       expect(headliner.length).toBe(10);
@@ -138,6 +154,15 @@ describe("a fight card in the game", async () => {
       expect(opener.every((outcome) => outcome.multiplier > 1)).toBe(true);
       expect(opener.every((outcome) => outcome.pricedAt === null)).toBe(true);
       expect(opener.every((outcome) => outcome.pricedBy === null)).toBe(true);
+    });
+
+    it("seeds a three-round Bout's rounds from a different row than a five-round Bout's", async () => {
+      const { threeRounder, fiveRounder } = await importedFormats();
+
+      // Round 3 is the last round of the opener and a middle round of the
+      // headliner, so it is not the same question and is not seeded the same.
+      expect(await seededRounds(threeRounder.id)).toEqual([3.15, 4.75, 5.7]);
+      expect(await seededRounds(fiveRounder.id)).toEqual([3.75, 5.95, 8.9, 11.85, 14.25]);
     });
   });
 

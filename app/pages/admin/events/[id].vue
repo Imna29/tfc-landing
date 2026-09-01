@@ -411,9 +411,8 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
       <p class="text-on-surface/80 leading-relaxed">
         Every Outcome arrived with a Multiplier from a fixed table, which is a starting point and
         not a price: nothing that wrote it knows which fighter is favoured. Adjust the eight numbers
-        on a Bout, save them, and the Bout can be opened. A method or a round is priced knowing it
-        multiplies onto the winner the fan picked, so
-        <em>Submission</em> means "given that your fighter wins".
+        on a Bout, save them, and the Bout can be opened. Every Multiplier stands for its own answer
+        outright, so <em>Submission</em> is what a Bout ending that way pays, whoever wins it.
       </p>
 
       <p class="mt-4 text-on-surface/80 leading-relaxed">

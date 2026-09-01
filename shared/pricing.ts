@@ -136,40 +136,93 @@ export interface SeededOutcome extends OutcomeAnswer {
 }
 
 /**
+ * What a round deeper than its format's row is seeded at.
+ *
+ * Only a Bout booked over some other number of rounds reaches one: each
+ * format's row covers its own rounds. `SCHEDULED_ROUNDS` allows one to twelve,
+ * which is the guard against a stuck key rather than a format anybody books, so
+ * a round past the fifth repeats the deepest number the table has rather than
+ * the table inventing an opinion about a round nobody schedules.
+ *
+ * The deepest number of the five-round row, said here so that it stays the
+ * deepest: the row ends with it.
+ */
+const DEEPEST_ROUND_MULTIPLIER = 14.25;
+
+/**
+ * What a finish in each round pays on a five-round Bout — a main event or a
+ * title fight — and the row every other format is seeded from.
+ *
+ * Named because it is read twice: as the five-round row of
+ * {@link DEFAULT_MULTIPLIERS}, and as the fallback for a Bout booked over some
+ * other number of rounds, which is the more forgiving of the two rows to be
+ * wrong with. Its numbers climb steeply because a finish is far likelier early
+ * than late: reaching round 5 at all means four rounds already failed to end
+ * the Bout.
+ */
+const FIVE_ROUND_MULTIPLIERS = [3.75, 5.95, 8.9, 11.85, DEEPEST_ROUND_MULTIPLIER] as const;
+
+/**
  * What each Outcome pays before anybody has looked at the Bout.
  *
  * A starting point, deliberately not a price: nothing here knows which fighter
  * is favoured, and the two corners are seeded level because the table cannot
  * tell them apart. What it is for is the shape of a card — that a Submission
- * pays more than a KO/TKO, and a named round more than either — so an admin
- * pricing a card is correcting numbers rather than inventing them.
+ * pays more than a KO/TKO, and a deep round more than an early one — so an
+ * admin pricing a card is correcting numbers rather than inventing them.
  *
- * The method and round Multipliers are conditional on the winner the fan
- * picked, because ADR-0004 multiplies them onto a winner pick rather than
- * treating them as a chain of their own. "Submission at 3.2" therefore means
- * "3.2 given that the fighter you picked wins", which is what makes eight
- * numbers enough where pricing every combination by hand would be thirty.
+ * Every number stands for its own answer outright (ADR-0014): "Submission at
+ * 4.05" means 4.05 if the Bout ends that way, whoever wins it. Nothing here is
+ * conditional on anything else, which is what lets a Question be read back as
+ * the chances it implies — 1 ÷ each Multiplier — and each Question implies a
+ * total somebody chose rather than a total nobody noticed.
+ *
+ * That total is what the Question is worth plus a margin, and **the margin
+ * scales with how well the table knows the answer.** The winner Question
+ * carries about 5%: 50/50 is *known* before anybody looks at the two fighters,
+ * so there is no estimate here to be wrong about and no reason to charge for
+ * one. Method and round carry about 8%, because they rest on a prior — a
+ * regional promotion finishes something like 65% of its Bouts — and the three
+ * extra points are protection against that estimate being off, not a wider
+ * spread taken for its own sake.
+ *
+ * **Decision going up, 2.00 → 2.65, is the cell that reads like a typo.** It is
+ * the one an admin is most likely to "correct" back, and correcting it back is
+ * the expensive mistake. 2.00 implies a Decision every other Bout; at regional
+ * level roughly two Bouts in three end in a finish, which leaves a Decision at
+ * about 35%, and 2.65 is that 35% carrying the method Question's 8% — a 37.7%
+ * implied chance. Seeded at 2.00 the method Question implies about 120% rather
+ * than 108%: a 20% margin, all of it charged on one answer, and on the ending a
+ * fan is second most likely to be right about.
  */
 export const DEFAULT_MULTIPLIERS = {
   winner: { red: 1.9, blue: 1.9 },
-  method: { ko_tko: 2.2, submission: 3.2, decision: 2 },
-  /** By the round it is: finishes cluster early, so a late round pays more. */
-  round: { 1: 3, 2: 3.2, 3: 3.6, 4: 4.5, 5: 5 } as Record<number, number>,
+  method: { ko_tko: 2.2, submission: 4.05, decision: 2.65 },
+  /**
+   * By the rounds the Bout is scheduled for, then by the round.
+   *
+   * Two rows rather than one map, because the same round is a different
+   * question in each format TFC books: round 3 of a three-round Bout is the
+   * last one and catches everything still standing, where round 3 of a
+   * five-rounder is a middle round with two more behind it. One row served
+   * both, and it was wrong for at least one of them everywhere they differ.
+   *
+   * A row totals to the finishes, not to the whole Bout: about 70%, which is
+   * the same 65% prior the method row carries with the same 8% on it. What is
+   * missing from 100% is the Decisions — 35% as a prior, and the 37.7% the
+   * method row prices them at — because a Decision ends in no round at all. A
+   * round Prediction on a Bout that went the distance is wrong rather than
+   * unanswered (ADR-0014).
+   */
+  round: {
+    3: [3.15, 4.75, 5.7],
+    5: FIVE_ROUND_MULTIPLIERS,
+  } as Record<number, readonly number[]>,
 } as const satisfies {
   winner: Record<Corner, number>;
   method: Record<Method, number>;
-  round: Record<number, number>;
+  round: Record<number, readonly number[]>;
 };
-
-/**
- * What a round beyond the fifth is seeded at.
- *
- * TFC schedules three rounds, or five for a main event or a title fight. The
- * twelve `SCHEDULED_ROUNDS` allows is the guard against a stuck key, not a
- * format anybody books — so rounds past the fifth take the deepest number in
- * the table rather than the table pretending to have an opinion about them.
- */
-const DEEPEST_ROUND_MULTIPLIER = 5;
 
 /**
  * Every Outcome a Bout is imported with, in the order an admin prices them.
@@ -195,17 +248,17 @@ export function defaultOutcomes(scheduledRounds: number): SeededOutcome[] {
     multiplier: DEFAULT_MULTIPLIERS.method[method],
   }));
 
-  const rounds: SeededOutcome[] = Array.from({ length: scheduledRounds }, (_, index) => {
-    const round = index + 1;
+  // The row this Bout is booked in, or the five-round row for a Bout booked in
+  // neither of the two formats TFC runs.
+  const booked = DEFAULT_MULTIPLIERS.round[scheduledRounds] ?? FIVE_ROUND_MULTIPLIERS;
 
-    return {
-      question: "round",
-      corner: null,
-      method: null,
-      round,
-      multiplier: DEFAULT_MULTIPLIERS.round[round] ?? DEEPEST_ROUND_MULTIPLIER,
-    };
-  });
+  const rounds: SeededOutcome[] = Array.from({ length: scheduledRounds }, (_, index) => ({
+    question: "round",
+    corner: null,
+    method: null,
+    round: index + 1,
+    multiplier: booked[index] ?? DEEPEST_ROUND_MULTIPLIER,
+  }));
 
   return [...winners, ...methods, ...rounds];
 }

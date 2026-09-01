@@ -448,11 +448,20 @@ in `0005_multipliers_and_opening_bouts.sql` — the rule holds for a hand-writte
 `update`, and for a Bout inserted open, which has no Outcomes at all. `/admin/events` lists, per card, how many Bouts are still to price
 and how many are open.
 
-Method and round Multipliers are priced **conditionally on the winner the fan
-picked**, because ADR-0004 multiplies them onto a winner pick rather than
-treating them as a chain of their own: "Submission ×3.2" means "×3.2 given that
-your fighter wins". That is what makes eight numbers enough where pricing every
-combination by hand would be thirty.
+Every number in that table stands for its own answer outright (ADR-0014):
+"Submission ×4.05" means ×4.05 if the Bout ends that way, whoever wins it. What
+each number is worth, why the winner Question carries a thinner margin than the
+other two, and why **Decision went up** from ×2.00 to ×2.65 — the cell an admin
+is most likely to "correct" back — are argued where they can be read beside the
+numbers, in the docblock over `DEFAULT_MULTIPLIERS`.
+
+What is worth knowing here is that the round Multipliers come from **two rows
+keyed by the rounds the Bout is scheduled for** — three and five, the two
+formats TFC books. Round 3 ends a three-round Bout and catches everything still
+standing; on a five-rounder it is a middle round with two more behind it. Not
+the same question, so not the same number: ×5.70 against ×8.90. A Bout booked
+over any other number of rounds seeds from the five-round row, and a round past
+its fifth repeats its deepest number rather than the table inventing one.
 
 A Multiplier is above 1 and no higher than 100, to two decimal places
 (`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
