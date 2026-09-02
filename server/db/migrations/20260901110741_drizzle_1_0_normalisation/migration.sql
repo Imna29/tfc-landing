@@ -1,0 +1,13 @@
+-- Deliberately empty. This migration exists only to carry the snapshot beside
+-- it, which is the first one written by Drizzle 1.0.
+--
+-- 0.x wrote check constraints and index predicates with the table spelled out
+-- ("bouts"."status"), and 1.0 writes the column alone ("status"). Inside a
+-- constraint on `bouts` those name the same column, so nothing about the
+-- database changed — but `generate` compares the snapshot as text and saw all
+-- 60-odd of them as altered. Left alone it proposed dropping and re-adding
+-- every one, which on a live table means an ACCESS EXCLUSIVE lock and a full
+-- scan each, to arrive back where it started.
+--
+-- The snapshot is kept so the next `generate` starts from what 1.0 would
+-- write; the SQL is dropped because there is nothing to run.

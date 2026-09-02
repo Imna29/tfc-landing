@@ -1,6 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "./schema";
 
 export type Database = ReturnType<typeof createDatabase>;
 
@@ -76,5 +75,11 @@ export function createDatabase(databaseUrl: string) {
     prepare: false,
   });
 
-  return drizzle(client, { schema });
+  // `{ client }` rather than a positional argument, and no `schema`: Drizzle
+  // 1.0 takes an already-built driver only through the config object, and
+  // dropped `schema` in favour of a `relations` that feeds the relational
+  // query builder (`database.query.…`). Nothing here uses that builder —
+  // every query in this codebase is written with `select`/`insert`/`update` —
+  // so there is nothing to hand over.
+  return drizzle({ client });
 }

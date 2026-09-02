@@ -2,8 +2,9 @@
  * The database schema. One table per exported const; migrations are generated
  * from this file with `pnpm db:generate` and reviewed as SQL before they run.
  *
- * Column names are written out rather than inferred from a `casing` option,
- * because that option is one of the things changing in Drizzle 1.0.
+ * Column names are written out rather than inferred from a `casing` option.
+ * That option is gone in Drizzle 1.0 — casing is chosen per table now, with
+ * `snakeCase.table(…)` — and names spelled out here were never subject to it.
  *
  * `users`, `sessions`, `accounts` and `verifications` are the four tables
  * `better-auth` requires. Their columns are its columns and are named the way
