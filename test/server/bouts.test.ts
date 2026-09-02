@@ -1265,13 +1265,14 @@ describe("a fight card in the game", async () => {
       const page = await publicPage();
 
       // Every Outcome is offered by the route above, and the card renders the
-      // winner Question alone while #42 and #43 stand the other two up in
-      // their new shape (`OFFERED_QUESTIONS`). Both fighters are named as
-      // answers to it, at what each of them pays.
+      // winner and the method Questions while #43 stands the round up in its
+      // new shape (`OFFERED_QUESTIONS`). Both fighters are named as answers to
+      // each of them, at what each of them pays.
       expect(page).toContain("×2.50");
       expect(page).toContain(QUESTION_LABELS.winner);
-      expect(page).not.toContain(QUESTION_LABELS.method);
-      expect(page).not.toContain(METHOD_LABELS.submission);
+      expect(page).toContain(QUESTION_LABELS.method);
+      expect(page).toContain(`Giorgi Tsiklauri by ${METHOD_LABELS.submission}`);
+      expect(page).toContain(`Levan Beridze by ${METHOD_LABELS.submission}`);
       expect(page).not.toContain(QUESTION_LABELS.round);
       expect(page).not.toContain("in round 2");
     });

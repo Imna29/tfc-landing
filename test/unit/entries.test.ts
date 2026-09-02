@@ -67,6 +67,12 @@ describe("answering one Bout", () => {
     expect(pickAnswered(SUBMISSION, RED)).toEqual(RED);
     expect(pickAnswered(SUBMISSION, ROUND_TWO)).toEqual(ROUND_TWO);
     expect(pickAnswered(ROUND_TWO, KO)).toEqual(KO);
+
+    // The one the card makes easiest to reach now the method Question is on
+    // it (#42): six method answers in one column, and moving between two of
+    // them is one answer replacing another rather than two being held.
+    expect(pickAnswered(KO, SUBMISSION)).toEqual(SUBMISSION);
+    expect(pickAnswered(SUBMISSION, DECISION)).toEqual(DECISION);
   });
 
   it("takes the Bout out of the Entry when the same answer is given twice", () => {

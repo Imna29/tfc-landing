@@ -704,12 +704,12 @@ so a five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
 
 `app/components/FightCardBout.vue` renders the Questions in
 `OFFERED_QUESTIONS`, filtered to the ones the Bout has Outcomes for — which is
-none until an admin has priced it. That list is the winner Question alone while
-#42 and #43 stand the method and the round up again in their new shape, each
-arriving with the settlement cases that prove a corner-scoped answer settles.
-It is not a rule about what may be *committed*: the server prices whatever
-answer the Bout is offering, the Outcome rows are what say that, and all
-fourteen to eighteen are seeded and priced before a Bout can open.
+none until an admin has priced it. That list is the winner and the method
+Questions while #43 stands the round up again in its new shape, arriving with
+the settlement cases that prove a corner-scoped answer settles. It is not a
+rule about what may be *committed*: the server prices whatever answer the Bout
+is offering, the Outcome rows are what say that, and all fourteen to eighteen
+are seeded and priced before a Bout can open.
 
 Three layers of the same rules, on purpose:
 

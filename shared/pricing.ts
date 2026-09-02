@@ -30,8 +30,8 @@ export type Question = "winner" | "method" | "round";
 export type Method = "ko_tko" | "submission" | "decision";
 
 /**
- * The three Questions, in the order they are asked: who wins, how it ends, and
- * the round it ends in.
+ * The three Questions, in the order they are asked: who wins, how they win,
+ * and the round they win in.
  *
  * The order every Outcome is seeded, priced and offered in, said once here.
  * Each is asked on its own terms and answered on its own (ADR-0014), so this

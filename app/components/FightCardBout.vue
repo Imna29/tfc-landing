@@ -110,9 +110,9 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
  *
  * The ones `OFFERED_QUESTIONS` names, in the order it asks them, each answered
  * on its own terms (ADR-0014) and each answer naming the fighter it is about
- * (ADR-0015). It is the winner Question alone while #42 and #43 stand the
- * method and the round up again in their new shape; the method and round
- * Outcomes behind it are seeded and priced all the same.
+ * (ADR-0015). It is the winner and the method while #43 stands the round up
+ * again in its new shape; the round Outcomes behind it are seeded and priced
+ * all the same.
  *
  * Dropped as well is any Question with no Outcomes on it — a Bout nobody has
  * opened has none at all, because nothing on it is priced.
@@ -179,10 +179,10 @@ const questions = computed(() => {
       </div>
 
       <!--
-        As many columns as there are Questions on the card, which is one on an
+        As many columns as there are Questions on the card, which is two on an
         open Bout today and none on one nobody has opened. Laid out from what
         is actually asked rather than from a number written here, so the Bout
-        is filled either way as #42 and #43 add a column each.
+        is filled either way as #43 adds the last of them.
       -->
       <div
         v-if="questions.length > 0"

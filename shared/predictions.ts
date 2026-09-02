@@ -20,12 +20,12 @@ import type { OutcomeAnswer, Question } from "./pricing";
  * The Questions the card offers a fan, in the order they are asked.
  *
  * Every Bout is imported with all three Questions seeded and an admin prices
- * every one of them, so the Outcomes behind the two missing here exist, are
+ * every one of them, so the Outcomes behind the one missing here exist, are
  * priced, and would grade and pay if a Prediction named one (ADR-0014). What
- * this list says is which of them a fan is offered on the card *today*: #42
- * adds the method and #43 the round, one at a time, each arriving with the
- * copy and the end-to-end coverage that go with a Question whose answers have
- * just started naming a fighter (ADR-0015).
+ * this list says is which of them a fan is offered on the card *today*: the
+ * round is #43's, arriving with the copy and the end-to-end coverage that go
+ * with a Question whose answers have just started naming a fighter
+ * (ADR-0015).
  *
  * The same list #32 stood the winner Question up behind, and for the same
  * reason: every answer's shape changed at once, and each Question is opened to
@@ -35,7 +35,7 @@ import type { OutcomeAnswer, Question } from "./pricing";
  * committed — the server prices whatever answer the Bout is offering, and the
  * Outcome rows are what say that.
  */
-export const OFFERED_QUESTIONS = ["winner"] as const satisfies readonly Question[];
+export const OFFERED_QUESTIONS = ["winner", "method"] as const satisfies readonly Question[];
 
 /**
  * Where a Bout is, as a fan reads it.
