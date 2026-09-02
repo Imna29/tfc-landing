@@ -6,7 +6,7 @@
  * *be*; this decides what the game *charges*. The rule that matters is the one
  * this file cannot enforce on its own — a Bout opens only once every Outcome
  * on it has been priced — and that is held by the trigger in
- * `0005_multipliers_and_opening_bouts.sql`. See ADR-0002 for why there is
+ * `20260825204211_multipliers_and_opening_bouts`. See ADR-0002 for why there is
  * nothing to self-correct a mispriced Outcome once fans are on it.
  */
 import type { BoutStatus, Corner } from "#shared/events";

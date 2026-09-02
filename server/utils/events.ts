@@ -195,7 +195,7 @@ export interface Imported {
  *
  * What makes that safe is that it is only ever allowed while every Bout is
  * still closed. Postgres holds that, not this function — see the trigger in
- * `0004_event_import.sql`.
+ * `20260825191407_event_import`.
  *
  * The Season is set on every import, not only the first. A card whose Bouts
  * are all closed has no Coins riding on it, so a card imported during a Season

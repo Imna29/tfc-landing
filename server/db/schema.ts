@@ -824,7 +824,7 @@ export const outcomes = pgTable(
  *
  * The foreign key deliberately does not cascade, like the ones on
  * {@link predictions}: a Bout that has locked is never deleted — the trigger
- * in `0004_event_import.sql` refuses to replace one that is not closed — and
+ * in `20260825191407_event_import` refuses to replace one that is not closed — and
  * this is that door locked from the other side.
  */
 export const boutLocks = pgTable(
@@ -1088,7 +1088,7 @@ export const boutResultCorrections = pgTable(
  * that wrote it commits, whatever wrote it.
  *
  * **Cancelling is three more rules a column cannot hold**, and
- * `0010_cancelling_an_entry.sql` wrote each of them: an Entry reaches
+ * `20260831190048_cancelling_an_entry` wrote each of them: an Entry reaches
  * `cancelled` out of `open` and never leaves it
  * (`an_entry_is_cancelled_once_out_of_open`), only while every Bout in it is
  * still open (`entries_are_cancelled_while_every_bout_is_open`), and never

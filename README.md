@@ -329,7 +329,7 @@ stops one being added by accident is in the schema, not in a review:
   hundreds.
 - A `coin_transactions_are_append_only` trigger refuses every `update` and
   `delete` on the ledger. Drizzle does not model triggers, so it is hand-written
-  in `0003_seasons_and_the_coin_ledger.sql` and nothing but the test suite will
+  in `20260825021712_seasons_and_the_coin_ledger` and nothing but the test suite will
   notice if it goes missing.
 
 `POST /api/admin/seasons/<id>/close` is the other end of it — see **Closing a
@@ -415,7 +415,7 @@ are all the same edit from outside — so a re-imported card is a card to be
 priced again once #9 lands.
 
 Once any Bout has been opened, re-import is refused. Not by the route being
-careful: by a trigger in `0004_event_import.sql` that refuses to `delete` a Bout
+careful: by a trigger in `20260825191407_event_import` that refuses to `delete` a Bout
 whose status is not `closed`, because a replaced Bout is a Prediction pointing
 at a fight that no longer exists. The route asks first only so that the admin is
 told which rule it was.
@@ -444,7 +444,7 @@ admin saves that Bout at `/admin/events/[id]`, and a Bout with an unpriced
 Outcome **cannot be opened**: nothing in the default table knows which fighter
 is favoured, and ADR-0002 has no pool to self-correct a mispriced Outcome once
 fans are committing Coins against it. The route says so, and so do two triggers
-in `0005_multipliers_and_opening_bouts.sql` — the rule holds for a hand-written
+in `20260825204211_multipliers_and_opening_bouts` — the rule holds for a hand-written
 `update`, and for a Bout inserted open, which has no Outcomes at all. `/admin/events` lists, per card, how many Bouts are still to price
 and how many are open.
 
@@ -705,7 +705,7 @@ Three layers of the same rules, on purpose:
 - **`server/utils/entries.ts`** adds everything only the database knows: is that
   Bout open, is that round one it offers, and — under a row lock — does the fan
   still hold the Coins.
-- **`0007_entries_and_predictions.sql`** holds the ones worth holding, because a
+- **`20260831144028_entries_and_predictions`** holds the ones worth holding, because a
   rule that lives only in a route handler is one refactor away from
   disappearing:
 
@@ -965,7 +965,7 @@ first. Narrowing is the fan's move, not the page's opening position: a status
 filter over one Season would answer "find my wins" with some of them, and the
 grouping is what stops the old Entries drowning the current ones. `bySeason`
 does the grouping; `entries_by_fan_over_time` — `(user_id, submitted_at desc)`,
-added in `0013_profile_and_entry_history.sql` — is what keeps that affordable
+added in `20260901080239_profile_and_entry_history` — is what keeps that affordable
 when history is kept forever, because `entries_by_fan` leads with the Season
 this query deliberately does not narrow to.
 
@@ -1014,7 +1014,7 @@ and embedded in both this and the profile's `standingIn`, so that the Rank a fan
 reads on their own page and the Rank they read here cannot come to disagree:
 Balance, then who reached that total first, then the fan's own id. The new index
 `balance_cache_by_standing` — `(season_id, balance desc, updated_at, user_id)`,
-added in `0014_season_leaderboard.sql` — is that order per Season, so reading the
+added in `20260901082006_season_leaderboard` — is that order per Season, so reading the
 top of one is an index scan rather than a sort of everybody in it. The primary
 key leads with the Season too, but it answers "what does this fan hold?" and
 cannot answer "who holds the most?".
@@ -1064,7 +1064,7 @@ transaction: marks the Season closed, and **freezes its final standings** into
 That table is the record TFC awards Prizes from (ADR-0007), so it is write-once:
 a `final_standings_are_frozen` trigger refuses every `update` and `delete`, and
 `a_closed_season_is_never_reopened` refuses the `update` that would put the
-Season back. Both are hand-written in `0015_closing_a_season.sql` for the reason
+Season back. Both are hand-written in `20260901091906_closing_a_season` for the reason
 the ledger's trigger is, and only `test/server/seasons.test.ts` will notice if
 either goes missing.
 
