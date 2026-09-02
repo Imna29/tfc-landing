@@ -175,14 +175,22 @@ One thing asked about a Bout. There are three: **winner**, **method of victory**
 Each is asked and answered on its own terms: a Prediction answers exactly one of them, and
 each carries its own [[multiplier]] ([[adr-0014]]).
 
+Each is also asked about a [[corner]] ([[adr-0015]]): the answers are "Fighter A", "Fighter A
+by KO/TKO" and "Fighter A in round 2", never a bare method and never a bare round. The words
+"of victory" name a victor because the answer names one.
+
 A Question is never an answer — "KO/TKO" is not a Question. Previously called a "market";
 renamed because "market" reads as sportsbook, and now banned outright by the naming rule
 above.
 
 ### Outcome
 
-One selectable answer to a Question — "Fighter A", "KO/TKO", "Round 2" — carrying the
-Multiplier that answer pays.
+One selectable answer to a Question — "Fighter A", "Fighter A by KO/TKO", "Fighter A in
+round 2" — carrying the Multiplier that answer pays.
+
+Every Outcome names the [[corner]] it is about ([[adr-0015]]), so a method or a round is an
+answer about a fighter rather than about the Bout. A Bout offers two winner Outcomes, six
+method Outcomes, and two for each scheduled round.
 
 ### Multiplier
 
@@ -192,30 +200,35 @@ A Multiplier is copied onto a Prediction when the Entry is submitted and never r
 Editing an Outcome's Multiplier afterwards never changes an Entry that already exists.
 See [[adr-0002]].
 
-Every Multiplier stands for its own answer outright ([[adr-0014]]): a method of ×3.2 means
-×3.2 if the Bout ends that way, whoever wins it. Multipliers combine only across different
-Bouts, never between the Questions asked about one.
+Every Multiplier stands for its own answer outright ([[adr-0014]]): a method of ×6.4 means
+×6.4 if that fighter wins the Bout that way ([[adr-0015]]). Multipliers combine only across
+different Bouts, never between the Questions asked about one.
 
 Every Outcome is [[import]]ed carrying a **seeded** Multiplier from a fixed table, so that
-pricing a card is eight to ten numbers per Bout adjusted rather than authored from blank. A
-seeded Multiplier is deliberately not a price: an Outcome is **priced** only once an admin
-has set it, and a Bout with an **unpriced** Outcome cannot be opened.
+pricing a card is fourteen to eighteen numbers per Bout adjusted rather than authored from
+blank. A seeded Multiplier is deliberately not a price: an Outcome is **priced** only once an
+admin has set it, and a Bout with an **unpriced** Outcome cannot be opened.
 
 ### Prediction
 
 A fan's answer to **one Question on one Bout**: a single Outcome — a winner, a method of
-victory, or a round of victory — carrying the Multiplier that Outcome pays. Never a compound
-answer: a fan who has a read on only one of the three says only that, and it is a whole
-Prediction.
+victory, or a round of victory, always naming the [[corner]] it is about ([[adr-0015]]) —
+carrying the Multiplier that Outcome pays. Never a compound answer: a fan who has a read on
+only one of the three says only that, and it is a whole Prediction.
 
 An Entry holds **at most one Prediction per Bout**, which is what keeps the game's arithmetic
 honest: within a Bout there is one answer, and chaining is across different Bouts, which are
 independent of each other, so nothing correlated is ever multiplied. See [[adr-0014]]. A fan
 holding two views on one Bout commits two Entries.
 
-A round of victory stands on its own — a fan can say a Bout ends in round 2 without naming
-who wins it or how. A Bout that goes to a Decision ended in no round, so a round Prediction
-on one is graded wrong rather than refused when it is made.
+That rule holds harder than it reads. "Fighter A by Decision" says everything "Fighter A
+wins" says and more, so an Entry allowed to hold both would pay a fan for two answers when
+they gave nearly one ([[adr-0015]]).
+
+A round of victory stands on its own — a fan can say Fighter A wins in round 2 without saying
+how it ends. A Bout that goes to a Decision ended in no round, so a round Prediction on one
+is graded wrong rather than refused when it is made, and so is one naming the fighter who
+lost, even where the Bout did end in the round it named.
 
 ### Entry
 
