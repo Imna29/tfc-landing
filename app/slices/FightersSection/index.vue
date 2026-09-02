@@ -238,7 +238,14 @@ const searchPlaceholder = computed(
 );
 const loadMoreLabel = computed(() => props.slice.primary.load_more_label || "Load More Fighters");
 
-const divisionOrder = ["BANTAMWEIGHT", "FEATHERWEIGHT", "LIGHTWEIGHT", "WELTERWEIGHT", "HEAVYWEIGHT"];
+const divisionOrder = [
+  "BANTAMWEIGHT",
+  "FEATHERWEIGHT",
+  "LIGHTWEIGHT",
+  "WELTERWEIGHT",
+  "MIDDLEWEIGHT",
+  "HEAVYWEIGHT",
+];
 
 const divisions = computed(() => {
   const uniqueDivisions = Array.from(new Set(fighters.value.map((fighter) => fighter.division)));
