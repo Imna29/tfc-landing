@@ -36,8 +36,6 @@ describe("routes that read a session", () => {
     "/api",
     "/api/health",
     "/api/entries",
-    // The Prismic purge endpoint. Served from a cache, the second publish
-    // would be answered out of the store the first one built.
     "/api/prismic/revalidate",
     "/predictions",
     "/predictions/tfc-12",

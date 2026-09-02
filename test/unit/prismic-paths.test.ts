@@ -23,9 +23,7 @@ describe("the path a document is served at", () => {
     expect(pathForDocument({ type: "fighter", uid: "giorgi" })).toBe("/fighters/giorgi");
   });
 
-  // These are rendered inside other pages — the footer by the layout, media by
-  // the MediaArchive slice — so they have no path of their own. The purge still
-  // reaches them, because it covers every page.
+  // Rendered inside other pages, so no path of their own.
   it.each(["footer", "media", "media_type", "cta", "picture", "discipline", "division"])(
     "gives %s no path of its own",
     (type) => {
@@ -54,9 +52,7 @@ describe("the set of paths a publish purges", () => {
     expect(paths).toContain("/fighters/giorgi");
   });
 
-  // A `uid` is unique per type per language, so the same page in two languages
-  // arrives as two documents claiming one path. Sending the request twice would
-  // pay for the render twice.
+  // The same page in two languages is two documents claiming one path.
   it("lists a path once when two documents resolve to it", () => {
     const paths = pathsToRevalidate([
       { type: "page", uid: "about" },
@@ -73,11 +69,7 @@ describe("the set of paths a publish purges", () => {
   });
 });
 
-/**
- * The webhook queries exactly these types to build its path list, so a
- * repeatable type that resolves to a path and is not queried is a page nothing
- * ever purges.
- */
+// A type that resolves to a path and is not queried is a page nothing purges.
 describe("the types the webhook queries", () => {
   it.each(["page", "fighter"])("includes %s, which has a path per document", (type) => {
     expect(COLLECTION_TYPES).toContain(type);

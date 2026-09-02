@@ -5,7 +5,6 @@ import { webhookSecretMatches } from "../../server/utils/webhook-secret";
 const BYPASS_TOKEN = "a-bypass-token";
 const ORIGIN = "https://tfcgeo.com";
 
-/** A stand-in for `fetch`, typed as one so the recorded calls are too. */
 function respondWith(status = 200) {
   return vi.fn<typeof globalThis.fetch>(async () => new Response(null, { status }));
 }
@@ -24,11 +23,8 @@ describe("purging a path", () => {
     expect(String(fetch.mock.calls[0]?.[0])).toBe(`${ORIGIN}/fighters/giorgi`);
   });
 
-  /**
-   * The whole mechanism is this header. Without it the request is answered from
-   * the very cache entry it was meant to replace, and the purge silently does
-   * nothing at all — which looks exactly like success.
-   */
+  // Without it the request is answered from the cache entry it meant to
+  // replace, and the purge silently does nothing.
   it("carries the bypass token Vercel checks", async () => {
     const fetch = respondWith();
 
@@ -69,11 +65,6 @@ describe("purging a path", () => {
 });
 
 describe("purging every path", () => {
-  /**
-   * The reason one path is reported rather than thrown: a publish that
-   * refreshed every page but one is a far better outcome than one that stopped
-   * at the first failure and left the rest stale.
-   */
   it("keeps going after a path fails, and says which one did", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async (url) =>
       String(url).endsWith("/contact") ? Promise.reject(new Error("boom")) : new Response(null),
@@ -114,10 +105,7 @@ describe("purging every path", () => {
     expect(outcomes.map((outcome) => outcome.path)).toEqual(paths);
   });
 
-  /**
-   * The purge has to finish inside one function invocation with Prismic waiting
-   * on it. Rendering the whole site at once is how that runs out of time.
-   */
+  // The purge has to finish in one invocation with Prismic waiting on it.
   it("never has more than `concurrency` renders in flight", async () => {
     let inFlight = 0;
     let peak = 0;
@@ -153,10 +141,6 @@ describe("purging every path", () => {
   });
 });
 
-/**
- * The endpoint re-renders every page on the site, so this comparison is the
- * only thing between a stranger and an unlimited amount of our compute.
- */
 describe("the webhook secret", () => {
   it("accepts the configured secret", () => {
     expect(webhookSecretMatches("s3cret", "s3cret")).toBe(true);
@@ -171,14 +155,12 @@ describe("the webhook secret", () => {
     expect(webhookSecretMatches(provided, "s3cret")).toBe(false);
   });
 
-  // Prismic sends `null` when no secret is configured on its side, and a body
-  // that was never JSON gives no field at all.
+  // Prismic sends `null` when no secret is configured on its side.
   it.each([[null], [undefined], [123], [{}]])("rejects %s, which is not a secret", (provided) => {
     expect(webhookSecretMatches(provided, "s3cret")).toBe(false);
   });
 
-  // Otherwise a deployment that forgot the variable would accept every caller
-  // that also sent nothing.
+  // Or a deployment missing the variable would accept a caller sending nothing.
   it("rejects everything when no secret is configured", () => {
     expect(webhookSecretMatches("", "")).toBe(false);
     expect(webhookSecretMatches("anything", "")).toBe(false);

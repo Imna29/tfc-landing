@@ -26,39 +26,21 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
-    // Server-only, all three. See `server/api/prismic/revalidate.post.ts`.
-
-    /** Shared with Prismic, and the only guard on the purge endpoint. */
+    // Server-only. See `server/api/prismic/revalidate.post.ts`.
     prismicWebhookSecret: "",
-
-    /**
-     * The deployment's Vercel bypass token, so the purge endpoint can send it
-     * back. It has to match `nitro.vercel.config.bypassToken` below, which is
-     * read at build time — so this is the same variable read twice, once by the
-     * build and once by the running server, and changing it needs a redeploy
-     * rather than only a restart.
-     */
+    // Must match `nitro.vercel.config.bypassToken` below, which is read at
+    // build time — so changing it needs a redeploy, not just a restart.
     revalidateBypassToken: "",
-
-    /**
-     * Where to send the purge requests. Empty means the host Prismic called,
-     * which is what you want unless the webhook is aimed at a different domain
-     * from the one being refreshed.
-     */
+    // Defaults to the host Prismic called the webhook on.
     revalidateOrigin: "",
-
-    /** So the server can query Prismic without going through the Vue plugin. */
     prismicRepository: prismicConfig.repositoryName,
   },
 
   nitro: {
     vercel: {
       config: {
-        // What makes on-demand purging possible at all: the Vercel preset
-        // writes this into the `.prerender-config.json` of every ISR route, and
-        // Vercel then honours `x-prerender-revalidate: <token>` on those routes.
-        // Without it every page is stuck with the ten-minute expiry in
-        // `route-rules.ts` and nothing can shorten it.
+        // The Vercel preset writes this into every ISR route's prerender
+        // config, which is what makes on-demand purging possible at all.
         bypassToken: process.env.NUXT_REVALIDATE_BYPASS_TOKEN,
       },
     },
