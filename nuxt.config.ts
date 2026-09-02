@@ -25,6 +25,27 @@ export default defineNuxtConfig({
     },
   },
 
+  runtimeConfig: {
+    // Server-only. See `server/api/prismic/revalidate.post.ts`.
+    prismicWebhookSecret: "",
+    // Must match `nitro.vercel.config.bypassToken` below, which is read at
+    // build time — so changing it needs a redeploy, not just a restart.
+    revalidateBypassToken: "",
+    // Defaults to the host Prismic called the webhook on.
+    revalidateOrigin: "",
+    prismicRepository: prismicConfig.repositoryName,
+  },
+
+  nitro: {
+    vercel: {
+      config: {
+        // The Vercel preset writes this into every ISR route's prerender
+        // config, which is what makes on-demand purging possible at all.
+        bypassToken: process.env.NUXT_REVALIDATE_BYPASS_TOKEN,
+      },
+    },
+  },
+
   // The cache boundary lives in ./route-rules.ts so it can be asserted on
   // directly. See ADR-0008.
   routeRules,

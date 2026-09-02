@@ -36,6 +36,7 @@ describe("routes that read a session", () => {
     "/api",
     "/api/health",
     "/api/entries",
+    "/api/prismic/revalidate",
     "/predictions",
     "/predictions/tfc-12",
     "/profile",
