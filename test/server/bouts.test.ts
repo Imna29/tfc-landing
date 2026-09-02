@@ -10,7 +10,7 @@ import {
   PREDICTION_MESSAGES,
   type CardPredictions,
 } from "../../shared/predictions";
-import { PRICING_MESSAGES } from "../../shared/pricing";
+import { METHOD_LABELS, PRICING_MESSAGES, QUESTION_LABELS } from "../../shared/pricing";
 import type { CardBout } from "../../server/utils/cardImport";
 import type { ImportedEvent } from "../../server/utils/events";
 import {
@@ -1173,12 +1173,13 @@ describe("a fight card in the game", async () => {
       const page = await publicPage();
 
       // Every Outcome is offered by the route above; the card renders the
-      // Questions in `OFFERED_QUESTIONS`, which is the winner alone until #33
-      // and #34 stand the other two up. The method and round are priced,
-      // stored and simply not on the card yet.
+      // Questions in `OFFERED_QUESTIONS`, which is the winner and the method
+      // until #34 stands the round up. The round is priced, stored and simply
+      // not on the card yet.
       expect(page).toContain("×2.50");
-      expect(page).toMatch(/Winner/);
-      expect(page).not.toMatch(/Method of victory/i);
+      expect(page).toContain(QUESTION_LABELS.winner);
+      expect(page).toContain(QUESTION_LABELS.method);
+      expect(page).toContain(METHOD_LABELS.submission);
       expect(page).not.toMatch(/Round 2/);
     });
 

@@ -413,7 +413,7 @@ export const CANCELLATION_MESSAGES = {
     `Entry cancelled. ${coinsLabel(amount)} returned to your Balance, which is ` +
     "the whole of what it committed.",
   noneYet:
-    "You have not committed an Entry this Season yet. Pick a winner on the " +
+    "You have not committed an Entry this Season yet. Answer a Bout on the " +
     "card above, and the Entries you commit are listed here.",
 } as const;
 

@@ -108,10 +108,10 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
  * The Questions this card offers, each with the answers to it and what they
  * pay.
  *
- * `OFFERED_QUESTIONS` rather than all three: the method and round Outcomes are
- * seeded, priced and stored, and are simply not on the card yet (#33, #34).
- * Filtering the list rather than reaching for the Outcomes one Question at a
- * time is what makes those two tickets a word each here.
+ * `OFFERED_QUESTIONS` rather than all three: the round Outcomes are seeded,
+ * priced and stored, and are simply not on the card yet (#34). Filtering the
+ * list rather than reaching for the Outcomes one Question at a time is what
+ * makes that ticket a word here.
  */
 const questions = computed(() => {
   const offered = props.predictions?.outcomes ?? [];
@@ -171,9 +171,9 @@ const questions = computed(() => {
       </div>
 
       <!--
-        As many columns as there are Questions on the card, so that the winner
-        standing alone fills the Bout rather than sitting in a third of it, and
-        so that #33 and #34 add a column each without a layout to redo.
+        As many columns as there are Questions on the card, so that two of them
+        fill the Bout rather than sitting in two thirds of it, and so that #34
+        adds the third without a layout to redo.
       -->
       <div
         v-if="questions.length > 0"

@@ -41,6 +41,7 @@ import {
   fanWithCoins,
   ledgerFor,
   listingFor,
+  methodOn,
   settle,
   settleAsNoResult,
   statusOf,
@@ -128,6 +129,39 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
+    it("pays a method Prediction at its own Multiplier, whoever won the Bout", async () => {
+      // #33: the Entry names no winner at all, and settles on how the Bout
+      // ended. The fighter who got the Submission is not asked about, because
+      // the fan did not answer that Question (ADR-0014).
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "submission")]);
+
+      const { settlement } = await settle(card, 0, {
+        winner: "blue",
+        method: "submission",
+        round: 2,
+      });
+
+      // The method Outcome pays ×2.50, so 20 Coins return 50.
+      expect(settlement).toMatchObject({ graded: 1, won: 1, lost: 0, refunded: 0, paid: 50 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 50 });
+    });
+
+    it("loses a method Prediction when the Bout ended some other way", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "submission")]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "ko_tko", round: 1 });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+    });
+
     it("is graded on the Question it answered and nothing else about the Bout", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
@@ -170,6 +204,30 @@ describe("entering a result", async () => {
       // ×2 twice is ×4, so 20 Coins return 80.
       expect(second.settlement).toMatchObject({ won: 1, paid: 80 });
       expect(await statusOf(entry.id)).toBe("won");
+    });
+
+    it("multiplies a method on one Bout with a winner on another, and pays both", async () => {
+      // #33's chaining criterion settled rather than only committed: two
+      // Questions on two Bouts, which are independent events, so the two
+      // Multipliers multiply (ADR-0014).
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [
+        methodOn(card.bouts[0]!.id, "ko_tko"),
+        winnerOn(card.bouts[1]!.id, "blue"),
+      ]);
+
+      const first = await settle(card, 0, { winner: "blue", method: "ko_tko", round: 1 });
+
+      expect(first.settlement).toMatchObject({ graded: 1, won: 0, stillOpen: 1, paid: 0 });
+
+      const second = await settle(card, 1, { winner: "blue" });
+
+      // ×2.50 on the method and ×2 on the winner: ×5, so 10 Coins return 50.
+      expect(second.settlement).toMatchObject({ won: 1, paid: 50 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 + 50 });
     });
 
     it("is Lost the moment one Prediction fails, with Bouts still to settle", async () => {
@@ -744,6 +802,26 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
 
+    it("returns it on a method Prediction too, which had nothing to be right about", async () => {
+      // Whatever was answered on the Bout (ADR-0005). A Bout nobody fought
+      // ended by no method either, so a fan who named one is no more wrong
+      // than a fan who named a winner.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "decision")]);
+
+      const { settlement } = await settleAsNoResult(card, 0, "cancelled");
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 0, refunded: 1, returned: 20 });
+      expect(await statusOf(entry.id)).toBe("refunded");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+
+      const listing = await listingFor(fan.cookie);
+
+      expect(listing.entries[0]?.predictions[0]?.ending).toEqual({ noResult: "cancelled" });
+    });
+
     it("is entered for each of the four ways a Bout produces one", async () => {
       const card = await upcomingCard(NO_RESULT_REASONS.length);
 
@@ -958,6 +1036,80 @@ describe("entering a result", async () => {
       });
       expect(prediction?.multiplier).toBe(TEST_MULTIPLIERS.winner);
       expect(endingNote(prediction!, prediction!.ending)).toBeNull();
+    });
+
+    it("refunds an Entry of nothing but a method Prediction, in full", async () => {
+      // The consequence #33 makes real: what used to be one neutral answer
+      // inside a compound Prediction is now a whole Entry with nothing
+      // gradable in it, so ADR-0005 returns the Amount rather than
+      // neutralising a link in a chain.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "ko_tko")]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
+
+      // Returned rather than paid: an Entry of nothing gradable is made whole,
+      // and no Reward was won.
+      expect(settlement).toMatchObject({
+        graded: 1,
+        won: 0,
+        lost: 0,
+        refunded: 1,
+        paid: 0,
+        returned: 20,
+      });
+      expect(await statusOf(entry.id)).toBe("refunded");
+
+      // Refunded in full, at ×1.0: a fan is never marked wrong for failing to
+      // predict an answer that was never on the card.
+      expect((await ledgerFor(fan.id)).map((row) => [row.kind, row.amount])).toEqual([
+        ["season_grant", STARTING_BALANCE],
+        ["entry_commitment", -20],
+        ["entry_refund", 20],
+      ]);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+
+    it("tells the fan why the method they named counted for nothing", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 20, [methodOn(card.bouts[0]!.id, "ko_tko")]);
+
+      await settle(card, 0, { winner: "red", method: "disqualification" });
+
+      // A Prediction that quietly counted for nothing reads as the game losing
+      // track of it, and on a method-only Entry there is no other Prediction
+      // beside it to give the reason away.
+      const listing = await listingFor(fan.cookie);
+      const prediction = listing.entries[0]?.predictions[0];
+
+      expect(prediction?.ending).toEqual({
+        result: { winner: "red", method: "disqualification", round: null },
+      });
+      expect(endingNote(prediction!, prediction!.ending)).toMatch(/disqualification/i);
+    });
+
+    it("leaves a method Prediction chained beside a winner paying only the winner", async () => {
+      // The DQ settles the winner Question and neutralises the method one, so
+      // the chain plays on at ×1.0 for the method (ADR-0005) rather than the
+      // whole Entry refunding: one Prediction in it was gradable and landed.
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [
+        methodOn(card.bouts[0]!.id, "ko_tko"),
+        winnerOn(card.bouts[1]!.id, "red"),
+      ]);
+
+      await settle(card, 0, { winner: "red", method: "disqualification" });
+      const { settlement } = await settle(card, 1, { winner: "red" });
+
+      // ×1.0 on the neutralised method and ×2 on the winner: 10 Coins return 20.
+      expect(settlement).toMatchObject({ won: 1, refunded: 0, paid: 20 });
+      expect(await statusOf(entry.id)).toBe("won");
     });
 
     it("refuses a round beside it, which the Bout is not being recorded as having", async () => {

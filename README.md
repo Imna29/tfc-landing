@@ -687,11 +687,13 @@ one Prediction per Bout** — answering a second Question on a Bout replaces the
 first, and a fan holding two views on one Bout commits two Entries, separately
 funded and separately graded.
 
-The card asks the winner Question and only that one so far. Method and round
-Outcomes are seeded, priced by an admin and stored exactly as before;
-`OFFERED_QUESTIONS` in `shared/predictions.ts` is the list the card renders
-from, and #33 and #34 add a Question to it each, with the copy and the
-end-to-end coverage that go with one standing on its own.
+The card asks the winner and the method, side by side rather than one
+deepening the other: a fan confident a Bout ends by Submission with no read on
+which fighter gets it answers that alone, and carries only the risk they meant
+to take. Round Outcomes are seeded, priced by an admin and stored exactly as
+before; `OFFERED_QUESTIONS` in `shared/predictions.ts` is the list the card
+renders from, and #34 adds the round to it, with the copy and the end-to-end
+coverage that go with a Question standing on its own.
 
 Three layers of the same rules, on purpose:
 

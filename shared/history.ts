@@ -291,7 +291,7 @@ export const HISTORY_MESSAGES = {
     `${coinsLabel(coins)} returned in full. No Bout in this Entry produced a ` +
     "result to grade, so there was nothing for it to be right or wrong about.",
   noneYet:
-    "You have not committed an Entry yet. Pick a winner on the card, commit " +
+    "You have not committed an Entry yet. Answer a Bout on the card, commit " +
     "your Coins, and everything you predict is kept here — through this " +
     "Season and every one after it.",
   noneMatching: (status: EntryStatus) =>

@@ -10,6 +10,7 @@ import { closeOpenSeason, type CardAdmin } from "../helpers/cards";
 import {
   fanWithCoins,
   historyFor,
+  methodOn,
   settle,
   settleAsNoResult,
   standingFor,
@@ -162,6 +163,31 @@ describe("a fan's own profile", async () => {
           ending: null,
         }),
       ]);
+    });
+
+    it("carries a method the same way, with no winner beside it", async () => {
+      // #33: a method Prediction is read back as the answer the fan gave, and
+      // graded against how the Bout ended whoever won it. There is no corner
+      // on it because none was ever named.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 10, [methodOn(card.bouts[0]!.id, "submission")]);
+      await settle(card, 0, { winner: "blue", method: "submission", round: 2 });
+
+      const [entry] = (await historyFor(fan.cookie)).entries;
+
+      expect(entry?.predictions).toEqual([
+        expect.objectContaining({
+          question: "method",
+          corner: null,
+          method: "submission",
+          round: null,
+          multiplier: 2.5,
+          ending: { result: { winner: "blue", method: "submission", round: 2 } },
+        }),
+      ]);
+      expect(entry?.status).toBe("won");
     });
 
     it("says how each Bout ended, which is what grades the answers", async () => {

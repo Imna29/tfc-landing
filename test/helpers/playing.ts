@@ -84,14 +84,23 @@ export interface Answered {
 /**
  * The winner Prediction a case commits: this corner, on this Bout.
  *
- * The one Question the card offers today, and the answer nearly every case in
- * these suites is about — a settlement, a correction, a refund and a
- * leaderboard are none of them about *which* Question was answered. #33 and
- * #34 bring the other two, and a case that is about one of them says so by
- * naming it here rather than by leaving a field off.
+ * The answer nearly every case in these suites is about — a settlement, a
+ * correction, a refund and a leaderboard are none of them about *which*
+ * Question was answered. A case that is about one of the others says so by
+ * naming it, through {@link methodOn} or by writing the answer out.
  */
 export function winnerOn(boutId: string, corner: Corner): Answered {
   return { boutId, question: "winner", corner };
+}
+
+/**
+ * The method Prediction a case commits: this way of ending, on this Bout.
+ *
+ * Names no winner, and is graded against the recorded method whoever won —
+ * except on a disqualification, where it is a No Result (ADR-0005).
+ */
+export function methodOn(boutId: string, method: Method): Answered {
+  return { boutId, question: "method", method };
 }
 
 /** Submits an Entry the way the panel on the card does. */

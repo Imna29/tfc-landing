@@ -10,6 +10,7 @@ import {
   potentialReward,
   type CommittedEntries,
 } from "../../shared/entries";
+import { METHODS, QUESTION_LABELS, type Method } from "../../shared/pricing";
 import {
   balanceCache,
   boutLocks,
@@ -85,6 +86,17 @@ describe("the Entry a fan commits, and takes back", async () => {
   /** A winner Prediction on one Bout of a card, which is what the card offers. */
   function winner(card: CardInTheGame, place = 0, corner: "red" | "blue" = "red") {
     return { boutId: card.bouts[place]!.id, question: "winner", corner };
+  }
+
+  /**
+   * A method Prediction on one Bout of a card, which names no winner at all.
+   *
+   * The Question #33 stands up beside the winner: a fan sure a Bout ends by
+   * Submission and with no read on which fighter gets it says exactly that,
+   * and it is a whole Prediction at the method's own Multiplier.
+   */
+  function byMethod(card: CardInTheGame, place = 0, method: Method = "submission") {
+    return { boutId: card.bouts[place]!.id, question: "method", method };
   }
 
   /**
@@ -206,6 +218,71 @@ describe("the Entry a fan commits, and takes back", async () => {
       });
     });
 
+    it("takes a method with no winner named, and returns what that answer pays", async () => {
+      // #33's whole point: a fan who is confident a Bout ends by Submission
+      // and has no read on which fighter gets it commits that alone, and
+      // carries only the risk they meant to take. There is no winner in this
+      // Entry to have been priced in.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const { entry, balance: left } = await accepted(
+        await submit({ amount: 20, predictions: [byMethod(card)] }, fan.cookie),
+      );
+
+      // The method Outcome pays ×2.50, so 20 Coins return 50.
+      expect(entry).toMatchObject({ amount: 20, multiplier: 2.5, capped: false, reward: 50 });
+      expect(entry.predictions).toEqual([
+        {
+          boutId: card.bouts[0]!.id,
+          cardOrder: 1,
+          question: "method",
+          corner: null,
+          method: "submission",
+          round: null,
+          multiplier: 2.5,
+        },
+      ]);
+
+      // Written in the shape of the Outcome it was copied from: one Question,
+      // one non-null answer, one Multiplier (ADR-0014).
+      const [written] = await predictionsIn(entry.id);
+
+      expect(written).toMatchObject({
+        question: "method",
+        corner: null,
+        method: "submission",
+        round: null,
+        multiplier: 2.5,
+      });
+
+      expect(left).toBe(STARTING_BALANCE - 20);
+    });
+
+    it("chains a method on one Bout with a winner on another", async () => {
+      // The two Questions are answered on different Bouts, which are
+      // independent events — so the Multipliers multiply, which is the whole
+      // of what chaining is (ADR-0014).
+      const card = await upcomingCard({
+        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      });
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit(
+          { amount: 10, predictions: [byMethod(card, 0, "ko_tko"), winner(card, 1, "blue")] },
+          fan.cookie,
+        ),
+      );
+
+      // ×2.50 on the method and ×2 on the winner: ×5, so 10 Coins return 50.
+      expect(entry).toMatchObject({ multiplier: 5, reward: 50 });
+      expect(entry.predictions.map((prediction) => prediction.question)).toEqual([
+        "method",
+        "winner",
+      ]);
+    });
+
     it("writes a round Prediction with no method beside it", async () => {
       // The constraint that required a round to sit alongside a finish went
       // with the compound shape (ADR-0014): a round stands on its own now, and
@@ -267,6 +344,28 @@ describe("the Entry a fan commits, and takes back", async () => {
       // Entries are separately funded with nothing multiplying between them.
       expect(second.balance).toBe(STARTING_BALANCE - 25);
       expect((await entriesOf(fan.id)).length).toBe(2);
+    });
+
+    it("lets a fan answer two different Questions on one Bout, in two Entries", async () => {
+      // The rule is one Prediction per Bout *within* an Entry (ADR-0014), and
+      // #33 is where that distinction starts to matter: a fan with a view on
+      // the winner and a separate view on the method holds two Entries, each
+      // funded on its own with nothing multiplying between them, so there is
+      // nothing to overpay.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const onTheWinner = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+      const onTheMethod = await accepted(
+        await submit({ amount: 15, predictions: [byMethod(card)] }, fan.cookie),
+      );
+
+      expect(onTheWinner.entry.reward).toBe(20);
+      expect(onTheMethod.entry.reward).toBe(38);
+      expect((await entriesOf(fan.id)).length).toBe(2);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 25 });
     });
 
     it("caps the combined Multiplier at ×100, and says the cap is what decided it", async () => {
@@ -409,6 +508,24 @@ describe("the Entry a fan commits, and takes back", async () => {
 
       expect(response.status).toBe(422);
       expect((await response.json()).message).toBe(ENTRY_MESSAGES.onePredictionPerBout);
+    });
+
+    it("refuses a winner and a method on the same Bout in one Entry", async () => {
+      // Both Questions are on the card now, so this is a shape a fan can build
+      // towards rather than one only a hand-written body reaches. "Red wins"
+      // and "it ends by Submission" are nearly the same prediction, and one
+      // Entry holding both would pay as though they were two (ADR-0014).
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const response = await submit(
+        { amount: 10, predictions: [winner(card), byMethod(card)] },
+        fan.cookie,
+      );
+
+      expect(response.status).toBe(422);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.onePredictionPerBout);
+      expect(await entriesOf(fan.id)).toEqual([]);
     });
 
     it("refuses the second Prediction on a Bout even when it is written by hand", async () => {
@@ -1220,6 +1337,30 @@ describe("the Entry a fan commits, and takes back", async () => {
       // And the panel says what to do first, rather than showing a Reward for
       // an Entry with nothing in it.
       expect(rendered).toContain(ENTRY_MESSAGES.nothingPicked);
+    });
+
+    it("offers every answer to both Questions as something to pick", async () => {
+      // #33 puts the method beside the winner, and both are pickable in their
+      // own right: two corners and three methods, five buttons, none of them
+      // reachable only after another has been pressed.
+      await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const rendered = await page(fan.cookie);
+
+      expect(rendered).toContain(QUESTION_LABELS.winner);
+      expect(rendered).toContain(QUESTION_LABELS.method);
+      expect(rendered.match(/aria-pressed=/g)).toHaveLength(2 + METHODS.length);
+    });
+
+    it("no longer tells a fan to name a winner before anything else", async () => {
+      // A guard on copy #33 retired rather than an assertion about today's
+      // wording: a method standing on its own makes "pick a winner first"
+      // actively wrong, and it is the sort of sentence that comes back.
+      await upcomingCard();
+      const fan = await fanWithCoins();
+
+      expect(await page(fan.cookie)).not.toMatch(/pick a winner/i);
     });
 
     it("tells a fan with an unconfirmed address before they try", async () => {

@@ -60,6 +60,7 @@ describe("answering one Bout", () => {
     // the other corner or another Question entirely.
     expect(pickAnswered(RED, BLUE)).toEqual(BLUE);
     expect(pickAnswered(RED, SUBMISSION)).toEqual(SUBMISSION);
+    expect(pickAnswered(SUBMISSION, RED)).toEqual(RED);
     expect(pickAnswered(SUBMISSION, ROUND_TWO)).toEqual(ROUND_TWO);
   });
 
@@ -67,6 +68,7 @@ describe("answering one Bout", () => {
     // The only way to unpick something: there is no separate clear control,
     // and a Prediction with no answer on it is not a Prediction.
     expect(pickAnswered(RED, RED)).toBe(null);
+    expect(pickAnswered(SUBMISSION, SUBMISSION)).toBe(null);
     expect(pickAnswered(ROUND_TWO, ROUND_TWO)).toBe(null);
   });
 
