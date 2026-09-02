@@ -54,7 +54,8 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
   if (!event) return null;
 
   // One query with a join rather than a query per Bout: a card is up to a
-  // dozen Bouts of eight Outcomes each, and this is asked on every page load.
+  // dozen Bouts of fourteen to eighteen Outcomes each, and this is asked on
+  // every page load.
   const rows = await useDatabase()
     .select({
       id: bouts.id,

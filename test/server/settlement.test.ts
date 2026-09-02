@@ -130,14 +130,14 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
-    it("pays a method Prediction at its own Multiplier, whoever won the Bout", async () => {
-      // #33: the Entry names no winner at all, and settles on how the Bout
-      // ended. The fighter who got the Submission is not asked about, because
-      // the fan did not answer that Question (ADR-0014).
+    it("pays a method Prediction at its own Multiplier, for the fighter it names", async () => {
+      // #33 stood this Question up and ADR-0015 gave its answers a fighter:
+      // the Entry says "Beridze by Submission" and nothing else, and settles
+      // on that one answer at its own Multiplier (ADR-0014).
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "submission")]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "blue", "submission")]);
 
       const { settlement } = await settle(card, 0, {
         winner: "blue",
@@ -155,7 +155,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "submission")]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "submission")]);
 
       const { settlement } = await settle(card, 0, { winner: "red", method: "ko_tko", round: 1 });
 
@@ -163,15 +163,37 @@ describe("entering a result", async () => {
       expect(await statusOf(entry.id)).toBe("lost");
     });
 
-    it("pays a round Prediction at its own Multiplier, with no finish named beside it", async () => {
-      // #34, and the last of the three Questions to stand up: a fan with a
-      // read on how long a Bout lasts says only that. There is no winner and
-      // no method in this Entry, which is exactly what the old model made
-      // impossible — a round could only be named alongside a finish.
+    it("loses a method Prediction that named the right ending and the wrong fighter", async () => {
+      // The case ADR-0015 exists to make gradable, proved through the routes
+      // that pay for it: the Bout did end by Submission, and the fan named the
+      // fighter who was submitted. Under the corner-free answer this Entry was
+      // paid.
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "blue", "submission")]);
+
+      const { settlement } = await settle(card, 0, {
+        winner: "red",
+        method: "submission",
+        round: 2,
+      });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+    });
+
+    it("pays a round Prediction at its own Multiplier, with no finish named beside it", async () => {
+      // #34 stood this Question up and ADR-0015 gave its answers a fighter: a
+      // fan with a read on who wins and how long it takes says "Beridze in
+      // round 2" and nothing more. There is still no method in this Entry,
+      // which is exactly what the old model made impossible — a round could
+      // only be named alongside a finish.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "blue", 2)]);
 
       const { settlement } = await settle(card, 0, {
         winner: "blue",
@@ -190,12 +212,27 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "red", 2)]);
 
       const { settlement } = await settle(card, 0, { winner: "red", method: "ko_tko", round: 3 });
 
       expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
       expect(await statusOf(entry.id)).toBe("lost");
+    });
+
+    it("loses a round Prediction that named the right round and the wrong fighter", async () => {
+      // The Bout did end in round 2, and they named the wrong fighter to end
+      // it (ADR-0015). The fan a round answer is most likely to lose this way.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "blue", 2)]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
     it("loses a round Prediction on a Bout that went the distance", async () => {
@@ -207,7 +244,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 3)]);
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "red", 3)]);
 
       const { settlement } = await settle(card, 0, { winner: "red", method: "decision" });
 
@@ -268,7 +305,7 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 10, [
-        methodOn(card.bouts[0]!.id, "ko_tko"),
+        methodOn(card.bouts[0]!.id, "blue", "ko_tko"),
         winnerOn(card.bouts[1]!.id, "blue"),
       ]);
 
@@ -292,7 +329,7 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 10, [
-        roundOn(card.bouts[0]!.id, 1),
+        roundOn(card.bouts[0]!.id, "red", 1),
         winnerOn(card.bouts[1]!.id, "blue"),
       ]);
 
@@ -885,7 +922,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "decision")]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "decision")]);
 
       const { settlement } = await settleAsNoResult(card, 0, "cancelled");
 
@@ -906,7 +943,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "red", 2)]);
 
       const { settlement } = await settleAsNoResult(card, 0, "withdrawal");
 
@@ -1143,7 +1180,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "ko_tko")]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "ko_tko")]);
 
       const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
 
@@ -1173,7 +1210,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [methodOn(card.bouts[0]!.id, "ko_tko")]);
+      await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "ko_tko")]);
 
       await settle(card, 0, { winner: "red", method: "disqualification" });
 
@@ -1197,7 +1234,7 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 10, [
-        methodOn(card.bouts[0]!.id, "ko_tko"),
+        methodOn(card.bouts[0]!.id, "red", "ko_tko"),
         winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
@@ -1219,7 +1256,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "blue", 2)]);
 
       const { settlement } = await settle(card, 0, { winner: "blue", method: "disqualification" });
 

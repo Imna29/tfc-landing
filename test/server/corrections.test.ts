@@ -22,6 +22,8 @@ import {
   correctToNoResult,
   fanWithCoins,
   ledgerFor,
+  methodOn,
+  roundOn,
   settle,
   settleAsNoResult,
   statusOf,
@@ -148,6 +150,58 @@ describe("correcting a result", async () => {
         balance: STARTING_BALANCE - 20 + 40,
       });
       expect(await balance(lost.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+    });
+
+    it("takes back a method Prediction the corrected winner turns out to have missed", async () => {
+      // The corner check reaching the path that moves Coins the other way
+      // (ADR-0015). Nothing about *how* the Bout ended changes here — it was
+      // a Submission before the correction and a Submission after it — and the
+      // Entry flips from Won to Lost because the fighter who did the
+      // submitting turns out to have been the other one.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "submission")]);
+
+      await settle(card, 0, { winner: "red", method: "submission", round: 2 });
+
+      expect(await statusOf(entry.id)).toBe("won");
+
+      const { correction } = await correct(card, 0, {
+        winner: "blue",
+        method: "submission",
+        round: 2,
+      });
+
+      // The method Outcome paid ×2.50, so 50 Coins go back the way they came.
+      expect(correction).toMatchObject({ graded: 1, won: 0, lost: 1, paid: 0, reversed: 50 });
+      expect(await statusOf(entry.id)).toBe("lost");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+    });
+
+    it("pays a round Prediction the corrected winner turns out to have landed", async () => {
+      // And the same correction the other way round, on the Question a fan is
+      // most likely to name the wrong fighter in: the round was right all
+      // along, and the fighter it named was only wrong because the Result was.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "blue", 2)]);
+
+      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+
+      expect(await statusOf(entry.id)).toBe("lost");
+
+      const { correction } = await correct(card, 0, {
+        winner: "blue",
+        method: "ko_tko",
+        round: 2,
+      });
+
+      // The round Outcome pays ×3, so 20 Coins return 60.
+      expect(correction).toMatchObject({ graded: 1, won: 1, lost: 0, paid: 60, reversed: 0 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 60 });
     });
   });
 

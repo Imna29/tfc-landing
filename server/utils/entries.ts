@@ -22,9 +22,8 @@ import {
   type PredictionAnswer,
   type PricedPrediction,
 } from "#shared/entries";
-import type { Corner } from "#shared/events";
 import { boutState } from "#shared/predictions";
-import type { Method, Question } from "#shared/pricing";
+import type { OutcomeAnswer } from "#shared/pricing";
 import { eq, inArray } from "drizzle-orm";
 import { bouts, entries, events, outcomes, predictions } from "../db/schema";
 import { balanceOf, balanceToMoveFrom, commitCoins } from "./coins";
@@ -43,9 +42,16 @@ export const ENTRIES_HOLD_ONE_TO_TEN_PREDICTIONS = "entries_hold_one_to_ten_pred
 /** The name of the trigger that refuses Coins a fan does not hold. */
 export const COMMITMENTS_ARE_WITHIN_THE_BALANCE = "entry_commitments_are_within_the_balance";
 
-/** The keys that hold a Prediction to answers its Bout was actually offering. */
+/**
+ * The keys that hold a Prediction to answers its Bout was actually offering,
+ * for the fighter it names (ADR-0015).
+ *
+ * Two rather than three. `predictions_winner_is_offered` was `(bout_id,
+ * corner)`, and that pair stopped being unique across `outcomes` the moment
+ * every row carried a corner — see the note on `predictions` in
+ * `server/db/schema.ts` for what holds a winner answer to the card instead.
+ */
 export const ANSWERS_ARE_OFFERED = [
-  "predictions_winner_is_offered",
   "predictions_method_is_offered",
   "predictions_round_is_offered",
 ] as const;
@@ -78,14 +84,17 @@ export type PricedAnswers =
   | { predictions: PlacedPrediction[]; refusal?: undefined }
   | { predictions?: undefined; refusal: EntryRefusal };
 
-/** One Prediction of an Entry that has been accepted. */
-export interface SubmittedPrediction {
+/**
+ * One Prediction of an Entry that has been accepted.
+ *
+ * The answer itself is `OutcomeAnswer` rather than its four fields written out
+ * again, for the reason `OutcomeToPrice` in `server/utils/pricing.ts` is: a
+ * change to what an answer *is* — the corner ADR-0015 added — reaches every
+ * shape carrying one without anybody remembering to bring it.
+ */
+export interface SubmittedPrediction extends OutcomeAnswer {
   boutId: string;
   cardOrder: number;
-  question: Question;
-  corner: Corner | null;
-  method: Method | null;
-  round: number | null;
   /** What this Prediction pays: the Multiplier of the answer it gave. */
   multiplier: number;
 }
@@ -118,9 +127,9 @@ export type Submission =
  *
  * Four things are asked of every answer, and each of them is asked again
  * underneath — by the `predictions_are_made_on_open_bouts` trigger and by the
- * three `predictions_…_is_offered` foreign keys. They are asked here so that a
- * fan is told which Bout and why, rather than being handed the database's
- * opinion of their Entry.
+ * `predictions_…_is_offered` foreign keys. They are asked here so that a fan
+ * is told which Bout and why, rather than being handed the database's opinion
+ * of their Entry.
  *
  * `now` is passed in rather than read here so that the moment a Lock is judged
  * against is the moment the request was answered — the same decision the card
@@ -158,8 +167,8 @@ export async function priceAnswers(
   const onTheCard = new Map(rows.map((row) => [row.id, row]));
 
   // Every Outcome of every Bout answered, in one query: an Entry is at most
-  // ten Bouts of ten Outcomes, and reading them a Bout at a time would be ten
-  // round trips before anything is written.
+  // ten Bouts of eighteen Outcomes, and reading them a Bout at a time would be
+  // ten round trips before anything is written.
   const offered = await useDatabase()
     .select({
       boutId: outcomes.boutId,
@@ -201,8 +210,9 @@ export async function priceAnswers(
 
     // Priced by the same function the panel priced it with, from the Outcomes
     // Postgres holds rather than the ones the page was looking at. Null is an
-    // answer this Bout does not offer — a round it is not scheduled for, or an
-    // Outcome a re-import took away.
+    // answer this Bout does not offer — a round it is not scheduled for, an
+    // answer about the other fighter at this one's price, or an Outcome a
+    // re-import took away.
     const multiplier = priceOf(answer, offeredOn.get(answer.boutId) ?? []);
 
     if (multiplier === null) return refuse(422, ENTRY_MESSAGES.answerNotOffered);

@@ -10,7 +10,8 @@ import {
   potentialReward,
   type CommittedEntries,
 } from "../../shared/entries";
-import { METHODS, QUESTION_LABELS, type Method } from "../../shared/pricing";
+import type { Corner } from "../../shared/events";
+import { CORNERS, QUESTION_LABELS, type Method } from "../../shared/pricing";
 import {
   balanceCache,
   boutLocks,
@@ -18,6 +19,7 @@ import {
   coinTransactions,
   entries,
   events,
+  outcomes,
   predictions,
 } from "../../server/db/schema";
 import {
@@ -89,27 +91,32 @@ describe("the Entry a fan commits, and takes back", async () => {
   }
 
   /**
-   * A method Prediction on one Bout of a card, which names no winner at all.
+   * A method Prediction on one Bout of a card, naming the fighter it is about.
    *
-   * The Question #33 stands up beside the winner: a fan sure a Bout ends by
-   * Submission and with no read on which fighter gets it says exactly that,
-   * and it is a whole Prediction at the method's own Multiplier.
+   * The Question #33 stands up beside the winner, with the fighter ADR-0015
+   * gives it: "Tsiklauri by Submission" is a whole Prediction at that answer's
+   * own Multiplier, and names no round.
    */
-  function byMethod(card: CardInTheGame, place = 0, method: Method = "submission") {
-    return { boutId: card.bouts[place]!.id, question: "method", method };
+  function byMethod(
+    card: CardInTheGame,
+    place = 0,
+    method: Method = "submission",
+    corner: Corner = "red",
+  ) {
+    return { boutId: card.bouts[place]!.id, question: "method", corner, method };
   }
 
   /**
    * A round Prediction on one Bout of a card, which names no finish at all.
    *
-   * The last of the three Questions to be offered (#34): "this Bout ends in
-   * round 2" is a whole Prediction, seeded and priced to stand on its own. It
-   * is also where the keys holding an answer to the ones its Bout offered are
+   * The last of the three Questions to be offered (#34): "Tsiklauri in round
+   * 2" is a whole Prediction, seeded and priced to stand on its own. It is
+   * also where the keys holding an answer to the ones its Bout offered are
    * provable without a second card, because a three-round Bout has no round 4
-   * to point at.
+   * to point at, for either fighter.
    */
-  function inRound(card: CardInTheGame, place: number, round: number) {
-    return { boutId: card.bouts[place]!.id, question: "round", round };
+  function inRound(card: CardInTheGame, place: number, round: number, corner: Corner = "red") {
+    return { boutId: card.bouts[place]!.id, question: "round", corner, round };
   }
 
   /** What the site header would show this fan. */
@@ -218,11 +225,11 @@ describe("the Entry a fan commits, and takes back", async () => {
       });
     });
 
-    it("takes a method with no winner named, and returns what that answer pays", async () => {
-      // #33's whole point: a fan who is confident a Bout ends by Submission
-      // and has no read on which fighter gets it commits that alone, and
-      // carries only the risk they meant to take. There is no winner in this
-      // Entry to have been priced in.
+    it("takes a method naming a fighter, and returns what that answer pays", async () => {
+      // #33's Question with ADR-0015's answer: a fan confident Tsiklauri
+      // submits Beridze commits that alone, and carries only the risk they
+      // meant to take. There is still no winner Prediction in this Entry — the
+      // corner is part of the one answer given, not a second one.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
@@ -237,7 +244,7 @@ describe("the Entry a fan commits, and takes back", async () => {
           boutId: card.bouts[0]!.id,
           cardOrder: 1,
           question: "method",
-          corner: null,
+          corner: "red",
           method: "submission",
           round: null,
           multiplier: 2.5,
@@ -245,18 +252,64 @@ describe("the Entry a fan commits, and takes back", async () => {
       ]);
 
       // Written in the shape of the Outcome it was copied from: one Question,
-      // one non-null answer, one Multiplier (ADR-0014).
+      // one corner, one non-null answer among the other two, one Multiplier
+      // (ADR-0014, ADR-0015).
       const [written] = await predictionsIn(entry.id);
 
       expect(written).toMatchObject({
         question: "method",
-        corner: null,
+        corner: "red",
         method: "submission",
         round: null,
         multiplier: 2.5,
       });
 
       expect(left).toBe(STARTING_BALANCE - 20);
+    });
+
+    it("prices an answer at what the fighter it names is priced at", async () => {
+      // The reason a corner-scoped answer is worth having (ADR-0015): what
+      // "Tsiklauri by Submission" is worth is not what "Beridze by Submission"
+      // is worth, and one number for both was an average of two answers an
+      // admin never got to tell apart. Two answers differing only by fighter
+      // are two answers, and `outcomeKey` is what keeps them apart on both
+      // sides of a submission.
+      const card = await upcomingCard();
+      const bout = card.bouts[0]!;
+      const fan = await fanWithCoins();
+
+      const beridzeBySubmission = bout.outcomes.find(
+        (outcome) =>
+          outcome.question === "method" &&
+          outcome.corner === "blue" &&
+          outcome.method === "submission",
+      )!;
+
+      // Repricing an open Bout is allowed, and changes what the next Entry is
+      // offered rather than one that exists (ADR-0002).
+      const priced = await postJson(
+        `/api/admin/bouts/${bout.id}/multipliers`,
+        { multipliers: { [beridzeBySubmission.id]: 7.5 } },
+        card.admin.cookie,
+      );
+
+      expect(priced.status).toBe(200);
+
+      const onBeridze = await accepted(
+        await submit(
+          { amount: 10, predictions: [byMethod(card, 0, "submission", "blue")] },
+          fan.cookie,
+        ),
+      );
+      const onTsiklauri = await accepted(
+        await submit(
+          { amount: 10, predictions: [byMethod(card, 0, "submission", "red")] },
+          fan.cookie,
+        ),
+      );
+
+      expect(onBeridze.entry).toMatchObject({ multiplier: 7.5, reward: 75 });
+      expect(onTsiklauri.entry).toMatchObject({ multiplier: 2.5, reward: 25 });
     });
 
     it("chains a method on one Bout with a winner on another", async () => {
@@ -302,7 +355,7 @@ describe("the Entry a fan commits, and takes back", async () => {
 
       expect(written).toMatchObject({
         question: "round",
-        corner: null,
+        corner: "red",
         method: null,
         round: 2,
         multiplier: 3,
@@ -522,13 +575,12 @@ describe("the Entry a fan commits, and takes back", async () => {
     });
 
     it("refuses a second Question answered on the same Bout in one Entry", async () => {
-      // Every Question is on the card now, so this is a shape a fan can build
-      // towards by pressing two buttons on one Bout — the panel replaces the
-      // first answer rather than adding to it, and this is the body arriving
-      // with both anyway. "Red wins", "it ends by Submission" and "it ends in
-      // round 2" are answers about one fight, and an Entry holding two of them
-      // would pay as though a fan had predicted two independent things
-      // (ADR-0014).
+      // The rule holds harder than it did (ADR-0015): "Tsiklauri wins",
+      // "Tsiklauri by Submission" and "Tsiklauri in round 2" are answers about
+      // one fight, and the second and third say everything the first says and
+      // more — so an Entry holding two of them would pay a fan for two answers
+      // when they gave nearly one. The panel replaces the first answer rather
+      // than adding to it; this is the body arriving with both anyway.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
@@ -846,8 +898,8 @@ describe("the Entry a fan commits, and takes back", async () => {
       // the round rather than ADR-0014's one Prediction per Bout.
       const written = await testDatabase()
         .execute(
-          sql`insert into predictions (entry_id, bout_id, question, round, multiplier)
-              values (${entry.id}::uuid, ${card.bouts[1]!.id}::uuid, 'round', 4, 3.00)`,
+          sql`insert into predictions (entry_id, bout_id, question, corner, round, multiplier)
+              values (${entry.id}::uuid, ${card.bouts[1]!.id}::uuid, 'round', 'red', 4, 3.00)`,
         )
         .then(
           () => "wrote it",
@@ -855,6 +907,77 @@ describe("the Entry a fan commits, and takes back", async () => {
         );
 
       expect(written).toMatch(/predictions_round_is_offered/);
+    });
+
+    it("refuses an answer offered to the other fighter, even written by hand", async () => {
+      // What the corner in the key buys (ADR-0015). Every Bout is seeded with
+      // all six method answers, so the only way to reach this is to take one
+      // away — which is what makes it the "an Outcome a re-import took away"
+      // case as well. The key names the answer rather than its price: what
+      // Postgres refuses here is a Prediction pointing at an Outcome that is
+      // not there for that fighter.
+      const card = await upcomingCard({
+        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      });
+      const fan = await fanWithCoins();
+      const bout = card.bouts[0]!;
+
+      // On the Bout the Entry has nothing on yet, so that what refuses this is
+      // the answer rather than ADR-0014's one Prediction per Bout.
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie),
+      );
+
+      await testDatabase().execute(
+        sql`delete from outcomes
+            where bout_id = ${bout.id}::uuid and question = 'method'
+              and corner = 'blue' and method = 'ko_tko'`,
+      );
+
+      const written = await testDatabase()
+        .execute(
+          sql`insert into predictions (entry_id, bout_id, question, corner, method, multiplier)
+              values (${entry.id}::uuid, ${bout.id}::uuid, 'method', 'blue', 'ko_tko', 2.50)`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      // The Bout still offers "Tsiklauri by KO/TKO", so a key on `(bout_id,
+      // method)` would have found a row and let this through. It is the corner
+      // in the key that refuses it.
+      expect(written).toMatch(/predictions_method_is_offered/);
+      expect(
+        await testDatabase()
+          .select()
+          .from(outcomes)
+          .where(sql`bout_id = ${bout.id}::uuid and question = 'method' and method = 'ko_tko'`),
+      ).toHaveLength(1);
+    });
+
+    it("refuses an answer naming no fighter at all, even written by hand", async () => {
+      // A method Prediction about the Bout rather than about a fighter is the
+      // shape ADR-0015 replaced, and Postgres refuses it outright rather than
+      // storing an answer nothing could grade.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      const written = await testDatabase()
+        .execute(
+          sql`insert into predictions (entry_id, bout_id, question, method, multiplier)
+              values (${entry.id}::uuid, ${card.bouts[0]!.id}::uuid, 'method', 'ko_tko', 2.50)`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toMatch(/null value in column "corner"/);
     });
   });
 
@@ -1356,23 +1479,23 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(rendered).toContain(ENTRY_MESSAGES.nothingPicked);
     });
 
-    it("offers every answer to all three Questions as something to pick", async () => {
-      // The card #34 finishes: the winner, the method and the round side by
-      // side, each pickable in its own right. Two corners, three methods and
-      // the three rounds this Bout is scheduled for — eight buttons, and none
-      // of them reachable only after another has been pressed.
-      const card = await upcomingCard();
+    it("offers the winner Question, and only that one, while its answers change shape", async () => {
+      // Every answer names the fighter it is about now (ADR-0015), and each
+      // Question is opened to fans with the settlement cases that prove the
+      // new shape settles: #42 the method, #43 the round. Until then the card
+      // offers two buttons per Bout, which is the winner Question — and the
+      // method and round Outcomes underneath are seeded and priced all the
+      // same, so opening a Bout still asks an admin for every number.
+      await upcomingCard();
       const fan = await fanWithCoins();
 
       const rendered = await page(fan.cookie);
 
       expect(rendered).toContain(QUESTION_LABELS.winner);
-      expect(rendered).toContain(QUESTION_LABELS.method);
-      expect(rendered).toContain(QUESTION_LABELS.round);
-      expect(rendered).toContain("Round 2");
-      expect(rendered.match(/aria-pressed=/g)).toHaveLength(
-        2 + METHODS.length + card.bouts[0]!.scheduledRounds,
-      );
+      expect(rendered).not.toContain(QUESTION_LABELS.method);
+      expect(rendered).not.toContain(QUESTION_LABELS.round);
+      expect(rendered).not.toMatch(/in round 2/);
+      expect(rendered.match(/aria-pressed=/g)).toHaveLength(CORNERS.length);
     });
 
     it("no longer tells a fan to name a winner, or to deepen the pick they made", async () => {
@@ -1422,6 +1545,26 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(rendered).toContain("Your Entries");
       expect(rendered).toContain("Levan Beridze");
       expect(rendered).toContain("Cancel Entry");
+    });
+
+    it("names the fighter in a committed method or round Prediction", async () => {
+      // The defect ADR-0015 opened on, in the place it read worst: a
+      // Prediction used to render here as `Bout 1 — KO/TKO`, with no fighter
+      // named at all, and `Bout 1 — Round 2` was close to unreadable. The card
+      // is not offering these Questions yet (#42, #43), and the listing shows
+      // whatever a fan has committed regardless.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      await submit({ amount: 15, predictions: [byMethod(card, 0, "ko_tko", "blue")] }, fan.cookie);
+
+      expect(await page(fan.cookie)).toContain("Levan Beridze by KO/TKO");
+
+      const second = await fanWithCoins();
+
+      await submit({ amount: 15, predictions: [inRound(card, 0, 2)] }, second.cookie);
+
+      expect(await page(second.cookie)).toContain("Giorgi Tsiklauri in round 2");
     });
 
     it("says why an Entry can no longer be cancelled, before the fan tries", async () => {

@@ -66,17 +66,19 @@ export function upcomingCard(
 }
 
 /**
- * One Prediction as a case gives it: the Bout, the Question, and the answer.
+ * One Prediction as a case gives it: the Bout, the Question, the fighter it is
+ * about, and the answer.
  *
  * Nothing is defaulted and nothing is implied. A Prediction is one answer to
- * one Question (ADR-0014), so a case that means "red wins Bout 1" says that
- * and a case that means anything else says that instead — there is no shape
- * here that quietly becomes a winner pick because a field was left off.
+ * one Question (ADR-0014) naming one corner (ADR-0015), so a case that means
+ * "red wins Bout 1" says that and a case that means anything else says that
+ * instead — there is no shape here that quietly becomes a winner pick because
+ * a field was left off.
  */
 export interface Answered {
   boutId: string;
   question: Question;
-  corner?: Corner;
+  corner: Corner;
   method?: Method;
   round?: number;
 }
@@ -94,27 +96,28 @@ export function winnerOn(boutId: string, corner: Corner): Answered {
 }
 
 /**
- * The method Prediction a case commits: this way of ending, on this Bout.
+ * The method Prediction a case commits: this fighter wins this way.
  *
- * Names no winner, and is graded against the recorded method whoever won —
- * except on a disqualification, where it is a No Result (ADR-0005).
+ * Names the corner as well as the method (ADR-0015), and is correct only when
+ * both are what the Bout was recorded as — except on a disqualification, where
+ * it is a No Result whichever fighter it named (ADR-0005).
  */
-export function methodOn(boutId: string, method: Method): Answered {
-  return { boutId, question: "method", method };
+export function methodOn(boutId: string, corner: Corner, method: Method): Answered {
+  return { boutId, question: "method", corner, method };
 }
 
 /**
- * The round Prediction a case commits: this Bout ends in this round.
+ * The round Prediction a case commits: this fighter wins in this round.
  *
- * Names neither a winner nor a finish, and is graded against the round the
- * Bout was recorded as ending in. A Bout that went to a Decision ended in no
- * round at all, so it is graded wrong there rather than neutral — and a
- * disqualification records no round either but was never an answer the game
- * offered, so it is a No Result (ADR-0005). The two read alike and settle
- * differently.
+ * Names no finish, and is correct only when the fighter it names won and the
+ * Bout was recorded as ending in the round it names. A Bout that went to a
+ * Decision ended in no round at all, so it is graded wrong there rather than
+ * neutral — and a disqualification records no round either but was never an
+ * answer the game offered, so it is a No Result (ADR-0005). The two read alike
+ * and settle differently.
  */
-export function roundOn(boutId: string, round: number): Answered {
-  return { boutId, question: "round", round };
+export function roundOn(boutId: string, corner: Corner, round: number): Answered {
+  return { boutId, question: "round", corner, round };
 }
 
 /** Submits an Entry the way the panel on the card does. */
@@ -124,7 +127,6 @@ export async function submit(fan: { cookie: string }, amount: number, prediction
     {
       amount,
       predictions: predictions.map((one) => ({
-        corner: null,
         method: null,
         round: null,
         ...one,

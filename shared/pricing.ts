@@ -6,8 +6,8 @@
  * because a fan has to know what they stand to win at the moment they commit.
  * The bill for that choice is this module: somebody at TFC prices every card
  * before it opens, for every card, forever. Seeding each Outcome from a
- * default is what keeps that bill payable — an admin adjusts eight numbers per
- * Bout rather than authoring them from blank.
+ * default is what keeps that bill payable — an admin adjusts fourteen to
+ * eighteen numbers per Bout rather than authoring them from blank.
  *
  * Shared for the same reason `shared/events.ts` is: the server refuses with the
  * sentence the admin area shows, and `test/unit/vocabulary.test.ts` holds all
@@ -62,11 +62,18 @@ export const METHOD_LABELS = {
 /**
  * What one Outcome is called, given the two names the Bout is fought under.
  *
+ * **Every answer names the fighter it is about** (ADR-0015). A winner Outcome
+ * is that fighter's name; a method Outcome is "Tsiklauri by KO/TKO" and a
+ * round Outcome "Tsiklauri in round 2". The bare forms these replace —
+ * "KO/TKO", "Round 2" — read beside a Winner column listing two fighters as
+ * though they were about one of them, and never said which.
+ *
  * Read from the Question the Outcome answers, which is the column that says
- * which of the three answers it carries. The Question's own name stands in for
- * an answer that cannot be missing — `outcomes_answers_its_question` is what
- * makes that unreachable, and an Outcome quietly renamed to the empty string
- * would be a Multiplier with nothing beside it.
+ * which of the two remaining answers it carries. The Question's own name
+ * stands in for an answer that cannot be missing —
+ * `outcomes_answers_its_question` is what makes that unreachable, and an
+ * Outcome quietly renamed to the empty string would be a Multiplier with
+ * nothing beside it.
  *
  * The corners are passed in rather than looked up because who is in the red
  * corner is a fact about the Bout, not about the Outcome — and because this is
@@ -74,9 +81,36 @@ export const METHOD_LABELS = {
  * cannot come to call the same Outcome different things.
  */
 export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, string>): string {
-  if (outcome.question === "winner") {
-    return outcome.corner ? corners[outcome.corner] : QUESTION_LABELS.winner;
+  const fighter = corners[outcome.corner];
+
+  if (outcome.question === "winner") return fighter;
+
+  if (outcome.question === "method") {
+    return outcome.method
+      ? `${fighter} by ${METHOD_LABELS[outcome.method]}`
+      : QUESTION_LABELS.method;
   }
+
+  return outcome.round === null ? QUESTION_LABELS.round : `${fighter} in round ${outcome.round}`;
+}
+
+/**
+ * The same answer with the fighter lifted out of it, for a screen that has
+ * already named them: "Wins", "KO/TKO", "Round 2".
+ *
+ * Beside {@link outcomeLabel} rather than in the admin area, because these are
+ * two ways of saying one thing and the danger is that they come to say
+ * different things. What a fan reads is always the full name; this is the
+ * layout the admin pricing screen needs to hold fourteen to eighteen inputs
+ * per Bout legibly (ADR-0015), where the corner is a heading over a row of
+ * answers rather than a word repeated down every label. Every input on that
+ * screen is still labelled to a screen reader with the full name.
+ *
+ * "Wins" rather than nothing on the winner Question, because a box with no
+ * words beside it is a Multiplier nobody can check.
+ */
+export function answerLabel(outcome: OutcomeAnswer): string {
+  if (outcome.question === "winner") return "Wins";
 
   if (outcome.question === "method") {
     return outcome.method ? METHOD_LABELS[outcome.method] : QUESTION_LABELS.method;
@@ -86,13 +120,20 @@ export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, str
 }
 
 /**
- * Which Question an Outcome answers, and which answer it carries.
+ * Which Question an Outcome answers, which fighter it is about, and which
+ * answer it carries.
  *
- * Exactly one of `corner`, `method` and `round` is ever set, and which one is
- * decided by `question`. Written as three columns rather than one answer field
- * because a round is a number that has to stay a number — the round Outcomes
- * offered are the rounds the Bout is scheduled for, and that is arithmetic, not
- * a string somebody parses back out.
+ * **A corner always**, plus exactly one of `method` and `round`, decided by
+ * `question` — a winner Outcome carries neither. That is a smaller rule than
+ * the "exactly one of three" it replaces, and it says something the old one
+ * could not: every answer is about a fighter (ADR-0015).
+ * `outcomes_answers_its_question` and `predictions_answers_its_question` are
+ * where Postgres holds it.
+ *
+ * Written as three columns rather than one answer field because a round is a
+ * number that has to stay a number — the round Outcomes offered are the rounds
+ * the Bout is scheduled for, and that is arithmetic, not a string somebody
+ * parses back out.
  *
  * This much of an Outcome is what tells it from the others on its Bout, and is
  * all anything sorting or naming them needs. What it pays, who priced it and
@@ -100,7 +141,7 @@ export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, str
  */
 export interface OutcomeAnswer {
   question: Question;
-  corner: Corner | null;
+  corner: Corner;
   method: Method | null;
   round: number | null;
 }
@@ -202,10 +243,9 @@ const FIVE_ROUND_MULTIPLIERS = [7.5, 11.9, 17.8, 23.7, DEEPEST_ROUND_MULTIPLIER]
  * which, so one number is what each of the two is seeded from.
  *
  * The split is a fact about these numbers before it is a fact about the
- * Outcomes they seed. {@link defaultOutcomes} still writes one method Outcome
- * and one round Outcome per Bout rather than one per corner — #41 is what gives
- * them their corners — so until it lands a card offers half the answers these
- * numbers are priced for, and implies half the totals below.
+ * Outcomes they seed, and {@link defaultOutcomes} is where it becomes one: it
+ * writes each of these numbers onto both corners, so a Bout offers exactly the
+ * answers they are priced for and implies exactly the totals below.
  *
  * Every number stands for its own answer outright (ADR-0014): "Submission at
  * 8.10" means 8.10 if that fighter wins the Bout that way. Nothing here is
@@ -277,9 +317,21 @@ export const DEFAULT_MULTIPLIERS = {
 /**
  * Every Outcome a Bout is imported with, in the order an admin prices them.
  *
+ * **Each Question asked of both fighters** (ADR-0015): two winner Outcomes,
+ * six method Outcomes, and two for each scheduled round — fourteen on a
+ * three-round Bout and eighteen on a five-round one. Each corner is seeded
+ * from the same number, because nothing here knows which fighter is favoured;
+ * that is the same reason both winner Outcomes seed level, applied to the
+ * other two Questions now that they have corners to be level between.
+ *
+ * The order is the order they are asked in and the order they are read in:
+ * winner, then method, then round, and red before blue within each. It is what
+ * {@link inAskedOrder} sorts everything else back into.
+ *
  * The round Outcomes are generated from the rounds the Bout is actually
- * scheduled for, so a three-round Bout offers no round 4 to predict and a fan
- * cannot be shown a round that does not exist (#10 renders exactly these).
+ * scheduled for, so a three-round Bout offers no round 4 to either fighter and
+ * a fan cannot be shown a round that does not exist (#10 renders exactly
+ * these).
  */
 export function defaultOutcomes(scheduledRounds: number): SeededOutcome[] {
   const winners: SeededOutcome[] = CORNERS.map((corner) => ({
@@ -290,25 +342,29 @@ export function defaultOutcomes(scheduledRounds: number): SeededOutcome[] {
     multiplier: DEFAULT_MULTIPLIERS.winner[corner],
   }));
 
-  const methods: SeededOutcome[] = METHODS.map((method) => ({
-    question: "method",
-    corner: null,
-    method,
-    round: null,
-    multiplier: DEFAULT_MULTIPLIERS.method[method],
-  }));
+  const methods: SeededOutcome[] = CORNERS.flatMap((corner) =>
+    METHODS.map((method) => ({
+      question: "method" as const,
+      corner,
+      method,
+      round: null,
+      multiplier: DEFAULT_MULTIPLIERS.method[method],
+    })),
+  );
 
   // The row this Bout is booked in, or the five-round row for a Bout booked in
   // neither of the two formats TFC runs.
   const booked = DEFAULT_MULTIPLIERS.round[scheduledRounds] ?? FIVE_ROUND_MULTIPLIERS;
 
-  const rounds: SeededOutcome[] = Array.from({ length: scheduledRounds }, (_, index) => ({
-    question: "round",
-    corner: null,
-    method: null,
-    round: index + 1,
-    multiplier: booked[index] ?? DEEPEST_ROUND_MULTIPLIER,
-  }));
+  const rounds: SeededOutcome[] = CORNERS.flatMap((corner) =>
+    Array.from({ length: scheduledRounds }, (_, index) => ({
+      question: "round" as const,
+      corner,
+      method: null,
+      round: index + 1,
+      multiplier: booked[index] ?? DEEPEST_ROUND_MULTIPLIER,
+    })),
+  );
 
   return [...winners, ...methods, ...rounds];
 }
@@ -357,14 +413,21 @@ export const PRICING_MESSAGES = {
 
 /**
  * How one Outcome is told from another on the same Bout: the Question it
- * answers and which answer it is.
+ * answers, the fighter it is about, and which answer it is.
+ *
+ * **The corner is part of the identity** (ADR-0015). "Tsiklauri by KO/TKO" and
+ * "Beridze by KO/TKO" are two answers at two prices, and a key that read only
+ * the method would price one of them at the other's Multiplier — which is what
+ * `priceOf` in `shared/entries.ts` does with this, on both sides of a
+ * submission. A winner Outcome carries neither a method nor a round, so its
+ * key ends in nothing: the corner is the whole of its answer.
  *
  * Not an id — this is the identity an Outcome has before it is written, so
  * that the order an admin prices Outcomes in can be the order they were seeded
  * in, said once in {@link defaultOutcomes} rather than again in SQL.
  */
 export function outcomeKey(outcome: OutcomeAnswer): string {
-  return `${outcome.question}:${outcome.corner ?? outcome.method ?? outcome.round}`;
+  return `${outcome.question}:${outcome.corner}:${outcome.method ?? outcome.round ?? ""}`;
 }
 
 /**
@@ -372,10 +435,10 @@ export function outcomeKey(outcome: OutcomeAnswer): string {
  * them in and the order a fan is offered them in.
  *
  * Sorted here rather than in SQL because the order is a fact about the domain
- * — winner, then method, then round; red before blue; round 1 before round 2 —
- * and {@link defaultOutcomes} is where that is written down. Ordering by the
- * columns would put "blue" before "red" and "method" before "winner", and
- * would need saying again in every query.
+ * — winner, then method, then round; red before blue; KO/TKO before
+ * Submission; round 1 before round 2 — and {@link defaultOutcomes} is where
+ * that is written down. Ordering by the columns would put "blue" before "red"
+ * and "method" before "winner", and would need saying again in every query.
  */
 export function inAskedOrder<Outcome extends OutcomeAnswer>(
   unordered: readonly Outcome[],

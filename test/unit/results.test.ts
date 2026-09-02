@@ -17,6 +17,7 @@ import {
   type GradedPrediction,
   type NoResultReason,
 } from "../../shared/results";
+import type { Corner } from "../../shared/events";
 import type { Method, OutcomeAnswer } from "../../shared/pricing";
 
 /**
@@ -59,14 +60,20 @@ function pick(overrides: Partial<OutcomeAnswer> = {}): OutcomeAnswer {
   return { question: "winner", corner: "red", method: null, round: null, ...overrides };
 }
 
-/** The method Prediction a case gives, which names no winner at all. */
-function byMethod(method: Method): OutcomeAnswer {
-  return pick({ question: "method", corner: null, method });
+/**
+ * The method Prediction a case gives: this fighter wins this way.
+ *
+ * Names a corner like every other answer (ADR-0015), and defaults to the red
+ * one — which is the corner `result()` records as winning, so a case that
+ * means "the right fighter, the wrong method" says only the method.
+ */
+function byMethod(method: Method, corner: Corner = "red"): OutcomeAnswer {
+  return pick({ question: "method", corner, method });
 }
 
-/** The round Prediction a case gives, which names neither winner nor method. */
-function inRound(round: number): OutcomeAnswer {
-  return pick({ question: "round", corner: null, round });
+/** The round Prediction a case gives: this fighter wins in this round. */
+function inRound(round: number, corner: Corner = "red"): OutcomeAnswer {
+  return pick({ question: "round", corner, round });
 }
 
 /** That answer with what it paid at submission (ADR-0002). */
@@ -91,14 +98,26 @@ describe("grading one Prediction against a Result", () => {
     expect(gradePrediction(pick({ corner: "blue" }), result({ winner: "red" }))).toBe("wrong");
   });
 
-  it("is correct when the method named is the one it ended by, whoever won", () => {
-    expect(gradePrediction(byMethod("ko_tko"), result({ winner: "blue", method: "ko_tko" }))).toBe(
-      "correct",
-    );
+  it("is correct when the fighter named won by the method named", () => {
+    expect(
+      gradePrediction(byMethod("ko_tko", "blue"), result({ winner: "blue", method: "ko_tko" })),
+    ).toBe("correct");
   });
 
   it("is wrong when it ended by a different method", () => {
     expect(gradePrediction(byMethod("submission"), result({ method: "ko_tko" }))).toBe("wrong");
+  });
+
+  it("is wrong when the method was right and the fighter was not", () => {
+    // The case ADR-0015 exists to make gradable: the Bout did end by
+    // Submission, and the fan named the fighter who was submitted. Under the
+    // corner-free answer they were paid for it.
+    expect(
+      gradePrediction(
+        byMethod("submission", "blue"),
+        result({ winner: "red", method: "submission" }),
+      ),
+    ).toBe("wrong");
   });
 
   it("is correct when a Decision was named and the Bout went the distance", () => {
@@ -107,12 +126,18 @@ describe("grading one Prediction against a Result", () => {
     );
   });
 
-  it("is correct when the round named is the one it ended in", () => {
-    expect(gradePrediction(inRound(2), result({ round: 2 }))).toBe("correct");
+  it("is correct when the fighter named won in the round named", () => {
+    expect(gradePrediction(inRound(2), result({ winner: "red", round: 2 }))).toBe("correct");
   });
 
   it("is wrong when it ended a round later", () => {
     expect(gradePrediction(inRound(2), result({ round: 3 }))).toBe("wrong");
+  });
+
+  it("is wrong when the round was right and the fighter was not", () => {
+    // The Bout did end in round 2, and they named the wrong fighter to end it
+    // (ADR-0015).
+    expect(gradePrediction(inRound(2, "blue"), result({ winner: "red", round: 2 }))).toBe("wrong");
   });
 
   it("is wrong when a round was named and the Bout went the distance", () => {
@@ -128,6 +153,20 @@ describe("grading one Prediction against a Result", () => {
     expect(gradePrediction(pick(), result({ method: "submission", round: 3 }))).toBe("correct");
   });
 
+  it("asks a method or a round Prediction about the winner as well as the answer", () => {
+    // Both halves have to be right, and neither half is enough: naming the
+    // winner without the method is not a method answer, and naming the method
+    // without the winner is not one either (ADR-0015).
+    const submittedByRed = result({ winner: "red", method: "submission", round: 2 });
+
+    expect(gradePrediction(byMethod("submission", "red"), submittedByRed)).toBe("correct");
+    expect(gradePrediction(byMethod("ko_tko", "red"), submittedByRed)).toBe("wrong");
+    expect(gradePrediction(byMethod("submission", "blue"), submittedByRed)).toBe("wrong");
+    expect(gradePrediction(inRound(2, "red"), submittedByRed)).toBe("correct");
+    expect(gradePrediction(inRound(3, "red"), submittedByRed)).toBe("wrong");
+    expect(gradePrediction(inRound(2, "blue"), submittedByRed)).toBe("wrong");
+  });
+
   it("is unresolved while the Bout it answers has not been settled", () => {
     expect(gradePrediction(pick(), null)).toBe("unresolved");
   });
@@ -137,7 +176,7 @@ describe("grading one Prediction against a No Result", () => {
   it("is a No Result whatever the fan answered", () => {
     expect(gradePrediction(pick({ corner: "blue" }), noResult("withdrawal"))).toBe("no result");
     expect(gradePrediction(byMethod("ko_tko"), noResult("cancelled"))).toBe("no result");
-    expect(gradePrediction(inRound(3), noResult("draw"))).toBe("no result");
+    expect(gradePrediction(inRound(3, "blue"), noResult("draw"))).toBe("no result");
   });
 
   it("is a No Result on each of the four ways a Bout produces nothing", () => {
@@ -164,9 +203,13 @@ describe("grading one Prediction against a disqualification", () => {
     // "Won by DQ" is not one of the three methods offered, so a fan who named
     // one cannot have named it wrongly — those two Questions are No Results on
     // this Bout, and a fan is never marked wrong for failing to predict an
-    // answer that was never on the card.
+    // answer that was never on the card. Naming a corner changes none of that
+    // (ADR-0015): it counts for nothing whichever fighter it named, the one
+    // who was disqualified included.
     expect(gradePrediction(byMethod("ko_tko"), dq)).toBe("no result");
     expect(gradePrediction(inRound(2), dq)).toBe("no result");
+    expect(gradePrediction(byMethod("ko_tko", "blue"), dq)).toBe("no result");
+    expect(gradePrediction(inRound(2, "blue"), dq)).toBe("no result");
   });
 });
 

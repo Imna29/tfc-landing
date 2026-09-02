@@ -262,7 +262,8 @@ export function importCard(
       .returning({ id: bouts.id, scheduledRounds: bouts.scheduledRounds });
 
     // Seeded here rather than by the admin who prices the card, so that a Bout
-    // exists with its Questions already asked and eight numbers to correct.
+    // exists with its Questions already asked and fourteen to eighteen numbers
+    // to correct.
     // A re-imported Bout is a new row, so this is also what makes a lineup
     // change a card to be priced again (ADR-0002).
     await seedOutcomes(tx, written);

@@ -133,9 +133,10 @@ export function isEntryStatus(value: unknown): value is EntryStatus {
  *
  * An `OutcomeAnswer` and the Bout it was offered on, because a Prediction is a
  * copy of the Outcome a fan picked (ADR-0014) — the same Question, the same
- * one non-null answer, in the same three columns. Nothing joining, grading or
- * naming the two carries a translation step, and `outcomeKey` tells one answer
- * from another wherever either of them is.
+ * corner, the same one answer among a method and a round, in the same three
+ * columns. Nothing joining, grading or naming the two carries a translation
+ * step, and `outcomeKey` tells one answer from another wherever either of them
+ * is, the fighter it names included (ADR-0015).
  *
  * A Bout nobody has answered holds no Prediction at all, and is absent from
  * the Entry rather than present and empty. A fan who answers a second Question
@@ -262,7 +263,7 @@ export interface PotentialReward {
  * The Prediction on a Bout after a fan answers one of its Questions.
  *
  * **Answering replaces whatever was there**, because an Entry holds one
- * Prediction per Bout (ADR-0014) and a fan who has just said "ends by
+ * Prediction per Bout (ADR-0014) and a fan who has just said "Tsiklauri by
  * Submission" has said what they think about that Bout. A control that
  * refused the second answer, or added it alongside the first, would be
  * offering a shape the Entry cannot hold.
@@ -279,8 +280,9 @@ export function pickAnswered(
 ): OutcomeAnswer | null {
   if (isAnswered(pick, answer)) return null;
 
-  // The four fields of the answer and nothing else. What the card hands in is
-  // an `OfferedOutcome`, which carries the row's id and its Multiplier as
+  // The four fields of the answer and nothing else — the corner among them,
+  // because it is part of which answer this is (ADR-0015). What the card hands
+  // in is an `OfferedOutcome`, which carries the row's id and its Multiplier as
   // well; both are the card's business rather than the Entry's, and the Entry
   // is priced from the card it is being built on rather than from a number
   // that rode along on a click.
@@ -527,12 +529,14 @@ export function parseEntry(value: unknown): ParsedEntry {
 /**
  * One answered Bout as it arrives, or null if it is not one.
  *
- * **Exactly one answer, and it is the one its Question names.** A Prediction
- * carrying a corner and a round at once is refused here rather than resolved,
- * because nothing downstream could say which of them the fan gave — and the
- * `predictions_answers_its_question` check refuses the same row underneath,
- * the way `outcomes_answers_its_question` refuses it of the Outcome this is a
- * copy of.
+ * **A corner always, plus exactly one of a method and a round, and it is the
+ * one its Question names.** Every answer is about a fighter (ADR-0015), so a
+ * Prediction naming a method and no corner is not an answer the card ever
+ * offered — and one carrying a method and a round at once is refused here
+ * rather than resolved, because nothing downstream could say which of them the
+ * fan gave. `predictions_answers_its_question` refuses the same row
+ * underneath, the way `outcomes_answers_its_question` refuses it of the
+ * Outcome this is a copy of.
  */
 function readPrediction(value: unknown): PredictionAnswer | null {
   const answered = (value ?? {}) as Record<string, unknown>;
@@ -540,9 +544,9 @@ function readPrediction(value: unknown): PredictionAnswer | null {
 
   if (typeof boutId !== "string" || boutId === "") return null;
   if (!isQuestion(question)) return null;
+  if (corner !== "red" && corner !== "blue") return null;
 
   if (question === "winner") {
-    if (corner !== "red" && corner !== "blue") return null;
     if (method !== null || round !== null) return null;
 
     return { boutId, question, corner, method: null, round: null };
@@ -550,15 +554,15 @@ function readPrediction(value: unknown): PredictionAnswer | null {
 
   if (question === "method") {
     if (!isMethod(method)) return null;
-    if (corner !== null || round !== null) return null;
+    if (round !== null) return null;
 
-    return { boutId, question, corner: null, method, round: null };
+    return { boutId, question, corner, method, round: null };
   }
 
   if (!isRound(round)) return null;
-  if (corner !== null || method !== null) return null;
+  if (method !== null) return null;
 
-  return { boutId, question, corner: null, method: null, round };
+  return { boutId, question, corner, method: null, round };
 }
 
 /** Whether this is a number of Coins that can be committed. */

@@ -427,17 +427,18 @@ decision.
 
 ### Pricing a card, and opening its Bouts
 
-Every Bout arrives with its whole set of Outcomes already written: two winner
-Outcomes, three method Outcomes, and **one round Outcome for each round it is
-scheduled for**, so a three-round Bout has no round 4 to offer. `shared/pricing.ts`
-is the one place that says what a Bout is asked and what each answer is seeded
-to pay; `server/utils/pricing.ts` writes them, inside the import's own
-transaction.
+Every Bout arrives with its whole set of Outcomes already written, and every one
+of them names the fighter it is about (ADR-0015): two winner Outcomes, six
+method Outcomes, and **two for each round it is scheduled for**, so a
+three-round Bout carries fourteen and has no round 4 to offer either fighter.
+`shared/pricing.ts` is the one place that says what a Bout is asked and what
+each answer is seeded to pay; `server/utils/pricing.ts` writes them, inside the
+import's own transaction.
 
 Seeding is what makes ADR-0002 payable. Multipliers are fixed by hand, so
 somebody at TFC prices every card before it opens — forever, not once — and the
-difference between ten minutes and an hour is whether they are adjusting eight
-numbers per Bout or authoring them from blank.
+difference between twenty minutes and an hour is whether they are adjusting
+fourteen to eighteen numbers per Bout or authoring them from blank.
 
 **A seeded Multiplier is not a price.** `outcomes.priced_at` is null until an
 admin saves that Bout at `/admin/events/[id]`, and a Bout with an unpriced
@@ -454,10 +455,9 @@ fighter wins the Bout that way. Nothing seeding a Bout knows which fighter is
 favoured, so a chance about the Bout splits evenly between the two and half a
 chance is twice the Multiplier — which is why the method and round numbers are
 twice what a Bout-level table would carry, and why the winner row is unmoved at
-×1.90, having always named a fighter. The split is in the numbers ahead of the
-Outcomes: seeding still writes one method and one round Outcome per Bout rather
-than one per corner, so until #41 gives them their corners a card offers half
-the answers these numbers are priced for. What each number is worth, why the
+×1.90, having always named a fighter. Every implied total the seeded table was
+chosen for is preserved exactly; what changed is the number of answers it is
+spread across. What each number is worth, why the
 winner Question carries a thinner margin than the other two, and which two cells
 read like typos — Decision at ×5.30 and round 5 of a five-rounder at ×28.50,
 both of them numbers an admin is likely to "correct" back — are argued where
@@ -695,14 +695,21 @@ one Prediction per Bout** — answering a second Question on a Bout replaces the
 first, and a fan holding two views on one Bout commits two Entries, separately
 funded and separately graded.
 
-The card asks all three, side by side rather than one deepening another: a fan
-confident a Bout ends by Submission with no read on which fighter gets it
-answers that alone, and so does one who thinks it ends in round 2 with no view
-on how. Each carries only the risk it means. `app/components/FightCardBout.vue`
-renders them from `QUESTIONS`, filtered to the ones the Bout has Outcomes for —
-which is none until an admin has priced it. The round Multipliers are seeded
-for exactly this, a standalone answer with nothing multiplying onto it, so a
-five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
+All three are asked side by side rather than one deepening another, and every
+answer names the fighter it is about (ADR-0015): a fan confident Tsiklauri
+submits Beridze answers that alone, and so does one who thinks Beridze wins it
+in round 2. Each carries only the risk it means. The round Multipliers are
+seeded for exactly this, a standalone answer with nothing multiplying onto it,
+so a five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
+
+`app/components/FightCardBout.vue` renders the Questions in
+`OFFERED_QUESTIONS`, filtered to the ones the Bout has Outcomes for — which is
+none until an admin has priced it. That list is the winner Question alone while
+#42 and #43 stand the method and the round up again in their new shape, each
+arriving with the settlement cases that prove a corner-scoped answer settles.
+It is not a rule about what may be *committed*: the server prices whatever
+answer the Bout is offering, the Outcome rows are what say that, and all
+fourteen to eighteen are seeded and priced before a Bout can open.
 
 Three layers of the same rules, on purpose:
 
@@ -725,22 +732,40 @@ Three layers of the same rules, on purpose:
 | One Prediction per Bout in an Entry (ADR-0014) | `predictions_one_per_bout_in_an_entry` |
 | Exactly one answer, and the one its Question names | `predictions_answers_its_question` |
 | Between one and ten Predictions | `entries_hold_one_to_ten_predictions`, a deferred constraint trigger on both tables |
-| The answer was one that Bout offered | `predictions_winner_is_offered`, `…_method_is_offered`, `…_round_is_offered` |
+| The answer was one that Bout offered, for the fighter it names | `predictions_method_is_offered`, `predictions_round_is_offered` |
 | The Bout is open | `predictions_are_made_on_open_bouts` |
 | An Amount of at least 1 Coin | `entries_amount_is_committed` |
 | No Coins a fan does not hold | `entry_commitments_are_within_the_balance` |
 | One commitment per Entry | `coin_transactions_one_commitment_per_entry` |
 
-The three `…_is_offered` keys are the interesting ones. A Prediction stores the
-answer it gives — `red`, `ko_tko`, round 2 — rather than a reference to the
+The `…_is_offered` keys are the interesting ones. A Prediction stores the answer
+it gives — `red`, `red`+`ko_tko`, `red`+round 2 — rather than a reference to the
 Outcome row, because a Prediction is a *copy* of the Outcome it was picked from
 (ADR-0002) and settlement grades the answer rather than the row. It still points
-at the Outcome that priced it, through a composite key on `(bout_id, corner)`,
-`(bout_id, method)` and `(bout_id, round)`. So "round 4 of a three-round Bout"
-is refused by Postgres, and the stored answer and the Outcome behind it can
-never drift apart. Postgres does not check a key whose columns include a null,
-which is exactly right here: two of the three are null on every row, and the one
-that is not is the one being held to the card.
+at the Outcome that priced it, through a composite key on `(bout_id, corner,
+method)` and `(bout_id, corner, round)`. So "round 4 of a three-round Bout" is
+refused by Postgres, and so is a method answer about a fighter this Bout does
+not offer it for; the stored answer and the Outcome behind it can never drift
+apart. Postgres does not check a key whose columns include a null, which is
+exactly right here: one of the two is null on every row, and the one that is
+not is the one being held to the card.
+
+**There is no third key for the winner Question, and that is a consequence of
+the corner rather than an omission.** It was `(bout_id, corner)`, which Postgres
+could check because a null corner on every method and round row left that pair
+unique across `outcomes`. With a corner on every row it is unique only among
+winner rows, a foreign key cannot reference a partial unique index, and no other
+column set is both unique there and non-null on a winner Prediction. What holds
+that answer to the card instead: `predictions_bout_id_bouts_id_fk` says the Bout
+exists, `predictions_corner_known` says the corner is one of two, and a
+Prediction can only be made on an open Bout
+(`predictions_are_made_on_open_bouts`) which can only have been opened once
+every one of its Outcomes was priced (`bouts_are_opened_only_when_priced`) — so
+both winner Outcomes are there before any fan can answer. What is genuinely
+given up is narrower: nothing now refuses deleting a winner Outcome that
+committed Predictions point at. Deleting one is not something the application
+does, and cascading a Bout away is refused by the Bout key and by the import
+trigger while Predictions exist.
 
 **A round stands on its own.** `predictions_a_round_needs_a_finish` went with
 the compound shape: "this Bout ends in round 2" is a whole Prediction now, and

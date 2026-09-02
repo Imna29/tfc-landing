@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import type { Corner } from "#shared/events";
-import { MULTIPLIER, outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
+import {
+  answerLabel,
+  CORNERS,
+  MULTIPLIER,
+  outcomeLabel,
+  QUESTIONS,
+  QUESTION_LABELS,
+} from "#shared/pricing";
 import {
   boutEndingLabel,
   isFinish,
@@ -22,9 +29,16 @@ import {
  *
  * The screen ADR-0002 costs TFC. Multipliers are fixed by hand, so somebody
  * sits down with this before every card — which is why import seeds every
- * Outcome and this page is eight numbers to correct per Bout rather than a
- * blank form. It is deliberately plain, like the rest of the admin area
- * (ADR-0011).
+ * Outcome and this page is numbers to correct per Bout rather than a blank
+ * form. Fourteen to eighteen of them, since every answer names the fighter it
+ * is about (ADR-0015), which is what {@link questionsOf} lays out a corner at
+ * a time: six "Tsiklauri by Submission"-width labels down one column is a
+ * screen an admin loses their place in. It is deliberately plain otherwise,
+ * like the rest of the admin area (ADR-0011).
+ *
+ * Every Outcome is offered, unfiltered, and that is not the card's decision:
+ * a Bout with any unpriced Outcome cannot be opened, so an admin who could not
+ * reach the method and round numbers could not open a Bout at all.
  *
  * A Bout is priced, opened and locked on its own rather than the card in one
  * go. A card is rarely ready all at once — a late replacement on one Bout
@@ -121,19 +135,43 @@ const working = ref("");
 const problem = ref("");
 const done = ref("");
 
-/** The three Questions of a Bout, each with the Outcomes that answer it. */
+/**
+ * The three Questions of a Bout, each grouped by the fighter its answers are
+ * about.
+ *
+ * Two rows per Question — one per corner, red first — because that is the
+ * shape the answers have (ADR-0015) and because it is what keeps fourteen to
+ * eighteen inputs readable: the fighter is named once at the head of a row,
+ * and the boxes under it are the answers about them. `answerLabel` is what
+ * names those, and `outcomeLabel` still names the whole answer to a screen
+ * reader, so the two ways of reading the page say the same thing.
+ *
+ * Every Question and every answer to it, unfiltered: a Bout with one unpriced
+ * Outcome cannot be opened, so an answer this screen did not offer would be a
+ * Bout an admin could never open. The one thing dropped is a corner with no
+ * answers under it, which would be an empty row — and on any Bout import
+ * wrote, there is no such corner.
+ */
 function questionsOf(bout: (typeof bouts.value)[number]) {
+  const named = cornersOf(bout);
+
   return QUESTIONS.map((question) => ({
     question,
     label: QUESTION_LABELS[question],
-    outcomes: bout.outcomes.filter((outcome) => outcome.question === question),
+    corners: CORNERS.map((corner) => ({
+      corner,
+      fighter: named[corner],
+      outcomes: bout.outcomes.filter(
+        (outcome) => outcome.question === question && outcome.corner === corner,
+      ),
+    })).filter((side) => side.outcomes.length > 0),
   }));
 }
 
 /**
- * The two names this Bout is fought under, which is what a winner Outcome is
- * called. `outcomeLabel` names the rest, and names them the same way the card
- * a fan reads does.
+ * The two names this Bout is fought under, which every answer on it names
+ * (ADR-0015). `outcomeLabel` writes the whole of one, and writes it the same
+ * way the card a fan reads does.
  */
 function cornersOf(bout: (typeof bouts.value)[number]) {
   return { red: bout.redName, blue: bout.blueName };
@@ -410,9 +448,11 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
     <div class="max-w-5xl mx-auto">
       <p class="text-on-surface/80 leading-relaxed">
         Every Outcome arrived with a Multiplier from a fixed table, which is a starting point and
-        not a price: nothing that wrote it knows which fighter is favoured. Adjust the eight numbers
-        on a Bout, save them, and the Bout can be opened. Every Multiplier stands for its own answer
-        outright, so <em>Submission</em> is what a Bout ending that way pays, whoever wins it.
+        not a price: nothing that wrote it knows which fighter is favoured. Adjust the fourteen to
+        eighteen numbers on a Bout, save them, and the Bout can be opened. Every answer names the
+        fighter it is about and every Multiplier stands for that answer outright, so
+        <em>Tsiklauri by Submission</em> is what that fighter winning that way pays — and it is a
+        different number from the same finish by the other corner.
       </p>
 
       <p class="mt-4 text-on-surface/80 leading-relaxed">
@@ -459,30 +499,43 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
           {{ correctedFrom(bout, correction) }}
         </p>
 
+        <!--
+          A Question at a time, and within it a fighter at a time. The name is
+          the row's heading rather than the head of every label, which is what
+          keeps six method boxes and up to ten round boxes readable.
+        -->
         <div v-for="asked in questionsOf(bout)" :key="asked.question" class="mt-6">
           <h3 class="font-headline text-xs font-black uppercase tracking-widest">
             {{ asked.label }}
           </h3>
 
-          <div class="mt-3 flex flex-wrap gap-4">
-            <label
-              v-for="outcome in asked.outcomes"
-              :key="outcome.id"
-              class="flex items-center gap-2 text-sm"
-            >
-              <span class="min-w-32">{{ outcomeLabel(outcome, cornersOf(bout)) }}</span>
-              <span aria-hidden="true">×</span>
-              <input
-                v-model.number="typed[outcome.id]"
-                type="number"
-                :min="smallest"
-                :max="MULTIPLIER.maximum"
-                step="0.01"
-                :aria-label="`${asked.label}: ${outcomeLabel(outcome, cornersOf(bout))}`"
-                class="w-24 border border-outline-variant/40 bg-surface px-2 py-1"
-              />
-              <span v-if="!outcome.priced" class="text-xs text-on-surface/60">seeded</span>
-            </label>
+          <div
+            v-for="side in asked.corners"
+            :key="side.corner"
+            class="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-2 md:flex-nowrap md:items-start"
+          >
+            <p class="w-full shrink-0 text-sm font-bold md:w-48">{{ side.fighter }}</p>
+
+            <div class="flex flex-wrap gap-x-4 gap-y-2">
+              <label
+                v-for="outcome in side.outcomes"
+                :key="outcome.id"
+                class="flex items-center gap-2 text-sm"
+              >
+                <span class="min-w-24">{{ answerLabel(outcome) }}</span>
+                <span aria-hidden="true">×</span>
+                <input
+                  v-model.number="typed[outcome.id]"
+                  type="number"
+                  :min="smallest"
+                  :max="MULTIPLIER.maximum"
+                  step="0.01"
+                  :aria-label="`${asked.label}: ${outcomeLabel(outcome, cornersOf(bout))}`"
+                  class="w-24 border border-outline-variant/40 bg-surface px-2 py-1"
+                />
+                <span v-if="!outcome.priced" class="text-xs text-on-surface/60">seeded</span>
+              </label>
+            </div>
           </div>
         </div>
 

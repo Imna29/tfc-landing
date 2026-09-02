@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { SCHEDULED_ROUNDS } from "../../shared/events";
+import type { Corner } from "../../shared/events";
 import {
+  answerLabel,
   CORNERS,
   DEFAULT_MULTIPLIERS,
   defaultOutcomes,
@@ -10,6 +12,7 @@ import {
   outcomeKey,
   parseMultipliers,
   PRICING_MESSAGES,
+  QUESTION_LABELS,
   type OutcomeAnswer,
   type Question,
 } from "../../shared/pricing";
@@ -18,40 +21,69 @@ import {
  * Pricing a Bout: the table every Outcome is seeded from, and what an admin is
  * allowed to change it to.
  *
- * Worth testing on its own because it is what makes pricing a card ten minutes
- * of work rather than an hour (ADR-0002): an admin adjusts eight numbers per
- * Bout instead of authoring them from blank, and every card has to be priced
- * before it opens.
+ * Worth testing on its own because it is what makes pricing a card twenty
+ * minutes of work rather than an hour (ADR-0002): an admin adjusts fourteen to
+ * eighteen numbers per Bout instead of authoring them from blank, and every
+ * card has to be priced before it opens.
  */
 describe("the Outcomes a Bout is seeded with", () => {
-  it("asks all three Questions of a three-round Bout in eight numbers", () => {
+  it("asks all three Questions of each fighter, in fourteen numbers", () => {
     const seeded = defaultOutcomes(3);
 
+    // Every answer names the corner it is about (ADR-0015), so each of the
+    // three Questions is asked of both fighters: two winner Outcomes, six
+    // method Outcomes, and two for each scheduled round.
     expect(
-      seeded.map((outcome) => [
-        outcome.question,
-        outcome.corner ?? outcome.method ?? outcome.round,
-      ]),
+      seeded.map((outcome) => [outcome.question, outcome.corner, outcome.method ?? outcome.round]),
     ).toEqual([
-      ["winner", "red"],
-      ["winner", "blue"],
-      ["method", "ko_tko"],
-      ["method", "submission"],
-      ["method", "decision"],
-      ["round", 1],
-      ["round", 2],
-      ["round", 3],
+      ["winner", "red", null],
+      ["winner", "blue", null],
+      ["method", "red", "ko_tko"],
+      ["method", "red", "submission"],
+      ["method", "red", "decision"],
+      ["method", "blue", "ko_tko"],
+      ["method", "blue", "submission"],
+      ["method", "blue", "decision"],
+      ["round", "red", 1],
+      ["round", "red", 2],
+      ["round", "red", 3],
+      ["round", "blue", 1],
+      ["round", "blue", 2],
+      ["round", "blue", 3],
     ]);
+  });
+
+  it("asks a five-round Bout the same three Questions in eighteen numbers", () => {
+    expect(defaultOutcomes(5).length).toBe(18);
+    expect(defaultOutcomes(3).length).toBe(14);
+  });
+
+  it("tells two answers apart when the only difference is the fighter", () => {
+    // What `outcomeKey` is for: an Entry is priced by matching the answer a
+    // fan gave against the answers the Bout offered, and "Tsiklauri by KO/TKO"
+    // and "Beridze by KO/TKO" are two answers at two prices.
+    const [red, blue] = defaultOutcomes(3).filter(
+      (outcome) => outcome.question === "method" && outcome.method === "ko_tko",
+    );
+
+    expect(outcomeKey(red!)).not.toBe(outcomeKey(blue!));
+    expect(new Set(defaultOutcomes(5).map(outcomeKey)).size).toBe(18);
   });
 });
 
 describe("the rounds a Bout offers", () => {
   it("offers a round of victory for each round scheduled and no more", () => {
-    const threeRounder = defaultOutcomes(3).filter((outcome) => outcome.question === "round");
-    const fiveRounder = defaultOutcomes(5).filter((outcome) => outcome.question === "round");
+    const rounds = (scheduledRounds: number, corner: Corner) =>
+      defaultOutcomes(scheduledRounds)
+        .filter((outcome) => outcome.question === "round" && outcome.corner === corner)
+        .map((outcome) => outcome.round);
 
-    expect(threeRounder.map((outcome) => outcome.round)).toEqual([1, 2, 3]);
-    expect(fiveRounder.map((outcome) => outcome.round)).toEqual([1, 2, 3, 4, 5]);
+    // Both fighters, and only the rounds the Bout is actually booked over: a
+    // three-round Bout offers no round 4 to either of them.
+    expect(rounds(3, "red")).toEqual([1, 2, 3]);
+    expect(rounds(3, "blue")).toEqual([1, 2, 3]);
+    expect(rounds(5, "red")).toEqual([1, 2, 3, 4, 5]);
+    expect(rounds(5, "blue")).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("seeds every Outcome above 1, so a correct Prediction cannot lose Coins", () => {
@@ -81,10 +113,16 @@ describe("what an Outcome is seeded to pay", () => {
     );
   }
 
-  /** What a Bout's answers to one Question are seeded at, in the asked order. */
-  function pays(question: Question, scheduledRounds: number): number[] {
+  /**
+   * What one corner's answers to one Question are seeded at, in asked order.
+   *
+   * One corner rather than both, because both are seeded from the same numbers
+   * and reading the pair back would say each of them twice. Which corner is
+   * arbitrary, and {@link seeded} is where that is proved rather than assumed.
+   */
+  function pays(question: Question, scheduledRounds: number, corner: Corner = "red"): number[] {
     return defaultOutcomes(scheduledRounds)
-      .filter((outcome) => outcome.question === question)
+      .filter((outcome) => outcome.question === question && outcome.corner === corner)
       .map((outcome) => outcome.multiplier);
   }
 
@@ -93,17 +131,9 @@ describe("what an Outcome is seeded to pay", () => {
     return multipliers.reduce((total, multiplier) => total + 1 / multiplier, 0);
   }
 
-  /**
-   * A Question's seeded answers, each counted once per fighter it is asked of.
-   *
-   * The method and round rows hold one number per answer, and both corners are
-   * seeded from it, so those Questions only total to the chances they mean when
-   * each number is read twice. Seeding one Outcome per corner is #41's, and
-   * this is what the totals below mean until it lands. The winner Question is
-   * already asked of each fighter and needs no such spreading.
-   */
-  function perCorner(answers: readonly number[]): number[] {
-    return CORNERS.flatMap(() => answers);
+  /** A Question's seeded answers as a whole Bout offers them: both corners. */
+  function acrossBothCorners(question: Question, scheduledRounds: number): number[] {
+    return CORNERS.flatMap((corner) => pays(question, scheduledRounds, corner));
   }
 
   it("prices each answer to stand on its own, for the fighter it names", () => {
@@ -111,25 +141,32 @@ describe("what an Outcome is seeded to pay", () => {
     // read one number against one answer. ADR-0015: that answer names a
     // corner, so every number is what one fighter pays.
     expect(seeded(3)).toEqual({
-      "winner:red": 1.9,
-      "winner:blue": 1.9,
-      "method:ko_tko": 4.4,
-      "method:submission": 8.1,
-      "method:decision": 5.3,
-      "round:1": 6.3,
-      "round:2": 9.5,
-      "round:3": 11.4,
+      "winner:red:": 1.9,
+      "winner:blue:": 1.9,
+      "method:red:ko_tko": 4.4,
+      "method:red:submission": 8.1,
+      "method:red:decision": 5.3,
+      "method:blue:ko_tko": 4.4,
+      "method:blue:submission": 8.1,
+      "method:blue:decision": 5.3,
+      "round:red:1": 6.3,
+      "round:red:2": 9.5,
+      "round:red:3": 11.4,
+      "round:blue:1": 6.3,
+      "round:blue:2": 9.5,
+      "round:blue:3": 11.4,
     });
   });
 
   it("seeds the two corners level, because nothing here knows who is favoured", () => {
-    // The winner Question is asked of each fighter already, so it says so
-    // outright: the same number against both names.
-    expect(pays("winner", 3)).toEqual([1.9, 1.9]);
+    // Said of every Question now that every answer names a fighter: the same
+    // number against both names, all the way down the Bout.
+    expect(pays("winner", 3, "red")).toEqual(pays("winner", 3, "blue"));
+    expect(pays("method", 3, "red")).toEqual(pays("method", 3, "blue"));
+    expect(pays("round", 5, "red")).toEqual(pays("round", 5, "blue"));
 
-    // The other two say it by holding one number per answer rather than one
-    // per fighter — three method numbers and one row per format — so there is
-    // nothing for one corner to be seeded above the other from.
+    // And it is level because the table has nothing to be uneven from: three
+    // method numbers and one row per format, with no corner in either of them.
     expect(Object.keys(DEFAULT_MULTIPLIERS.method).sort()).toEqual([...METHODS].sort());
     expect(Object.keys(DEFAULT_MULTIPLIERS.round).sort()).toEqual(["3", "5"]);
   });
@@ -162,26 +199,26 @@ describe("what an Outcome is seeded to pay", () => {
     // fighters, so the winner Question has no estimate to be wrong about;
     // method rests on a prior and carries three more points against that prior
     // being off.
-    expect(implied(pays("winner", 3))).toBeCloseTo(1.05, 2);
-    expect(implied(perCorner(pays("method", 3)))).toBeCloseTo(1.08, 2);
+    expect(implied(acrossBothCorners("winner", 3))).toBeCloseTo(1.05, 2);
+    expect(implied(acrossBothCorners("method", 3))).toBeCloseTo(1.08, 2);
   });
 
   it("totals a round Question to the finishes rather than to the whole Bout", () => {
     // About 65% of Bouts at this level end in a finish, and the other 35% end
     // in no round at all. Both formats carry the same prior and the same
     // margin, which is what makes them comparable at all.
-    expect(implied(perCorner(pays("round", 3)))).toBeCloseTo(0.7, 2);
-    expect(implied(perCorner(pays("round", 5)))).toBeCloseTo(0.7, 2);
+    expect(implied(acrossBothCorners("round", 3))).toBeCloseTo(0.7, 2);
+    expect(implied(acrossBothCorners("round", 5))).toBeCloseTo(0.7, 2);
   });
 });
 
 describe("what one Outcome is called", () => {
-  /** The two names a Bout is fought under, which is what a winner is called. */
+  /** The two names a Bout is fought under, which is what every answer names. */
   const corners = { red: "Giorgi Tsiklauri", blue: "Levan Beridze" };
 
-  /** An Outcome's answer as a Bout holds one: a Question, and one answer. */
+  /** An Outcome's answer as a Bout holds one: a Question, a corner, an answer. */
   function answer(asked: Partial<OutcomeAnswer> & Pick<OutcomeAnswer, "question">): OutcomeAnswer {
-    return { corner: null, method: null, round: null, ...asked };
+    return { corner: "red", method: null, round: null, ...asked };
   }
 
   it("names the fighter a winner Outcome is a win for", () => {
@@ -193,15 +230,44 @@ describe("what one Outcome is called", () => {
     );
   });
 
-  it("names a method of victory the way both a fan and an admin read it", () => {
-    expect(outcomeLabel(answer({ question: "method", method: "ko_tko" }), corners)).toBe("KO/TKO");
-    expect(outcomeLabel(answer({ question: "method", method: "submission" }), corners)).toBe(
-      "Submission",
+  it("names the fighter a method of victory is a victory for", () => {
+    // The defect ADR-0015 exists for: "KO/TKO" beside a column of two names
+    // read as a KO/TKO for one of them, and never said which.
+    expect(outcomeLabel(answer({ question: "method", method: "ko_tko" }), corners)).toBe(
+      "Giorgi Tsiklauri by KO/TKO",
+    );
+    expect(
+      outcomeLabel(answer({ question: "method", corner: "blue", method: "submission" }), corners),
+    ).toBe("Levan Beridze by Submission");
+  });
+
+  it("names the fighter a round of victory is a victory for", () => {
+    expect(outcomeLabel(answer({ question: "round", round: 2 }), corners)).toBe(
+      "Giorgi Tsiklauri in round 2",
+    );
+    expect(outcomeLabel(answer({ question: "round", corner: "blue", round: 1 }), corners)).toBe(
+      "Levan Beridze in round 1",
     );
   });
 
-  it("names a round by its number", () => {
-    expect(outcomeLabel(answer({ question: "round", round: 2 }), corners)).toBe("Round 2");
+  it("calls each Question what it always called it, because the answers name the victor", () => {
+    // ADR-0015 changes no Question's name: "Method of victory" was always
+    // describing a victory, and it is the answers underneath that changed.
+    expect(QUESTION_LABELS).toEqual({
+      winner: "Winner",
+      method: "Method of victory",
+      round: "Round of victory",
+    });
+  });
+
+  it("names the answer without the fighter, for a screen that has named them already", () => {
+    // What the admin pricing screen groups by: fourteen to eighteen inputs a
+    // Bout, laid out a corner at a time with the fighter named once above
+    // them. The full name is still what a fan reads and what the input is
+    // labelled to a screen reader.
+    expect(answerLabel(answer({ question: "winner" }))).toBe("Wins");
+    expect(answerLabel(answer({ question: "method", method: "ko_tko" }))).toBe("KO/TKO");
+    expect(answerLabel(answer({ question: "round", round: 2 }))).toBe("Round 2");
   });
 
   it("falls back to the Question for an answer that cannot be missing", () => {
@@ -210,6 +276,8 @@ describe("what one Outcome is called", () => {
     // would be a Multiplier with no words beside it.
     expect(outcomeLabel(answer({ question: "method" }), corners)).toBe("Method of victory");
     expect(outcomeLabel(answer({ question: "round" }), corners)).toBe("Round of victory");
+    expect(answerLabel(answer({ question: "method" }))).toBe("Method of victory");
+    expect(answerLabel(answer({ question: "round" }))).toBe("Round of victory");
   });
 });
 

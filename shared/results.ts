@@ -212,10 +212,13 @@ export const PREDICTION_GRADE_LABELS = {
  * Whether this Prediction landed.
  *
  * One answer against what the Bout produced, on the Question the fan chose to
- * answer (ADR-0014). Nothing else about the Bout is asked: a winner Prediction
- * is graded on who won however the Bout ended, and a method Prediction on how
- * it ended whoever won it. A round Prediction on a Bout that went the distance
- * is **wrong** — a Decision ends in no round, which is precisely not ending in
+ * answer (ADR-0014). A winner Prediction is graded on who won however the Bout
+ * ended, and nothing else about it is asked. **A method or a round Prediction
+ * is graded on the winner as well**, because it names one (ADR-0015): "Beridze
+ * by Submission" is wrong on a Bout Tsiklauri submitted, and a round answer
+ * naming the fighter who lost is wrong even where the Bout did end in the
+ * round it named. A round Prediction on a Bout that went the distance is
+ * **wrong** — a Decision ends in no round, which is precisely not ending in
  * the one the fan named.
  *
  * The two ADR-0005 cases are the ones worth reading closely. A Bout that
@@ -242,8 +245,16 @@ export function gradePrediction(
   }
 
   // And "won by DQ" is not one of the three methods any fan was offered, so
-  // the other two Questions have nothing here to be graded against.
+  // the other two Questions have nothing here to be graded against — whichever
+  // fighter they named, the one who was disqualified included.
   if (result.method === "disqualification") return "no result";
+
+  // **The corner has to match as well.** A method or a round answer names the
+  // fighter it is about (ADR-0015), so "Beridze by Submission" on a Bout
+  // Tsiklauri submitted is a fan who read the ending and named the wrong
+  // fighter to produce it, and a round answer naming the fighter who lost is
+  // wrong even where the Bout did end in the round it named.
+  if (prediction.corner !== result.winner) return "wrong";
 
   if (prediction.question === "method") {
     return prediction.method === result.method ? "correct" : "wrong";
