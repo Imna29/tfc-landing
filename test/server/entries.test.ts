@@ -1504,6 +1504,21 @@ describe("the Entry a fan commits, and takes back", async () => {
     /** The two names every card in this suite is fought under. */
     const FIGHTERS = { red: "Giorgi Tsiklauri", blue: "Levan Beridze" } as const;
 
+    /**
+     * How many answers each format of Bout offers: two winner answers, six
+     * method answers, and two for each round it is scheduled for (ADR-0015).
+     *
+     * Written out rather than counted off the Bout, so that a card offering
+     * the wrong number of answers fails here instead of agreeing with itself.
+     */
+    const ANSWERS_ON_A_THREE_ROUNDER = 14;
+    const ANSWERS_ON_A_FIVE_ROUNDER = 18;
+
+    /** How many times an answer is named on the page. */
+    function timesNamed(rendered: string, answer: string): number {
+      return rendered.split(answer).length - 1;
+    }
+
     /** The page as a browser gets it, signed in or not. */
     function page(cookie?: string) {
       return $fetch<string>("/predictions", {
@@ -1528,44 +1543,88 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(rendered).toContain(ENTRY_MESSAGES.nothingPicked);
     });
 
-    it("offers the winner and the method Questions, six method answers per Bout", async () => {
-      // #42 takes the method out of the filter, so the card asks two of the
-      // three Questions: two winner answers and six method answers, each
-      // naming the fighter it is about (ADR-0015). The round is #43's, which
-      // is why nothing on the page names one — and its Outcomes are seeded and
-      // priced all the same, so opening a Bout still asks an admin for every
-      // number.
-      await upcomingCard();
+    it("offers all three Questions, every answer naming the fighter it is about", async () => {
+      // #43 retires the filter rather than adding to it: a fan is offered
+      // every answer their Bout was priced with — two winner answers, six
+      // method answers and two for each round it is scheduled for — and each
+      // of them names a fighter (ADR-0015). Fourteen buttons on a three-round
+      // Bout, which is ADR-0015's model complete on the card a fan reads.
+      const card = await upcomingCard();
       const fan = await fanWithCoins();
 
       const rendered = await page(fan.cookie);
 
       expect(rendered).toContain(QUESTION_LABELS.winner);
       expect(rendered).toContain(QUESTION_LABELS.method);
-      expect(rendered).not.toContain(QUESTION_LABELS.round);
-      expect(rendered).not.toMatch(/in round 2/);
-      expect(rendered.match(/aria-pressed=/g)).toHaveLength(
-        CORNERS.length + CORNERS.length * METHODS.length,
-      );
+      expect(rendered).toContain(QUESTION_LABELS.round);
 
-      // All six of them, in the order they are asked: red before blue, and
-      // KO/TKO before Submission before Decision within each corner, which is
-      // the order `defaultOutcomes` seeds them in.
-      const asked = CORNERS.flatMap((corner) =>
-        METHODS.map((method) => `${FIGHTERS[corner]} by ${METHOD_LABELS[method]}`),
-      );
+      // Fourteen answers on a three-round Bout — two winner, six method, two
+      // for each round — and the same fourteen the Bout carries, because
+      // nothing is filtered out of what an admin had to price to open it.
+      expect(rendered.match(/aria-pressed=/g)).toHaveLength(ANSWERS_ON_A_THREE_ROUNDER);
+      expect(card.bouts[0]!.outcomes).toHaveLength(ANSWERS_ON_A_THREE_ROUNDER);
+
+      // Twelve of the fourteen in the order they are asked: the method
+      // answers, then the round answers, red before blue within each Question
+      // and KO/TKO before Submission and round 1 before round 2 within each
+      // corner — which is the order `defaultOutcomes` seeds them in. The two
+      // winner answers are left out because a fighter's bare name is on the
+      // page long before it is an answer, in the corner it is fought from.
+      const asked = [
+        ...CORNERS.flatMap((corner) =>
+          METHODS.map((method) => `${FIGHTERS[corner]} by ${METHOD_LABELS[method]}`),
+        ),
+        ...CORNERS.flatMap((corner) =>
+          [1, 2, 3].map((round) => `${FIGHTERS[corner]} in round ${round}`),
+        ),
+      ];
       const at = asked.map((answer) => rendered.indexOf(answer));
 
       expect(at.every((position) => position > -1)).toBe(true);
       expect(at).toEqual([...at].sort((one, another) => one - another));
     });
 
-    it("shows no bare method answer, and no copy that makes one about the Bout", async () => {
+    it("offers a fan no round the Bout is not scheduled for", async () => {
+      // A three-round Bout has no round 4 to offer anybody, and the five-round
+      // main event beside it has two rounds the opener does not. What is
+      // rendered comes from the Outcomes the Bout carries, which are generated
+      // from the rounds it is booked over — so the card cannot show an answer
+      // that `predictions_round_is_offered` would refuse underneath.
+      const card = await upcomingCard({
+        bouts: [
+          cardBout({ cardOrder: 1, scheduledRounds: 3 }),
+          cardBout({ cardOrder: 2, scheduledRounds: 5, mainEvent: true }),
+        ],
+      });
+      const fan = await fanWithCoins();
+
+      const rendered = await page(fan.cookie);
+
+      // Both Bouts offer a round 3, to a fighter each, so the page names it
+      // four times. Rounds 4 and 5 are the main event's alone.
+      expect(timesNamed(rendered, "in round 3")).toBe(2 * CORNERS.length);
+      expect(timesNamed(rendered, "in round 4")).toBe(CORNERS.length);
+      expect(timesNamed(rendered, "in round 5")).toBe(CORNERS.length);
+      expect(rendered).not.toContain("in round 6");
+
+      // Fourteen answers on the opener and eighteen on the main event, which
+      // is every Outcome on the card and nothing beside them.
+      expect(rendered.match(/aria-pressed=/g)).toHaveLength(
+        ANSWERS_ON_A_THREE_ROUNDER + ANSWERS_ON_A_FIVE_ROUNDER,
+      );
+      expect(card.bouts.map((bout) => bout.outcomes.length)).toEqual([
+        ANSWERS_ON_A_THREE_ROUNDER,
+        ANSWERS_ON_A_FIVE_ROUNDER,
+      ]);
+    });
+
+    it("shows no bare method or round answer, and no copy that makes one about the Bout", async () => {
       // The defect #38 was opened on, closed where it was reported: "Method of
       // victory: KO/TKO" read beside a Winner column listing two fighters by
       // name as a method of victory *for one of them*, and never said which.
-      // Guarded as the absence of the bare answer rather than the presence of
-      // the full one, because the bare answer is the thing that was wrong.
+      // "Round of victory: Round 2" read worse. Guarded as the absence of the
+      // bare answers rather than the presence of the full ones, because the
+      // bare answer is the thing that was wrong.
       await upcomingCard();
       const fan = await fanWithCoins();
 
@@ -1575,10 +1634,13 @@ describe("the Entry a fan commits, and takes back", async () => {
         expect(rendered).not.toContain(`>${METHOD_LABELS[method]}<`);
       }
 
+      expect(rendered).not.toMatch(/>\s*Round \d/);
+
       // And the copy above the card offers a fighter's ending rather than the
-      // Bout's: "how it ends" is the same answer described as one about the
-      // Bout, which is what ADR-0015 replaced.
+      // Bout's: "how it ends" and "the round it ends in" are the same answers
+      // described as ones about the Bout, which is what ADR-0015 replaced.
       expect(rendered).not.toMatch(/how it ends/i);
+      expect(rendered).not.toMatch(/the round it ends in/i);
     });
 
     it("no longer tells a fan to name a winner, or to deepen the pick they made", async () => {
@@ -1633,9 +1695,9 @@ describe("the Entry a fan commits, and takes back", async () => {
     it("names the fighter in a committed method or round Prediction", async () => {
       // The defect ADR-0015 opened on, in the place it read worst: a
       // Prediction used to render here as `Bout 1 — KO/TKO`, with no fighter
-      // named at all, and `Bout 1 — Round 2` was close to unreadable. The card
-      // is not offering the round Question yet (#43), and the listing shows
-      // whatever a fan has committed regardless.
+      // named at all, and `Bout 1 — Round 2` was close to unreadable. Both are
+      // answers the card offers now, and both read back naming the fighter
+      // they were about.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 

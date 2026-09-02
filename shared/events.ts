@@ -97,8 +97,9 @@ export const EVENT_MESSAGES = {
   roundsUnreadable: (position: number) =>
     `The ${ordinal(position)} Bout is not scheduled for a whole number of ` +
     `rounds between ${SCHEDULED_ROUNDS.minimum} and ${SCHEDULED_ROUNDS.maximum}. ` +
-    "A fan is offered a round of victory for each round scheduled, so a Bout " +
-    "that does not say how many it has cannot be predicted on.",
+    "A fan is offered a round of victory for each fighter in each round " +
+    "scheduled, so a Bout that does not say how many it has cannot be " +
+    "predicted on.",
   mainEventRepeated:
     "Two Bouts on this card are both flagged the main event. Only one Bout " + "closes a card.",
   cornerUnnamed: (position: number, corner: Corner) =>

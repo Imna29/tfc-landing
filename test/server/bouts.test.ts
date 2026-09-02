@@ -1264,17 +1264,20 @@ describe("a fight card in the game", async () => {
 
       const page = await publicPage();
 
-      // Every Outcome is offered by the route above, and the card renders the
-      // winner and the method Questions while #43 stands the round up in its
-      // new shape (`OFFERED_QUESTIONS`). Both fighters are named as answers to
-      // each of them, at what each of them pays.
+      // Every Outcome the route offers is on the page: #43 retires the filter
+      // the card was rendered through, so all three Questions are asked and
+      // both fighters are named as answers to each of them, at what each of
+      // them pays. Round 4 is the one nobody is offered — this Bout is
+      // scheduled for three.
       expect(page).toContain("×2.50");
       expect(page).toContain(QUESTION_LABELS.winner);
       expect(page).toContain(QUESTION_LABELS.method);
+      expect(page).toContain(QUESTION_LABELS.round);
       expect(page).toContain(`Giorgi Tsiklauri by ${METHOD_LABELS.submission}`);
       expect(page).toContain(`Levan Beridze by ${METHOD_LABELS.submission}`);
-      expect(page).not.toContain(QUESTION_LABELS.round);
-      expect(page).not.toContain("in round 2");
+      expect(page).toContain("Giorgi Tsiklauri in round 2");
+      expect(page).toContain("Levan Beridze in round 2");
+      expect(page).not.toContain("in round 4");
     });
 
     it("offers nothing on a Bout nobody has opened, because nothing on it is priced", async () => {

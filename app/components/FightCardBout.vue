@@ -5,11 +5,10 @@ import {
   boutState,
   BOUT_STATE_LABELS,
   multiplierLabel,
-  OFFERED_QUESTIONS,
   PREDICTION_MESSAGES,
   type BoutPredictions,
 } from "#shared/predictions";
-import { outcomeLabel, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
 
 /**
  * One Bout on a card: the two fighters, the weight class, how many rounds —
@@ -108,14 +107,16 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
  * The Questions this Bout is asking, each with the answers to it and what
  * they pay.
  *
- * The ones `OFFERED_QUESTIONS` names, in the order it asks them, each answered
- * on its own terms (ADR-0014) and each answer naming the fighter it is about
- * (ADR-0015). It is the winner and the method while #43 stands the round up
- * again in its new shape; the round Outcomes behind it are seeded and priced
- * all the same.
+ * All three of them, in the order `QUESTIONS` asks them, each answered on its
+ * own terms (ADR-0014) and each answer naming the fighter it is about
+ * (ADR-0015) — two winner answers, six method answers, and two for each round
+ * the Bout is scheduled for.
  *
- * Dropped as well is any Question with no Outcomes on it — a Bout nobody has
- * opened has none at all, because nothing on it is priced.
+ * The one thing dropped is a Question with no Outcomes on it, which is every
+ * Question on a Bout nobody has opened: nothing on it is priced yet. There is
+ * no list of its own here to drop anything else, because a Bout with one
+ * unpriced Outcome cannot be opened — so every Question a fan is shown is one
+ * an admin went through, and the same `QUESTIONS` they went through it in.
  *
  * Which Questions may be *committed* is not decided here or anywhere in the
  * app: the server prices whatever answer the Bout is offering, and the Outcome
@@ -124,7 +125,7 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
 const questions = computed(() => {
   const offered = props.predictions?.outcomes ?? [];
 
-  return OFFERED_QUESTIONS.map((question) => ({
+  return QUESTIONS.map((question) => ({
     question,
     label: QUESTION_LABELS[question],
     outcomes: offered.filter((outcome) => outcome.question === question),
@@ -179,10 +180,10 @@ const questions = computed(() => {
       </div>
 
       <!--
-        As many columns as there are Questions on the card, which is two on an
-        open Bout today and none on one nobody has opened. Laid out from what
-        is actually asked rather than from a number written here, so the Bout
-        is filled either way as #43 adds the last of them.
+        As many columns as there are Questions on the card, which is three on
+        an open Bout and none on one nobody has opened. Laid out from what is
+        actually asked rather than from a number written here, which is what
+        kept the Bout filled while the three arrived one at a time.
       -->
       <div
         v-if="questions.length > 0"

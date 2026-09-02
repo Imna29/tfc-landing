@@ -46,6 +46,7 @@ const SUBMISSION = answer({ question: "method", method: "submission" });
 const DECISION = answer({ question: "method", method: "decision" });
 const BLUE_BY_KO = answer({ question: "method", corner: "blue", method: "ko_tko" });
 const ROUND_TWO = answer({ question: "round", round: 2 });
+const ROUND_THREE = answer({ question: "round", round: 3 });
 const BLUE_IN_ROUND_TWO = answer({ question: "round", corner: "blue", round: 2 });
 
 /** A Prediction with the Multiplier already frozen onto it (ADR-0002). */
@@ -73,6 +74,12 @@ describe("answering one Bout", () => {
     // them is one answer replacing another rather than two being held.
     expect(pickAnswered(KO, SUBMISSION)).toEqual(SUBMISSION);
     expect(pickAnswered(SUBMISSION, DECISION)).toEqual(DECISION);
+
+    // And the same again down the round column #43 puts beside it, which is
+    // three to five answers deep: a fan moving from round 2 to round 3 has
+    // changed how long they think the Bout lasts, not added a second view.
+    expect(pickAnswered(ROUND_TWO, ROUND_THREE)).toEqual(ROUND_THREE);
+    expect(pickAnswered(ROUND_THREE, ROUND_TWO)).toEqual(ROUND_TWO);
   });
 
   it("takes the Bout out of the Entry when the same answer is given twice", () => {

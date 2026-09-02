@@ -203,6 +203,40 @@ describe("correcting a result", async () => {
       expect(await statusOf(entry.id)).toBe("won");
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 60 });
     });
+
+    it("takes a round Prediction back when the round it named is the thing corrected", async () => {
+      // The correction only a round Prediction can be flipped by: the fighter
+      // is right and stays right, and it is the round the admin typed that was
+      // wrong. Neither of the other two Questions notices, which is why this
+      // is here beside the two the corrected winner decides.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "red", 2)]);
+
+      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+
+      expect(await statusOf(entry.id)).toBe("won");
+
+      const { correction } = await correct(card, 0, {
+        winner: "red",
+        method: "ko_tko",
+        round: 3,
+      });
+
+      // The Reward the first Result paid comes back as a row that says so
+      // rather than by editing the one that paid it (ADR-0003).
+      expect(correction).toMatchObject({ graded: 1, won: 0, lost: 1, paid: 0, reversed: 60 });
+      expect(await statusOf(entry.id)).toBe("lost");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+
+      expect((await ledgerFor(fan.id)).map((row) => [row.kind, row.amount])).toEqual([
+        ["season_grant", STARTING_BALANCE],
+        ["entry_commitment", -20],
+        ["entry_reward", 60],
+        ["entry_reversal", -60],
+      ]);
+    });
   });
 
   describe("an Entry a fail-fast loss ended early", () => {

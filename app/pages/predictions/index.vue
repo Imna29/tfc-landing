@@ -149,9 +149,10 @@ useSeoMeta({
         </p>
 
         <p class="mt-4 max-w-3xl text-on-surface/80 leading-relaxed">
-          Answer any Bout — which fighter wins, or which fighter wins and how — and that one answer
-          is a whole Prediction at the Multiplier beside it. Chain Predictions across Bouts into one
-          Entry, commit your Coins, and a Bout stops taking Predictions the moment it locks.
+          Answer any Bout — which fighter wins, how they win, or the round they win in — and that
+          one answer is a whole Prediction at the Multiplier beside it. Chain Predictions across
+          Bouts into one Entry, commit your Coins, and a Bout stops taking Predictions the moment it
+          locks.
         </p>
 
         <div class="mt-10 grid items-start gap-10 lg:grid-cols-[1fr_360px]">

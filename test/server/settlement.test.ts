@@ -343,6 +343,37 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 + 60 });
     });
 
+    it("chains a round with a method and a winner, across three Bouts", async () => {
+      // ADR-0015's model whole, in one Entry: every Question the game asks,
+      // each answer naming the fighter it is about, and no two of them about
+      // the same fight — so nothing correlated is multiplied (ADR-0014). It is
+      // the criterion #43 closes the model on, and the only shape all three
+      // Questions can be held in at once.
+      const card = await upcomingCard(3);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [
+        roundOn(card.bouts[0]!.id, "red", 2),
+        methodOn(card.bouts[1]!.id, "blue", "submission"),
+        winnerOn(card.bouts[2]!.id, "red"),
+      ]);
+
+      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 1, { winner: "blue", method: "submission", round: 1 });
+
+      // Nothing has been paid until the last of them settles: a Reward is the
+      // Amount at the combined Multiplier of the whole chain.
+      expect(await statusOf(entry.id)).toBe("open");
+
+      const { settlement } = await settle(card, 2, { winner: "red" });
+
+      // ×3 on the round, ×2.50 on the method and ×2 on the winner: ×15, so 10
+      // Coins return 150.
+      expect(settlement).toMatchObject({ won: 1, paid: 150 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 + 150 });
+    });
+
     it("is Lost the moment one Prediction fails, with Bouts still to settle", async () => {
       const card = await upcomingCard(3);
       const fan = await fanWithCoins();

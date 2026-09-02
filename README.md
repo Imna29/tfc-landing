@@ -702,14 +702,18 @@ in round 2. Each carries only the risk it means. The round Multipliers are
 seeded for exactly this, a standalone answer with nothing multiplying onto it,
 so a five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
 
-`app/components/FightCardBout.vue` renders the Questions in
-`OFFERED_QUESTIONS`, filtered to the ones the Bout has Outcomes for — which is
-none until an admin has priced it. That list is the winner and the method
-Questions while #43 stands the round up again in its new shape, arriving with
-the settlement cases that prove a corner-scoped answer settles. It is not a
-rule about what may be *committed*: the server prices whatever answer the Bout
-is offering, the Outcome rows are what say that, and all fourteen to eighteen
-are seeded and priced before a Bout can open.
+`app/components/FightCardBout.vue` renders `QUESTIONS`, filtered only to the
+ones the Bout has Outcomes for — which is none until an admin has priced it, and
+all three afterwards. So an open Bout offers every one of its fourteen to
+eighteen answers: two winner answers, six method answers, and two for each round
+it is scheduled for, red before blue. The admin pricing screen renders the same
+list, which is what makes "an answer a fan is offered is an answer somebody
+priced" true by construction. A separate `OFFERED_QUESTIONS` held less than that
+while ADR-0015's answers arrived one Question at a time, each with the settlement
+cases that prove a corner-scoped answer settles; it named all three by the end
+and went with the last of them. None of it is a rule about what may be
+*committed*: the server prices whatever answer the Bout is offering, and the
+Outcome rows are what say that.
 
 Three layers of the same rules, on purpose:
 
@@ -768,10 +772,12 @@ does, and cascading a Bout away is refused by the Bout key and by the import
 trigger while Predictions exist.
 
 **A round stands on its own.** `predictions_a_round_needs_a_finish` went with
-the compound shape: "this Bout ends in round 2" is a whole Prediction now, and
-on a Bout that went the distance it is graded **wrong** rather than refused when
-it was made — a Decision ends in no round at all, which is precisely not ending
-in the one the fan named. A disqualification records no round either and reads
+the compound shape: "Tsiklauri in round 2" is a whole Prediction now, with no
+finish named beside it, and on a Bout that went the distance it is graded
+**wrong** rather than refused when it was made — a Decision ends in no round at
+all, which is precisely not ending in the one the fan named. Naming the wrong
+fighter loses it just as surely (ADR-0015): a Bout that did end in round 2 ended
+with somebody winning it. A disqualification records no round either and reads
 almost the same, and settles the other way: it was never one of the answers the
 game offered, so a round Prediction on it is a No Result (ADR-0005).
 
