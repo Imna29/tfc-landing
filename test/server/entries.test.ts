@@ -100,13 +100,13 @@ describe("the Entry a fan commits, and takes back", async () => {
   }
 
   /**
-   * A round Prediction on one Bout of a card.
+   * A round Prediction on one Bout of a card, which names no finish at all.
    *
-   * Here because two cases below are about the keys holding an answer to the
-   * ones its Bout was offering, and a round is where that is provable without
-   * a second card: a three-round Bout has no round 4 to point at. #34 is what
-   * puts this Question on the card; the Outcomes it answers are priced and
-   * stored either way (ADR-0014).
+   * The last of the three Questions to be offered (#34): "this Bout ends in
+   * round 2" is a whole Prediction, seeded and priced to stand on its own. It
+   * is also where the keys holding an answer to the ones its Bout offered are
+   * provable without a second card, because a three-round Bout has no round 4
+   * to point at.
    */
   function inRound(card: CardInTheGame, place: number, round: number) {
     return { boutId: card.bouts[place]!.id, question: "round", round };
@@ -287,9 +287,8 @@ describe("the Entry a fan commits, and takes back", async () => {
       // The constraint that required a round to sit alongside a finish went
       // with the compound shape (ADR-0014): a round stands on its own now, and
       // is graded wrong rather than refused on a Bout that goes the distance.
-      // The card does not offer the Question yet (#34) and the Outcome is
-      // priced and stored all the same — which is what makes this the case
-      // that proves the old rule is not still standing underneath.
+      // A fan with a view on how long a Bout lasts commits it and nothing
+      // else, where the old model made them name a winner and a method first.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
@@ -481,17 +480,29 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(await entriesOf(fan.id)).toEqual([]);
     });
 
-    it("refuses a round the Bout is not scheduled for", async () => {
+    it("refuses a round the Bout is not scheduled for, and the whole Entry with it", async () => {
       // A three-round Bout has no round 4 to predict, and the fan was never
-      // offered one — this is somebody sending it anyway.
-      const card = await upcomingCard({ bouts: [cardBout({ scheduledRounds: 3 })] });
+      // offered one — this is somebody sending it anyway. The Entry it arrived
+      // in is refused entire rather than committed without it: an Entry is one
+      // commitment of Coins, and quietly dropping a Prediction would pay a fan
+      // for a chain they did not build.
+      const card = await upcomingCard({
+        bouts: [
+          cardBout({ cardOrder: 1, scheduledRounds: 3 }),
+          cardBout({ cardOrder: 2, mainEvent: true }),
+        ],
+      });
       const fan = await fanWithCoins();
 
-      const response = await submit({ amount: 10, predictions: [inRound(card, 0, 4)] }, fan.cookie);
+      const response = await submit(
+        { amount: 10, predictions: [winner(card, 1), inRound(card, 0, 4)] },
+        fan.cookie,
+      );
 
       expect(response.status).toBe(422);
       expect((await response.json()).message).toBe(ENTRY_MESSAGES.answerNotOffered);
       expect(await entriesOf(fan.id)).toEqual([]);
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
 
     it("refuses two Predictions on the same Bout in one Entry", async () => {
@@ -510,21 +521,27 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect((await response.json()).message).toBe(ENTRY_MESSAGES.onePredictionPerBout);
     });
 
-    it("refuses a winner and a method on the same Bout in one Entry", async () => {
-      // Both Questions are on the card now, so this is a shape a fan can build
-      // towards rather than one only a hand-written body reaches. "Red wins"
-      // and "it ends by Submission" are nearly the same prediction, and one
-      // Entry holding both would pay as though they were two (ADR-0014).
+    it("refuses a second Question answered on the same Bout in one Entry", async () => {
+      // Every Question is on the card now, so this is a shape a fan can build
+      // towards by pressing two buttons on one Bout — the panel replaces the
+      // first answer rather than adding to it, and this is the body arriving
+      // with both anyway. "Red wins", "it ends by Submission" and "it ends in
+      // round 2" are answers about one fight, and an Entry holding two of them
+      // would pay as though a fan had predicted two independent things
+      // (ADR-0014).
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
-      const response = await submit(
-        { amount: 10, predictions: [winner(card), byMethod(card)] },
-        fan.cookie,
-      );
+      for (const second of [byMethod(card), inRound(card, 0, 2)]) {
+        const response = await submit(
+          { amount: 10, predictions: [winner(card), second] },
+          fan.cookie,
+        );
 
-      expect(response.status).toBe(422);
-      expect((await response.json()).message).toBe(ENTRY_MESSAGES.onePredictionPerBout);
+        expect(response.status).toBe(422);
+        expect((await response.json()).message).toBe(ENTRY_MESSAGES.onePredictionPerBout);
+      }
+
       expect(await entriesOf(fan.id)).toEqual([]);
     });
 
@@ -1339,28 +1356,38 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(rendered).toContain(ENTRY_MESSAGES.nothingPicked);
     });
 
-    it("offers every answer to both Questions as something to pick", async () => {
-      // #33 puts the method beside the winner, and both are pickable in their
-      // own right: two corners and three methods, five buttons, none of them
-      // reachable only after another has been pressed.
-      await upcomingCard();
+    it("offers every answer to all three Questions as something to pick", async () => {
+      // The card #34 finishes: the winner, the method and the round side by
+      // side, each pickable in its own right. Two corners, three methods and
+      // the three rounds this Bout is scheduled for — eight buttons, and none
+      // of them reachable only after another has been pressed.
+      const card = await upcomingCard();
       const fan = await fanWithCoins();
 
       const rendered = await page(fan.cookie);
 
       expect(rendered).toContain(QUESTION_LABELS.winner);
       expect(rendered).toContain(QUESTION_LABELS.method);
-      expect(rendered.match(/aria-pressed=/g)).toHaveLength(2 + METHODS.length);
+      expect(rendered).toContain(QUESTION_LABELS.round);
+      expect(rendered).toContain("Round 2");
+      expect(rendered.match(/aria-pressed=/g)).toHaveLength(
+        2 + METHODS.length + card.bouts[0]!.scheduledRounds,
+      );
     });
 
-    it("no longer tells a fan to name a winner before anything else", async () => {
-      // A guard on copy #33 retired rather than an assertion about today's
-      // wording: a method standing on its own makes "pick a winner first"
-      // actively wrong, and it is the sort of sentence that comes back.
+    it("no longer tells a fan to name a winner, or to deepen the pick they made", async () => {
+      // Guards on the copy ADR-0014 retired rather than assertions about
+      // today's wording. The card used to say "pick a winner for any Bout, and
+      // deepen the pick with a method and a round for a bigger Multiplier",
+      // and every clause of it is wrong now: there is nothing to pick first
+      // and nothing to deepen, only three Questions asked side by side.
       await upcomingCard();
       const fan = await fanWithCoins();
 
-      expect(await page(fan.cookie)).not.toMatch(/pick a winner/i);
+      const rendered = await page(fan.cookie);
+
+      expect(rendered).not.toMatch(/pick a winner/i);
+      expect(rendered).not.toMatch(/deepen/i);
     });
 
     it("tells a fan with an unconfirmed address before they try", async () => {

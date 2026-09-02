@@ -62,6 +62,7 @@ describe("answering one Bout", () => {
     expect(pickAnswered(RED, SUBMISSION)).toEqual(SUBMISSION);
     expect(pickAnswered(SUBMISSION, RED)).toEqual(RED);
     expect(pickAnswered(SUBMISSION, ROUND_TWO)).toEqual(ROUND_TWO);
+    expect(pickAnswered(ROUND_TWO, KO)).toEqual(KO);
   });
 
   it("takes the Bout out of the Entry when the same answer is given twice", () => {

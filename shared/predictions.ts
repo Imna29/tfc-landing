@@ -14,28 +14,7 @@
 import type { BoutStatus } from "./events";
 import type { FightCard, FightCardBout } from "./fightCard";
 import { firstFought } from "./locks";
-import type { OutcomeAnswer, Question } from "./pricing";
-
-/**
- * The Questions the card offers a fan, in the order they are asked.
- *
- * Every Bout is imported with all three Questions seeded and an admin prices
- * every one of them, so the Outcomes behind the one missing here exist, are
- * priced, and would grade and pay if a Prediction named one (ADR-0014). What
- * this list says is which of them a fan is offered on the card *today*: #34
- * adds the round, arriving with the copy and the end-to-end coverage that go
- * with a Question standing on its own.
- *
- * The winner and the method stand side by side rather than one deepening the
- * other. A fan who is sure a Bout ends by Submission and has no read on which
- * fighter gets it answers that and nothing else, and carries only the risk
- * they meant to take.
- *
- * Read by the card and by nothing else. It is not a rule about what may be
- * committed — the server prices whatever answer the Bout is offering, and the
- * Outcome rows are what say that.
- */
-export const OFFERED_QUESTIONS = ["winner", "method"] as const satisfies readonly Question[];
+import type { OutcomeAnswer } from "./pricing";
 
 /**
  * Where a Bout is, as a fan reads it.

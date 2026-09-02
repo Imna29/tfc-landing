@@ -5,11 +5,10 @@ import {
   boutState,
   BOUT_STATE_LABELS,
   multiplierLabel,
-  OFFERED_QUESTIONS,
   PREDICTION_MESSAGES,
   type BoutPredictions,
 } from "#shared/predictions";
-import { outcomeLabel, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
 
 /**
  * One Bout on a card: the two fighters, the weight class, how many rounds —
@@ -105,18 +104,24 @@ const answering = computed(() => props.picking === true && state.value === "open
 const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blue.name }));
 
 /**
- * The Questions this card offers, each with the answers to it and what they
- * pay.
+ * The Questions this Bout is asking, each with the answers to it and what
+ * they pay.
  *
- * `OFFERED_QUESTIONS` rather than all three: the round Outcomes are seeded,
- * priced and stored, and are simply not on the card yet (#34). Filtering the
- * list rather than reaching for the Outcomes one Question at a time is what
- * makes that ticket a word here.
+ * All three of them, in the order `QUESTIONS` asks them, and each answered on
+ * its own terms (ADR-0014). There was a shorter list here while #33 and #34
+ * stood the method and the round up one at a time; what is left is the rule
+ * that outlives them, which is that a Bout asks the Questions it has Outcomes
+ * for — a Bout nobody has opened has none at all, because nothing on it is
+ * priced.
+ *
+ * Which Questions may be *committed* is not decided here or anywhere in the
+ * app: the server prices whatever answer the Bout is offering, and the Outcome
+ * rows are what say that.
  */
 const questions = computed(() => {
   const offered = props.predictions?.outcomes ?? [];
 
-  return OFFERED_QUESTIONS.map((question) => ({
+  return QUESTIONS.map((question) => ({
     question,
     label: QUESTION_LABELS[question],
     outcomes: offered.filter((outcome) => outcome.question === question),
@@ -171,9 +176,10 @@ const questions = computed(() => {
       </div>
 
       <!--
-        As many columns as there are Questions on the card, so that two of them
-        fill the Bout rather than sitting in two thirds of it, and so that #34
-        adds the third without a layout to redo.
+        As many columns as there are Questions on the card, which is three on
+        an open Bout and none on one nobody has opened. Laid out from what is
+        actually asked rather than from a number written here, so the Bout is
+        filled either way.
       -->
       <div
         v-if="questions.length > 0"

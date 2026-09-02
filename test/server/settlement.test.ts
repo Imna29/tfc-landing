@@ -42,6 +42,7 @@ import {
   ledgerFor,
   listingFor,
   methodOn,
+  roundOn,
   settle,
   settleAsNoResult,
   statusOf,
@@ -162,6 +163,59 @@ describe("entering a result", async () => {
       expect(await statusOf(entry.id)).toBe("lost");
     });
 
+    it("pays a round Prediction at its own Multiplier, with no finish named beside it", async () => {
+      // #34, and the last of the three Questions to stand up: a fan with a
+      // read on how long a Bout lasts says only that. There is no winner and
+      // no method in this Entry, which is exactly what the old model made
+      // impossible — a round could only be named alongside a finish.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+
+      const { settlement } = await settle(card, 0, {
+        winner: "blue",
+        method: "ko_tko",
+        round: 2,
+      });
+
+      // The round Outcome pays ×3, so 20 Coins return 60 — the whole of what
+      // this Entry is worth, with nothing multiplying onto it (ADR-0014).
+      expect(settlement).toMatchObject({ graded: 1, won: 1, lost: 0, refunded: 0, paid: 60 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 60 });
+    });
+
+    it("loses a round Prediction when the Bout ended in another one", async () => {
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "ko_tko", round: 3 });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+    });
+
+    it("loses a round Prediction on a Bout that went the distance", async () => {
+      // A Decision records no round, and that is not a Bout with nothing to
+      // grade: it demonstrably did not end in the round the fan named, so the
+      // answer is wrong (ADR-0014). The Prediction that reads most like this
+      // one and settles the other way is the same round on a disqualification,
+      // which was never an answer the game offered.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 3)]);
+
+      const { settlement } = await settle(card, 0, { winner: "red", method: "decision" });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 1, refunded: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+    });
+
     it("is graded on the Question it answered and nothing else about the Bout", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
@@ -228,6 +282,28 @@ describe("entering a result", async () => {
       expect(second.settlement).toMatchObject({ won: 1, paid: 50 });
       expect(await statusOf(entry.id)).toBe("won");
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 + 50 });
+    });
+
+    it("multiplies a round on one Bout with a winner on another, and pays both", async () => {
+      // The round is seeded for standing on its own (#30), and the only thing
+      // it multiplies with is an answer about a different Bout — which is an
+      // independent event, so nothing correlated is multiplied (ADR-0014).
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [
+        roundOn(card.bouts[0]!.id, 1),
+        winnerOn(card.bouts[1]!.id, "blue"),
+      ]);
+
+      await settle(card, 0, { winner: "red", method: "submission", round: 1 });
+
+      const { settlement } = await settle(card, 1, { winner: "blue" });
+
+      // ×3 on the round and ×2 on the winner: ×6, so 10 Coins return 60.
+      expect(settlement).toMatchObject({ won: 1, paid: 60 });
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 10 + 60 });
     });
 
     it("is Lost the moment one Prediction fails, with Bouts still to settle", async () => {
@@ -822,6 +898,27 @@ describe("entering a result", async () => {
       expect(listing.entries[0]?.predictions[0]?.ending).toEqual({ noResult: "cancelled" });
     });
 
+    it("returns it on a round Prediction too, which had nothing to end in", async () => {
+      // The case that separates a Bout with nothing gradable from a Bout that
+      // went the distance: this one was never fought, so it did not fail to
+      // end in round 2 — there is nothing there to have been right or wrong
+      // about (ADR-0005), where a Decision is a round Prediction losing.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+
+      const { settlement } = await settleAsNoResult(card, 0, "withdrawal");
+
+      expect(settlement).toMatchObject({ graded: 1, won: 0, lost: 0, refunded: 1, returned: 20 });
+      expect(await statusOf(entry.id)).toBe("refunded");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+
+      const listing = await listingFor(fan.cookie);
+
+      expect(listing.entries[0]?.predictions[0]?.ending).toEqual({ noResult: "withdrawal" });
+    });
+
     it("is entered for each of the four ways a Bout produces one", async () => {
       const card = await upcomingCard(NO_RESULT_REASONS.length);
 
@@ -1110,6 +1207,32 @@ describe("entering a result", async () => {
       // ×1.0 on the neutralised method and ×2 on the winner: 10 Coins return 20.
       expect(settlement).toMatchObject({ won: 1, refunded: 0, paid: 20 });
       expect(await statusOf(entry.id)).toBe("won");
+    });
+
+    it("refunds an Entry of nothing but a round Prediction, in full", async () => {
+      // The pair of cases #34 exists to tell apart. A disqualification records
+      // no round, exactly as a Decision records none — and this one is a No
+      // Result where the Decision is a loss, because "won by DQ" was never one
+      // of the answers the game offered and a Bout that goes the distance was
+      // (ADR-0005). Nothing gradable is left in the Entry, so the Amount comes
+      // back whole.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, 2)]);
+
+      const { settlement } = await settle(card, 0, { winner: "blue", method: "disqualification" });
+
+      expect(settlement).toMatchObject({
+        graded: 1,
+        won: 0,
+        lost: 0,
+        refunded: 1,
+        paid: 0,
+        returned: 20,
+      });
+      expect(await statusOf(entry.id)).toBe("refunded");
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
 
     it("refuses a round beside it, which the Bout is not being recorded as having", async () => {

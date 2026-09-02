@@ -1172,15 +1172,15 @@ describe("a fight card in the game", async () => {
 
       const page = await publicPage();
 
-      // Every Outcome is offered by the route above; the card renders the
-      // Questions in `OFFERED_QUESTIONS`, which is the winner and the method
-      // until #34 stands the round up. The round is priced, stored and simply
-      // not on the card yet.
+      // Every Outcome is offered by the route above and every one of them is
+      // on the card: the round was the last Question to stand up (#34), and
+      // all three are asked side by side on their own terms (ADR-0014).
       expect(page).toContain("×2.50");
       expect(page).toContain(QUESTION_LABELS.winner);
       expect(page).toContain(QUESTION_LABELS.method);
       expect(page).toContain(METHOD_LABELS.submission);
-      expect(page).not.toMatch(/Round 2/);
+      expect(page).toContain(QUESTION_LABELS.round);
+      expect(page).toContain("Round 2");
     });
 
     it("offers nothing on a Bout nobody has opened, because nothing on it is priced", async () => {

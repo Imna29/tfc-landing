@@ -11,6 +11,7 @@ import {
   fanWithCoins,
   historyFor,
   methodOn,
+  roundOn,
   settle,
   settleAsNoResult,
   standingFor,
@@ -185,6 +186,31 @@ describe("a fan's own profile", async () => {
           round: null,
           multiplier: 2.5,
           ending: { result: { winner: "blue", method: "submission", round: 2 } },
+        }),
+      ]);
+      expect(entry?.status).toBe("won");
+    });
+
+    it("carries a round the same way, with no finish beside it", async () => {
+      // #34: a round Prediction is read back as the answer the fan gave and
+      // graded against the round the Bout ended in, with no method and no
+      // corner on it, because neither was ever named.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 10, [roundOn(card.bouts[0]!.id, 2)]);
+      await settle(card, 0, { winner: "blue", method: "ko_tko", round: 2 });
+
+      const [entry] = (await historyFor(fan.cookie)).entries;
+
+      expect(entry?.predictions).toEqual([
+        expect.objectContaining({
+          question: "round",
+          corner: null,
+          method: null,
+          round: 2,
+          multiplier: 3,
+          ending: { result: { winner: "blue", method: "ko_tko", round: 2 } },
         }),
       ]);
       expect(entry?.status).toBe("won");

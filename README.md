@@ -687,13 +687,14 @@ one Prediction per Bout** — answering a second Question on a Bout replaces the
 first, and a fan holding two views on one Bout commits two Entries, separately
 funded and separately graded.
 
-The card asks the winner and the method, side by side rather than one
-deepening the other: a fan confident a Bout ends by Submission with no read on
-which fighter gets it answers that alone, and carries only the risk they meant
-to take. Round Outcomes are seeded, priced by an admin and stored exactly as
-before; `OFFERED_QUESTIONS` in `shared/predictions.ts` is the list the card
-renders from, and #34 adds the round to it, with the copy and the end-to-end
-coverage that go with a Question standing on its own.
+The card asks all three, side by side rather than one deepening another: a fan
+confident a Bout ends by Submission with no read on which fighter gets it
+answers that alone, and so does one who thinks it ends in round 2 with no view
+on how. Each carries only the risk it means. `app/components/FightCardBout.vue`
+renders them from `QUESTIONS`, filtered to the ones the Bout has Outcomes for —
+which is none until an admin has priced it. The round Multipliers are seeded
+for exactly this, a standalone answer with nothing multiplying onto it, so a
+five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
 
 Three layers of the same rules, on purpose:
 
@@ -737,7 +738,9 @@ that is not is the one being held to the card.
 the compound shape: "this Bout ends in round 2" is a whole Prediction now, and
 on a Bout that went the distance it is graded **wrong** rather than refused when
 it was made — a Decision ends in no round at all, which is precisely not ending
-in the one the fan named.
+in the one the fan named. A disqualification records no round either and reads
+almost the same, and settles the other way: it was never one of the answers the
+game offered, so a round Prediction on it is a No Result (ADR-0005).
 
 **What is frozen, and what is worked out.** Each Prediction stores what its one
 answer paid at submission (ADR-0002) — one number for one answer. The Entry

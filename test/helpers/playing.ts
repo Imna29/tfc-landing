@@ -87,7 +87,7 @@ export interface Answered {
  * The answer nearly every case in these suites is about — a settlement, a
  * correction, a refund and a leaderboard are none of them about *which*
  * Question was answered. A case that is about one of the others says so by
- * naming it, through {@link methodOn} or by writing the answer out.
+ * naming it, through {@link methodOn} or {@link roundOn}.
  */
 export function winnerOn(boutId: string, corner: Corner): Answered {
   return { boutId, question: "winner", corner };
@@ -101,6 +101,20 @@ export function winnerOn(boutId: string, corner: Corner): Answered {
  */
 export function methodOn(boutId: string, method: Method): Answered {
   return { boutId, question: "method", method };
+}
+
+/**
+ * The round Prediction a case commits: this Bout ends in this round.
+ *
+ * Names neither a winner nor a finish, and is graded against the round the
+ * Bout was recorded as ending in. A Bout that went to a Decision ended in no
+ * round at all, so it is graded wrong there rather than neutral — and a
+ * disqualification records no round either but was never an answer the game
+ * offered, so it is a No Result (ADR-0005). The two read alike and settle
+ * differently.
+ */
+export function roundOn(boutId: string, round: number): Answered {
+  return { boutId, question: "round", round };
 }
 
 /** Submits an Entry the way the panel on the card does. */
