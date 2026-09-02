@@ -21,6 +21,7 @@ import {
   settleAsNoResult,
   submit,
   upcomingCard,
+  winnerOn,
 } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 import { createUser } from "../helpers/users";
@@ -115,8 +116,8 @@ describe("the Season leaderboard", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
-      await submit(fan, 15, [{ boutId: card.bouts[1]!.id }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(fan, 15, [winnerOn(card.bouts[1]!.id, "red")]);
 
       const board = await leaderboardFor();
 
@@ -132,8 +133,8 @@ describe("the Season leaderboard", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
-      const taken = await submit(fan, 15, [{ boutId: card.bouts[1]!.id }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+      const taken = await submit(fan, 15, [winnerOn(card.bouts[1]!.id, "red")]);
 
       expect((await cancel(taken.entry.id, fan.cookie)).status).toBe(200);
 
@@ -164,8 +165,8 @@ describe("the Season leaderboard", async () => {
       const behind = await fanWithCoins();
       const ahead = await fanWithCoins();
 
-      await submit(behind, 20, [{ boutId: card.bouts[1]!.id, corner: "red" }]);
-      await submit(ahead, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(behind, 20, [winnerOn(card.bouts[1]!.id, "red")]);
+      await submit(ahead, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
@@ -189,8 +190,8 @@ describe("the Season leaderboard", async () => {
       const first = await fanWithCoins();
       const second = await fanWithCoins();
 
-      await submit(first, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(second, 20, [{ boutId: card.bouts[1]!.id, corner: "red" }]);
+      await submit(first, 20, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(second, 20, [winnerOn(card.bouts[1]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
@@ -209,7 +210,7 @@ describe("the Season leaderboard", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
       await settleAsNoResult(card, 0, "no_contest");
 
       expect((await leaderboardFor()).top).toContainEqual(
@@ -221,7 +222,7 @@ describe("the Season leaderboard", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       expect((await leaderboardFor()).top).toContainEqual(

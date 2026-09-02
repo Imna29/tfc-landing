@@ -17,11 +17,12 @@ import type { Corner } from "./events";
 
 /**
  * One thing asked about a Bout. There are three and there will only ever be
- * three — a Question is not a field somebody adds, it is what a Prediction is
- * made of (ADR-0004).
+ * three — a Question is not a field somebody adds, it is what a Prediction
+ * answers one of (ADR-0014).
  *
- * Spelled out again in the `outcomes_question_known` check constraint, for the
- * reason given on `Role` in `server/db/schema.ts`.
+ * Spelled out again in the `outcomes_question_known` and
+ * `predictions_question_known` check constraints, for the reason given on
+ * `Role` in `server/db/schema.ts`.
  */
 export type Question = "winner" | "method" | "round";
 
@@ -29,10 +30,12 @@ export type Question = "winner" | "method" | "round";
 export type Method = "ko_tko" | "submission" | "decision";
 
 /**
- * The three Questions, in the order they are asked: a fan picks a winner, then
- * deepens that pick with a method and a round (ADR-0004).
+ * The three Questions, in the order they are asked: who wins, how it ends, and
+ * the round it ends in.
  *
  * The order every Outcome is seeded, priced and offered in, said once here.
+ * Each is asked on its own terms and answered on its own (ADR-0014), so this
+ * is the order they are read in rather than an order they are answered in.
  */
 export const QUESTIONS = ["winner", "method", "round"] as const satisfies readonly Question[];
 
@@ -100,6 +103,17 @@ export interface OutcomeAnswer {
   corner: Corner | null;
   method: Method | null;
   round: number | null;
+}
+
+/**
+ * Whether this is one of the three Questions a Bout is asked.
+ *
+ * Read off the wire in one place — the Prediction a fan submits, which says
+ * which Question it answers before it says the answer — and spelled out again
+ * in `predictions_question_known`.
+ */
+export function isQuestion(value: unknown): value is Question {
+  return value === "winner" || value === "method" || value === "round";
 }
 
 /**

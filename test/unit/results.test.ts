@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { BoutPick, PricedPrediction } from "../../shared/entries";
-import { potentialReward, predictionMultiplier } from "../../shared/entries";
+import type { PricedPrediction } from "../../shared/entries";
+import { potentialReward } from "../../shared/entries";
 import {
   RESULT_MESSAGES,
   boutEndingLabel,
@@ -17,6 +17,7 @@ import {
   type GradedPrediction,
   type NoResultReason,
 } from "../../shared/results";
+import type { Method, OutcomeAnswer } from "../../shared/pricing";
 
 /**
  * What happened in a Bout, and what it does to the Predictions made on it.
@@ -35,7 +36,10 @@ import {
  * The second is ADR-0005. A Bout that produced nothing gradable neither wins
  * nor loses a chain: the Prediction on it contributes ×1.0 and the rest of the
  * Entry plays on, and an Entry of nothing but those is made whole. A
- * disqualification is the same rule applied to two Questions out of three.
+ * disqualification is the same rule applied to two Questions out of three —
+ * which, now that a Prediction answers one of them (ADR-0014), is a statement
+ * about which Predictions on that Bout count for nothing rather than about
+ * parts of one.
  */
 
 const CORNERS = { red: "Giorgi Tsiklauri", blue: "Levan Beridze" };
@@ -50,27 +54,31 @@ function noResult(reason: NoResultReason = "draw"): BoutEnding {
   return { noResult: reason };
 }
 
-/** A fan's answer to that Bout: a winner, deepened as far as they took it. */
-function pick(overrides: Partial<BoutPick> = {}): BoutPick {
-  return { corner: "red", method: null, round: null, ...overrides };
+/** A fan's answer to that Bout: one answer to one of its three Questions. */
+function pick(overrides: Partial<OutcomeAnswer> = {}): OutcomeAnswer {
+  return { question: "winner", corner: "red", method: null, round: null, ...overrides };
 }
 
-/** That answer with what each part of it paid at submission (ADR-0002). */
+/** The method Prediction a case gives, which names no winner at all. */
+function byMethod(method: Method): OutcomeAnswer {
+  return pick({ question: "method", corner: null, method });
+}
+
+/** The round Prediction a case gives, which names neither winner nor method. */
+function inRound(round: number): OutcomeAnswer {
+  return pick({ question: "round", corner: null, round });
+}
+
+/** That answer with what it paid at submission (ADR-0002). */
 function priced(overrides: Partial<PricedPrediction> = {}): PricedPrediction {
-  return {
-    boutId: "bout-1",
-    corner: "red",
-    method: null,
-    round: null,
-    winnerMultiplier: 2,
-    methodMultiplier: null,
-    roundMultiplier: null,
-    ...overrides,
-  };
+  return { boutId: "bout-1", ...pick(), multiplier: 2, ...overrides };
 }
 
 /** A Prediction beside how the Bout it answered ended, if it has. */
-function graded(prediction: BoutPick, against: BoutEnding | null = result()): GradedPrediction {
+function graded(
+  prediction: OutcomeAnswer,
+  against: BoutEnding | null = result(),
+): GradedPrediction {
   return { prediction, ending: against };
 }
 
@@ -83,35 +91,41 @@ describe("grading one Prediction against a Result", () => {
     expect(gradePrediction(pick({ corner: "blue" }), result({ winner: "red" }))).toBe("wrong");
   });
 
-  it("is correct when the method they named is the one it ended by", () => {
-    expect(
-      gradePrediction(pick({ method: "ko_tko" }), result({ method: "ko_tko", round: 2 })),
-    ).toBe("correct");
+  it("is correct when the method named is the one it ended by, whoever won", () => {
+    expect(gradePrediction(byMethod("ko_tko"), result({ winner: "blue", method: "ko_tko" }))).toBe(
+      "correct",
+    );
   });
 
-  it("is wrong when they named a different method, whoever won", () => {
-    expect(
-      gradePrediction(pick({ method: "submission" }), result({ method: "ko_tko", round: 2 })),
-    ).toBe("wrong");
+  it("is wrong when it ended by a different method", () => {
+    expect(gradePrediction(byMethod("submission"), result({ method: "ko_tko" }))).toBe("wrong");
   });
 
-  it("is correct when the round they named is the one it ended in", () => {
-    expect(
-      gradePrediction(pick({ method: "ko_tko", round: 2 }), result({ method: "ko_tko", round: 2 })),
-    ).toBe("correct");
+  it("is correct when a Decision was named and the Bout went the distance", () => {
+    expect(gradePrediction(byMethod("decision"), result({ method: "decision", round: null }))).toBe(
+      "correct",
+    );
+  });
+
+  it("is correct when the round named is the one it ended in", () => {
+    expect(gradePrediction(inRound(2), result({ round: 2 }))).toBe("correct");
   });
 
   it("is wrong when it ended a round later", () => {
-    expect(
-      gradePrediction(pick({ method: "ko_tko", round: 2 }), result({ method: "ko_tko", round: 3 })),
-    ).toBe("wrong");
+    expect(gradePrediction(inRound(2), result({ round: 3 }))).toBe("wrong");
   });
 
-  it("leaves an answer the fan never gave out of it", () => {
-    // A winner-only Prediction is correct on a Bout that went to a Decision:
-    // ADR-0004 deepens a pick with a method and a round, so a fan who named
-    // neither is asking one Question and has answered it.
-    expect(gradePrediction(pick(), result({ method: "decision", round: null }))).toBe("correct");
+  it("is wrong when a round was named and the Bout went the distance", () => {
+    // A Decision ends in no round at all, which is precisely not ending in the
+    // one the fan named (ADR-0014). Wrong rather than refused at submission: a
+    // round Prediction stands on its own now.
+    expect(gradePrediction(inRound(2), result({ method: "decision", round: null }))).toBe("wrong");
+  });
+
+  it("asks only about the Question the fan answered", () => {
+    // A winner Prediction is graded on who won and nothing else about the
+    // Bout: the method and the round are Questions they did not ask.
+    expect(gradePrediction(pick(), result({ method: "submission", round: 3 }))).toBe("correct");
   });
 
   it("is unresolved while the Bout it answers has not been settled", () => {
@@ -122,9 +136,8 @@ describe("grading one Prediction against a Result", () => {
 describe("grading one Prediction against a No Result", () => {
   it("is a No Result whatever the fan answered", () => {
     expect(gradePrediction(pick({ corner: "blue" }), noResult("withdrawal"))).toBe("no result");
-    expect(gradePrediction(pick({ method: "ko_tko", round: 3 }), noResult("cancelled"))).toBe(
-      "no result",
-    );
+    expect(gradePrediction(byMethod("ko_tko"), noResult("cancelled"))).toBe("no result");
+    expect(gradePrediction(inRound(3), noResult("draw"))).toBe("no result");
   });
 
   it("is a No Result on each of the four ways a Bout produces nothing", () => {
@@ -147,13 +160,13 @@ describe("grading one Prediction against a disqualification", () => {
     expect(gradePrediction(pick({ corner: "blue" }), dq)).toBe("wrong");
   });
 
-  it("leaves a method and a round with nothing to be wrong about", () => {
+  it("leaves a method or a round Prediction with nothing to be wrong about", () => {
     // "Won by DQ" is not one of the three methods offered, so a fan who named
-    // one cannot have named it wrongly — those two Questions are No Results
-    // and the winner they picked still stands.
-    expect(gradePrediction(pick({ corner: "red", method: "ko_tko", round: 2 }), dq)).toBe(
-      "correct",
-    );
+    // one cannot have named it wrongly — those two Questions are No Results on
+    // this Bout, and a fan is never marked wrong for failing to predict an
+    // answer that was never on the card.
+    expect(gradePrediction(byMethod("ko_tko"), dq)).toBe("no result");
+    expect(gradePrediction(inRound(2), dq)).toBe("no result");
   });
 });
 
@@ -198,32 +211,28 @@ describe("where an Entry stands once its Bouts start settling", () => {
 });
 
 describe("what a Prediction is worth once its Bout is decided", () => {
-  it("pays what each answer was priced at when the Bout produced a Result", () => {
-    const prediction = priced({ method: "ko_tko", methodMultiplier: 2.5 });
+  it("pays what its answer was priced at when the Bout produced a Result", () => {
+    const prediction = priced({ ...byMethod("ko_tko"), multiplier: 2.5 });
 
-    expect(predictionMultiplier(settledPrice(prediction, result({ method: "ko_tko" })))).toBe(5);
+    expect(settledPrice(prediction, result({ method: "ko_tko" })).multiplier).toBe(2.5);
   });
 
   it("contributes ×1.0 when the Bout produced no result", () => {
-    const prediction = priced({ method: "ko_tko", methodMultiplier: 2.5 });
+    const prediction = priced({ ...byMethod("ko_tko"), multiplier: 2.5 });
 
-    expect(predictionMultiplier(settledPrice(prediction, noResult()))).toBe(1);
+    expect(settledPrice(prediction, noResult()).multiplier).toBe(1);
   });
 
-  it("pays the winner and nothing else on a disqualification", () => {
-    const prediction = priced({
-      method: "ko_tko",
-      round: 2,
-      methodMultiplier: 2.5,
-      roundMultiplier: 3,
-    });
+  it("pays a winner Prediction and neutralises the other two on a disqualification", () => {
     const dq = result({ winner: "red", method: "disqualification", round: null });
 
-    expect(predictionMultiplier(settledPrice(prediction, dq))).toBe(2);
+    expect(settledPrice(priced(), dq).multiplier).toBe(2);
+    expect(settledPrice(priced({ ...byMethod("ko_tko"), multiplier: 2.5 }), dq).multiplier).toBe(1);
+    expect(settledPrice(priced({ ...inRound(2), multiplier: 3 }), dq).multiplier).toBe(1);
   });
 
   it("leaves a Prediction whose Bout has not settled at what it was priced", () => {
-    const prediction = priced({ methodMultiplier: 2.5 });
+    const prediction = priced({ multiplier: 2.5 });
 
     expect(settledPrice(prediction, null)).toEqual(prediction);
   });
@@ -232,8 +241,8 @@ describe("what a Prediction is worth once its Bout is decided", () => {
     // ADR-0005 in one line: the chain plays on, and the neutral link neither
     // adds to the Reward nor takes the Entry away.
     const chained = [
-      settledPrice(priced({ winnerMultiplier: 2.5 }), result({ winner: "red" })),
-      settledPrice(priced({ winnerMultiplier: 4 }), noResult("withdrawal")),
+      settledPrice(priced({ multiplier: 2.5 }), result({ winner: "red" })),
+      settledPrice(priced({ multiplier: 4 }), noResult("withdrawal")),
     ];
 
     expect(potentialReward(20, chained)).toMatchObject({ multiplier: 2.5, reward: 50 });
@@ -241,8 +250,8 @@ describe("what a Prediction is worth once its Bout is decided", () => {
 
   it("returns the Amount exactly when every Prediction was a No Result", () => {
     const refunded = [
-      settledPrice(priced({ winnerMultiplier: 2.5 }), noResult()),
-      settledPrice(priced({ winnerMultiplier: 4 }), noResult("cancelled")),
+      settledPrice(priced({ multiplier: 2.5 }), noResult()),
+      settledPrice(priced({ multiplier: 4 }), noResult("cancelled")),
     ];
 
     expect(potentialReward(37, refunded)).toMatchObject({ multiplier: 1, reward: 37 });
@@ -364,18 +373,20 @@ describe("what a fan is told about an answer that stopped counting", () => {
   });
 
   it("explains a disqualification to the fan whose method it neutralised", () => {
-    expect(endingNote(pick({ method: "ko_tko", round: 2 }), dq)).toBe(
-      "Won by disqualification, which is not one of the three methods this Bout offered. " +
-        "The winner picked still stands; the method and the round count as ×1.00 each.",
+    expect(endingNote(byMethod("ko_tko"), dq)).toBe(
+      "Won by disqualification, which is not one of the three methods this Bout offered, so " +
+        "there was nothing here to be right or wrong about. This Prediction counts as ×1.00 " +
+        "and the rest of the Entry plays on.",
     );
+    expect(endingNote(inRound(2), dq)).toBe(endingNote(byMethod("ko_tko"), dq));
   });
 
   it("says nothing where there is nothing to explain", () => {
     // A Bout still to be fought, a Bout that ended the way it was asked
-    // about, and a winner-only Prediction on a disqualification — which was
-    // graded on the one Question it asked and pays what it was priced at.
+    // about, and a winner Prediction on a disqualification — which was graded
+    // on the Question it asked and pays what it was priced at.
     expect(endingNote(pick(), null)).toBeNull();
-    expect(endingNote(pick({ method: "ko_tko", round: 2 }), result())).toBeNull();
+    expect(endingNote(byMethod("ko_tko"), result({ method: "ko_tko" }))).toBeNull();
     expect(endingNote(pick(), dq)).toBeNull();
   });
 });

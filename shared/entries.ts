@@ -4,12 +4,12 @@
  * game refuses to accept.
  *
  * Shared because both sides of the submission need every rule in it. The page
- * answers while a fan is still looking at the card — a round that cannot be
- * chosen is never offered, and the Reward moves as the Entry grows — and the
+ * answers while a fan is still looking at the card — a second answer on one
+ * Bout replaces the first, and the Reward moves as the Entry grows — and the
  * server asks the same questions again of what actually arrives, because a
  * rule enforced only where it is convenient is not enforced. The ones worth
- * asking a third time are in `0007_entries_and_predictions.sql`, where
- * Postgres holds them.
+ * asking a third time are on the `predictions` table in
+ * `server/db/schema.ts`, where Postgres holds them.
  *
  * `shared/predictions.ts` is what the game adds to a *card*; this is what a fan
  * makes of it. The two are apart for the same reason the card and the game
@@ -20,14 +20,13 @@ import type { BoutStatus, Corner } from "./events";
 import { boutState } from "./predictions";
 // Type-only, and so erased before anything runs: `shared/results.ts` reads the
 // Prediction types from here, and this reads the one type it adds.
-import type { BoutEnding, RecordedMethod } from "./results";
+import type { BoutEnding } from "./results";
 import {
   isMethod,
+  isQuestion,
   isRound,
-  METHOD_LABELS,
   MULTIPLIER,
   outcomeKey,
-  type Method,
   type OutcomeAnswer,
 } from "./pricing";
 
@@ -130,48 +129,40 @@ export function isEntryStatus(value: unknown): value is EntryStatus {
 }
 
 /**
- * A fan's answer to one Bout, as they are building it.
+ * One Prediction as it is submitted: the Bout, and the one answer given on it.
  *
- * The winner is what a Prediction is made of, and the reason this type has no
- * "no winner yet" state: a Bout nobody has picked a winner on holds no
- * Prediction at all, and is absent from the Entry rather than present and
- * empty. Method and round deepen that answer (ADR-0004), which is why they
- * hang off it rather than standing beside it.
+ * An `OutcomeAnswer` and the Bout it was offered on, because a Prediction is a
+ * copy of the Outcome a fan picked (ADR-0014) — the same Question, the same
+ * one non-null answer, in the same three columns. Nothing joining, grading or
+ * naming the two carries a translation step, and `outcomeKey` tells one answer
+ * from another wherever either of them is.
+ *
+ * A Bout nobody has answered holds no Prediction at all, and is absent from
+ * the Entry rather than present and empty. A fan who answers a second Question
+ * on a Bout replaces what they said about it: an Entry holds one Prediction
+ * per Bout, and {@link pickAnswered} is where that happens on the card.
  */
-export interface BoutPick {
-  corner: Corner;
-  method: Method | null;
-  round: number | null;
-}
-
-/** One Prediction as it is submitted: the Bout, and the answer given for it. */
-export interface PredictionAnswer extends BoutPick {
+export interface PredictionAnswer extends OutcomeAnswer {
   boutId: string;
 }
 
 /**
- * A Prediction with what each of its answers pays copied onto it.
+ * A Prediction with what its answer pays copied onto it.
  *
- * Three Multipliers rather than the one they multiply out to, because they are
- * graded separately: a disqualification settles the winner and leaves the
- * method and the round with nothing to grade (#15), and a Prediction holding
- * only the product could not be paid what its winner was worth. ADR-0002 is
- * why they are values at all — an Outcome repriced tomorrow never reaches an
- * Entry submitted today.
+ * One Multiplier, because there is one answer: every Multiplier stands for its
+ * own answer outright and none of them multiply together within a Bout
+ * (ADR-0014). ADR-0002 is why it is a value at all — an Outcome repriced
+ * tomorrow never reaches an Entry submitted today.
  */
 export interface PricedPrediction extends PredictionAnswer {
-  winnerMultiplier: number;
-  /** What the method pays, or null on a Prediction that names no method. */
-  methodMultiplier: number | null;
-  /** What the round pays, or null on a Prediction that names no round. */
-  roundMultiplier: number | null;
+  multiplier: number;
 }
 
 /** A Prediction in the Entry being built, as the fan reads it back. */
 export interface DraftPrediction extends PricedPrediction {
   /** Where the Bout sits on the card: 1 is fought first. */
   cardOrder: number;
-  /** The two names the Bout is fought under, which name the winner. */
+  /** The two names the Bout is fought under, which name a winner answer. */
   corners: Record<Corner, string>;
 }
 
@@ -268,150 +259,62 @@ export interface PotentialReward {
 }
 
 /**
- * Whether a Bout ending this way ends inside a round.
- *
- * The distinction ADR-0004 turns on: a KO/TKO and a Submission happen in a
- * round somebody can name, and a Decision is the Bout going the distance.
- *
- * Answers a {@link RecordedMethod} as well as the {@link Method} a fan may
- * pick, because the admin entering a Result is choosing from one more: a
- * disqualification, which records no round either (ADR-0005).
- */
-export function isFinish(method: RecordedMethod | null): boolean {
-  return method === "ko_tko" || method === "submission";
-}
-
-/**
  * The Prediction on a Bout after a fan answers one of its Questions.
+ *
+ * **Answering replaces whatever was there**, because an Entry holds one
+ * Prediction per Bout (ADR-0014) and a fan who has just said "ends by
+ * Submission" has said what they think about that Bout. A control that
+ * refused the second answer, or added it alongside the first, would be
+ * offering a shape the Entry cannot hold.
  *
  * Answering the same thing twice takes it back, which is the only way to
  * unpick something — there is no separate clear control on the card, and a
  * fan who tapped the wrong fighter would otherwise be stuck with a Prediction
- * they have to submit to be rid of. Unpicking the winner answers `null`: the
- * Bout leaves the Entry, because a Prediction without a winner is not one.
- *
- * A Decision drops a round that was already chosen rather than refusing the
- * click. The alternative is a fan looking at a control that does nothing, with
- * the reason a screen away.
+ * they have to submit to be rid of. The Bout then leaves the Entry, because a
+ * Prediction with no answer on it is not one.
  */
-export function pickAnswered(pick: BoutPick | null, answer: OutcomeAnswer): BoutPick | null {
-  if (answer.question === "winner") {
-    if (answer.corner === null) return pick;
-    if (pick === null) return { corner: answer.corner, method: null, round: null };
+export function pickAnswered(
+  pick: OutcomeAnswer | null,
+  answer: OutcomeAnswer,
+): OutcomeAnswer | null {
+  if (isAnswered(pick, answer)) return null;
 
-    // Changing their mind about who wins keeps the read on how it ends: the
-    // method and round are priced conditionally on the winner (ADR-0004), so
-    // "by KO/TKO in round 2" means the same thing about either fighter.
-    return pick.corner === answer.corner ? null : { ...pick, corner: answer.corner };
-  }
+  // The four fields of the answer and nothing else. What the card hands in is
+  // an `OfferedOutcome`, which carries the row's id and its Multiplier as
+  // well; both are the card's business rather than the Entry's, and the Entry
+  // is priced from the card it is being built on rather than from a number
+  // that rode along on a click.
+  const { question, corner, method, round } = answer;
 
-  if (!canAnswer(pick, answer) || pick === null) return pick;
-
-  if (answer.question === "method") {
-    const method = pick.method === answer.method ? null : answer.method;
-
-    // The round goes with the method it was chosen alongside, whether that is
-    // a Decision arriving or the finish it belonged to being taken back.
-    return { ...pick, method, round: isFinish(method) ? pick.round : null };
-  }
-
-  return { ...pick, round: pick.round === answer.round ? null : answer.round };
+  return { question, corner, method, round };
 }
 
-/**
- * Whether this answer can be given on this Bout yet.
- *
- * What it is not is whether the Bout is open — that is `boutState` in
- * `shared/predictions.ts`, and it is asked of the whole Bout rather than of
- * each answer on it.
- */
-export function canAnswer(pick: BoutPick | null, answer: OutcomeAnswer): boolean {
-  if (answer.question === "winner") return true;
-  if (pick === null) return false;
-
-  return answer.question === "method" || isFinish(pick.method);
-}
-
-/** Whether this answer is one the fan has already given on this Bout. */
-export function isAnswered(pick: BoutPick | null, answer: OutcomeAnswer): boolean {
-  if (pick === null) return false;
-  if (answer.question === "winner") return pick.corner === answer.corner;
-  if (answer.question === "method") return pick.method === answer.method;
-
-  return pick.round === answer.round;
+/** Whether this answer is the one the fan has already given on this Bout. */
+export function isAnswered(pick: OutcomeAnswer | null, answer: OutcomeAnswer): boolean {
+  return pick !== null && outcomeKey(pick) === outcomeKey(answer);
 }
 
 /** An answer a Bout is offering, and what it pays. */
 export type OfferedAnswer = OutcomeAnswer & { multiplier: number };
 
-/** What each answer of a Prediction pays, as its Bout is offering them. */
-export type Price = Pick<
-  PricedPrediction,
-  "winnerMultiplier" | "methodMultiplier" | "roundMultiplier"
->;
-
 /**
- * What a Bout is offering on one Prediction, or null if it is not offering all
- * of it.
+ * What this Bout pays for this answer, or null if it is not offering it.
  *
  * Null is a fan answering something the Bout does not ask — round 4 of a
  * three-round Bout, or an Outcome a re-import took away — and it is refused
- * rather than priced at anything. Undefined and null are told apart carefully
- * here: an answer nobody gave has no Multiplier because there is nothing to
- * pay for, and an answer nobody offered has none because it was never on the
- * card.
+ * rather than priced at anything. There is no third case now that a Prediction
+ * is one answer: an answer is either on the card at a Multiplier or it is not
+ * on the card.
  *
  * Said once for both sides of the submission: the panel prices the Entry a fan
  * is building from the card in front of them, and the server prices the same
  * answers again from the Outcomes in Postgres. Two implementations of this
  * would be two Rewards, and the fan would have been shown the wrong one.
  */
-export function priceOf(pick: BoutPick, offered: readonly OfferedAnswer[]): Price | null {
-  const pays = (answer: OutcomeAnswer) =>
-    offered.find((one) => outcomeKey(one) === outcomeKey(answer))?.multiplier;
+export function priceOf(answer: OutcomeAnswer, offered: readonly OfferedAnswer[]): number | null {
+  const key = outcomeKey(answer);
 
-  const winnerMultiplier = pays({
-    question: "winner",
-    corner: pick.corner,
-    method: null,
-    round: null,
-  });
-
-  const methodMultiplier =
-    pick.method === null
-      ? null
-      : pays({ question: "method", corner: null, method: pick.method, round: null });
-
-  const roundMultiplier =
-    pick.round === null
-      ? null
-      : pays({ question: "round", corner: null, method: null, round: pick.round });
-
-  if (
-    winnerMultiplier === undefined ||
-    methodMultiplier === undefined ||
-    roundMultiplier === undefined
-  ) {
-    return null;
-  }
-
-  return { winnerMultiplier, methodMultiplier, roundMultiplier };
-}
-
-/**
- * What one Prediction pays: the product of the answers it is made of.
- *
- * ADR-0004 is why this is a product rather than a chain of its own — the
- * method and round Multipliers are priced knowing they are multiplied onto a
- * winner pick, so "Submission at ×3.2" means ×3.2 given that the chosen
- * fighter wins.
- */
-export function predictionMultiplier(prediction: PricedPrediction): number {
-  return (
-    prediction.winnerMultiplier *
-    (prediction.methodMultiplier ?? 1) *
-    (prediction.roundMultiplier ?? 1)
-  );
+  return offered.find((one) => outcomeKey(one) === key)?.multiplier ?? null;
 }
 
 /**
@@ -431,10 +334,7 @@ export function potentialReward(
   amount: number,
   predictions: readonly PricedPrediction[],
 ): PotentialReward {
-  const combined = predictions.reduce(
-    (product, prediction) => product * predictionMultiplier(prediction),
-    1,
-  );
+  const combined = predictions.reduce((product, prediction) => product * prediction.multiplier, 1);
 
   const capped = combined > COMBINED_MULTIPLIER_CAP;
   const multiplier = capped
@@ -442,21 +342,6 @@ export function potentialReward(
     : Number(combined.toFixed(MULTIPLIER.decimals));
 
   return { multiplier, capped, reward: Math.round(amount * multiplier) };
-}
-
-/**
- * One Prediction as a sentence: "Levan Beridze by KO/TKO in round 2".
- *
- * Said once, for the panel a fan confirms an Entry in and the history that
- * lists it afterwards, so that the Prediction they committed to and the
- * Prediction they are shown later cannot come to be worded differently.
- */
-export function predictionLabel(pick: BoutPick, corners: Record<Corner, string>): string {
-  const winner = corners[pick.corner];
-  const method = pick.method === null ? "" : ` by ${METHOD_LABELS[pick.method]}`;
-  const round = pick.round === null ? "" : ` in round ${pick.round}`;
-
-  return `${winner}${method}${round}`;
 }
 
 /**
@@ -545,21 +430,16 @@ export const ENTRY_MESSAGES = {
     "No Season is being played, so there are no Coins to commit. Every fan " +
     "starts the next one on the same hundred.",
   nothingPicked:
-    "Pick a winner on at least one Bout to start an Entry. A method and a " +
-    "round are optional, and each one you add multiplies what it returns.",
-  pickAWinnerFirst:
-    "Pick a winner on this Bout first. A method and a round deepen that pick " +
-    "rather than standing beside it, so they multiply onto it.",
+    "Answer at least one Bout to start an Entry. One answer on one Bout is a " +
+    "whole Prediction, and chaining across Bouts is what multiplies what it " +
+    "returns.",
   tooManyPredictions:
-    `An Entry holds at most ${ENTRY_PREDICTIONS.maximum} Predictions. Deepen ` +
-    "the ones already in it with a method and a round rather than chaining " +
-    "another Bout onto the end.",
+    `An Entry holds at most ${ENTRY_PREDICTIONS.maximum} Predictions. Take ` +
+    "one out to answer another Bout, or commit this Entry and start a second.",
   onePredictionPerBout:
-    "An Entry holds one Prediction per Bout. Deepen the one you have on that " +
-    "Bout with a method and a round; chaining is across different Bouts.",
-  roundNeedsAFinish:
-    "A round of victory goes with a KO/TKO or a Submission. A Decision is the " +
-    "Bout going the distance, so there is no round it ends in.",
+    "An Entry holds one Prediction per Bout, so answering a second Question " +
+    "on a Bout replaces what you said about it. Chaining is across different " +
+    "Bouts, and two views on one Bout are two Entries.",
   unreadable:
     "That Entry could not be read. Reload the card and pick your answers " +
     "again — nothing has been committed.",
@@ -601,11 +481,11 @@ export type ParsedEntry =
  * Reads the Entry a fan submitted.
  *
  * Only what the Entry says about itself is decided here: how many Predictions
- * it holds, that no two answer the same Bout, that each answer is one the game
- * asks for, and that the Amount is a number of Coins. Whether those Bouts are
- * open, whether those answers are offered on them, and whether the fan holds
- * that many Coins are questions only the database can answer, and they are
- * asked before anything is written.
+ * it holds, that no two answer the same Bout, that each is one answer to one
+ * Question the game asks, and that the Amount is a number of Coins. Whether
+ * those Bouts are open, whether those answers are offered on them, and whether
+ * the fan holds that many Coins are questions only the database can answer,
+ * and they are asked before anything is written.
  *
  * An Entry is refused whole. There is no reading of a submission where nine of
  * ten Predictions are what the fan meant and the tenth is dropped.
@@ -631,17 +511,11 @@ export function parseEntry(value: unknown): ParsedEntry {
 
     if (prediction === null) return { problem: ENTRY_MESSAGES.unreadable };
 
-    // Not the same rule as the round check inside `readPrediction`: this one
-    // is ADR-0004's, and it is the one the `predictions_one_per_bout_in_an_entry`
-    // index refuses regardless of what any route believed.
+    // ADR-0014's rule, and the one the `predictions_one_per_bout_in_an_entry`
+    // index refuses regardless of what any route believed. On the card a
+    // second answer replaces the first ({@link pickAnswered}), so an Entry
+    // arriving with two on one Bout was not built on the card.
     if (bouts.has(prediction.boutId)) return { problem: ENTRY_MESSAGES.onePredictionPerBout };
-
-    // A round names a moment inside the Bout, so it only means anything
-    // alongside a finish. Said here as well as on the card, because the card
-    // is not what the server is holding.
-    if (prediction.round !== null && !isFinish(prediction.method)) {
-      return { problem: ENTRY_MESSAGES.roundNeedsAFinish };
-    }
 
     bouts.add(prediction.boutId);
     predictions.push(prediction);
@@ -650,17 +524,41 @@ export function parseEntry(value: unknown): ParsedEntry {
   return { entry: { amount: sent.amount, predictions } };
 }
 
-/** One answered Bout as it arrives, or null if it is not one. */
+/**
+ * One answered Bout as it arrives, or null if it is not one.
+ *
+ * **Exactly one answer, and it is the one its Question names.** A Prediction
+ * carrying a corner and a round at once is refused here rather than resolved,
+ * because nothing downstream could say which of them the fan gave — and the
+ * `predictions_answers_its_question` check refuses the same row underneath,
+ * the way `outcomes_answers_its_question` refuses it of the Outcome this is a
+ * copy of.
+ */
 function readPrediction(value: unknown): PredictionAnswer | null {
   const answered = (value ?? {}) as Record<string, unknown>;
-  const { boutId, corner, method = null, round = null } = answered;
+  const { boutId, question, corner = null, method = null, round = null } = answered;
 
   if (typeof boutId !== "string" || boutId === "") return null;
-  if (corner !== "red" && corner !== "blue") return null;
-  if (method !== null && !isMethod(method)) return null;
-  if (round !== null && !isRound(round)) return null;
+  if (!isQuestion(question)) return null;
 
-  return { boutId, corner, method, round };
+  if (question === "winner") {
+    if (corner !== "red" && corner !== "blue") return null;
+    if (method !== null || round !== null) return null;
+
+    return { boutId, question, corner, method: null, round: null };
+  }
+
+  if (question === "method") {
+    if (!isMethod(method)) return null;
+    if (corner !== null || round !== null) return null;
+
+    return { boutId, question, corner: null, method, round: null };
+  }
+
+  if (!isRound(round)) return null;
+  if (corner !== null || method !== null) return null;
+
+  return { boutId, question, corner: null, method: null, round };
 }
 
 /** Whether this is a number of Coins that can be committed. */

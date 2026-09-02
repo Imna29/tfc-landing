@@ -22,7 +22,14 @@ import {
 } from "../../server/utils/locks";
 import type { CardToPrice } from "../../server/utils/pricing";
 import { postJson, signUpAdmin } from "../helpers/accounts";
-import { boutOutcomes, cardBout, corner, importedBouts, importTestCard } from "../helpers/cards";
+import {
+  boutOutcomes,
+  card,
+  cardBout,
+  corner,
+  importedBouts,
+  importTestCard,
+} from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
 import { setupTestServer } from "../helpers/server";
 import { fanId } from "../helpers/users";
@@ -74,12 +81,24 @@ describe("a fight card in the game", async () => {
 
   /** What the card listing says about each card, at a glance. */
   async function listedCards(cookie: string) {
-    const { cards } = await $fetch<{ cards: { imported: ImportedEvent | null }[] }>(
-      "/api/admin/events",
-      { headers: { cookie } },
-    );
+    const { cards } = await $fetch<{
+      cards: { prismicId: string; imported: ImportedEvent | null }[];
+    }>("/api/admin/events", { headers: { cookie } });
 
     return cards;
+  }
+
+  /**
+   * The test card's row in that listing, found by the document it came from.
+   *
+   * Deliberately not the first row. The listing is every card in Prismic with
+   * whatever the game holds for it, and the test card is not one of them — it
+   * is imported straight into Postgres, so it is listed among the cards that
+   * are in the game and no longer in Prismic, after however many the live
+   * repository happens to be holding.
+   */
+  async function listedTestCard(cookie: string) {
+    return (await listedCards(cookie)).find((listed) => listed.prismicId === card().prismicId);
   }
 
   /** Saves the same Multiplier onto every Outcome of a Bout, as the form does. */
@@ -966,9 +985,9 @@ describe("a fight card in the game", async () => {
         bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
       });
 
-      const before = await listedCards(signedIn.cookie);
+      const before = await listedTestCard(signedIn.cookie);
 
-      expect(before[0]?.imported).toMatchObject({
+      expect(before?.imported).toMatchObject({
         bouts: 2,
         unpriced: 2,
         open: 0,
@@ -981,17 +1000,17 @@ describe("a fight card in the game", async () => {
       await priceEveryOutcome(card.bouts[0]!, signedIn.cookie);
       await open(card.bouts[0]!.id, signedIn.cookie);
 
-      const after = await listedCards(signedIn.cookie);
+      const after = await listedTestCard(signedIn.cookie);
 
-      expect(after[0]?.imported).toMatchObject({ bouts: 2, unpriced: 1, open: 1, locked: 0 });
+      expect(after?.imported).toMatchObject({ bouts: 2, unpriced: 1, open: 1, locked: 0 });
 
       await postJson(`/api/admin/bouts/${card.bouts[0]!.id}/lock`, {}, signedIn.cookie);
 
-      const fought = await listedCards(signedIn.cookie);
+      const fought = await listedTestCard(signedIn.cookie);
 
       // A locked Bout is no longer open, and still shuts the door on a
       // re-import: fans hold Coins against it whatever it is doing now.
-      expect(fought[0]?.imported).toMatchObject({ open: 0, locked: 1, opened: 1 });
+      expect(fought?.imported).toMatchObject({ open: 0, locked: 1, opened: 1 });
     });
   });
 
@@ -1153,9 +1172,14 @@ describe("a fight card in the game", async () => {
 
       const page = await publicPage();
 
+      // Every Outcome is offered by the route above; the card renders the
+      // Questions in `OFFERED_QUESTIONS`, which is the winner alone until #33
+      // and #34 stand the other two up. The method and round are priced,
+      // stored and simply not on the card yet.
       expect(page).toContain("×2.50");
-      expect(page).toMatch(/Method of victory/i);
-      expect(page).toMatch(/Round 2/);
+      expect(page).toMatch(/Winner/);
+      expect(page).not.toMatch(/Method of victory/i);
+      expect(page).not.toMatch(/Round 2/);
     });
 
     it("offers nothing on a Bout nobody has opened, because nothing on it is priced", async () => {

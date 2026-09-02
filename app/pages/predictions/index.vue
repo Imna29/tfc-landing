@@ -1,11 +1,7 @@
 <script setup lang="ts">
-import {
-  priceOf,
-  type BoutPick,
-  type CommittedEntries,
-  type DraftPrediction,
-} from "#shared/entries";
+import { priceOf, type CommittedEntries, type DraftPrediction } from "#shared/entries";
 import { PREDICTION_MESSAGES } from "#shared/predictions";
+import type { OutcomeAnswer } from "#shared/pricing";
 
 /**
  * The card, and the Entry a fan builds on it.
@@ -61,14 +57,18 @@ const { data: committed, refresh: refreshCommitted } = await useAsyncData<Commit
 /**
  * What the fan has answered, by the Bout it answers.
  *
+ * One answer per Bout, because that is what an Entry may hold (ADR-0014) —
+ * answering a second Question on a Bout replaces what is here rather than
+ * standing beside it.
+ *
  * Keyed by Bout id rather than by place on the card, because that is what an
  * Entry is submitted against — and a Bout keeps its id when a card is
  * re-imported into a different order.
  */
-const picks = ref<Record<string, BoutPick>>({});
+const picks = ref<Record<string, OutcomeAnswer>>({});
 
 /** Takes the answer the card just gave, or drops the Bout from the Entry. */
-function answer(boutId: string, pick: BoutPick | null) {
+function answer(boutId: string, pick: OutcomeAnswer | null) {
   const answered = { ...picks.value };
 
   if (pick === null) {
@@ -109,12 +109,15 @@ const boutsInTheGame = computed(() =>
 const draft = computed<DraftPrediction[]>(() =>
   boutsInTheGame.value.flatMap((bout) => {
     const pick = picks.value[bout.id];
-    const price = pick && priceOf(pick, bout.outcomes);
 
-    if (!pick || !price) return [];
+    if (!pick) return [];
+
+    const multiplier = priceOf(pick, bout.outcomes);
+
+    if (multiplier === null) return [];
 
     return [
-      { ...pick, ...price, boutId: bout.id, cardOrder: bout.cardOrder, corners: bout.corners },
+      { ...pick, multiplier, boutId: bout.id, cardOrder: bout.cardOrder, corners: bout.corners },
     ];
   }),
 );
@@ -146,8 +149,8 @@ useSeoMeta({
         </p>
 
         <p class="mt-4 max-w-3xl text-on-surface/80 leading-relaxed">
-          Pick a winner for any Bout, and deepen the pick with a method and a round for a bigger
-          Multiplier. Chain Predictions across Bouts into one Entry, commit your Coins, and a Bout
+          Pick a winner on any Bout, and that one answer is a whole Prediction at the Multiplier
+          beside it. Chain Predictions across Bouts into one Entry, commit your Coins, and a Bout
           stops taking Predictions the moment it locks.
         </p>
 

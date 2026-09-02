@@ -5,13 +5,14 @@ import { ENTRY_MESSAGES, parseEntry } from "#shared/entries";
  * out of their Balance.
  *
  * Every rule in the product meets here, and each of them is asked three times
- * on purpose. The page asks while the fan is still choosing, so a round that
- * cannot go with a Decision is never offered. This asks again of what actually
- * arrived, because the page is not what the server is holding. And Postgres
- * asks a third time about the ones worth it — one Prediction per Bout, one to
- * ten of them, an open Bout, Coins the fan holds — because a rule that lives
- * only in a handler is one refactor away from disappearing, and because two
- * requests in the same moment can both be told they are fine.
+ * on purpose. The page asks while the fan is still choosing, so a second
+ * answer on a Bout replaces the first rather than being refused here. This
+ * asks again of what actually arrived, because the page is not what the server
+ * is holding. And Postgres asks a third time about the ones worth it — one
+ * answer per Prediction, one Prediction per Bout, one to ten of them, an open
+ * Bout, Coins the fan holds — because a rule that lives only in a handler is
+ * one refactor away from disappearing, and because two requests in the same
+ * moment can both be told they are fine.
  *
  * The order of the refusals is the order a fan meets them: who they are, then
  * whether the game is open to them, then what they sent, then what the card

@@ -1,21 +1,15 @@
 <script setup lang="ts">
-import {
-  canAnswer,
-  ENTRY_MESSAGES,
-  isAnswered,
-  isFinish,
-  pickAnswered,
-  type BoutPick,
-} from "#shared/entries";
+import { isAnswered, pickAnswered } from "#shared/entries";
 import { boutHeadline, roundsLabel, type FightCardBout } from "#shared/fightCard";
 import {
   boutState,
   BOUT_STATE_LABELS,
   multiplierLabel,
+  OFFERED_QUESTIONS,
   PREDICTION_MESSAGES,
   type BoutPredictions,
 } from "#shared/predictions";
-import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { outcomeLabel, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
 
 /**
  * One Bout on a card: the two fighters, the weight class, how many rounds —
@@ -51,15 +45,21 @@ const props = defineProps<{
    * marketing page, and the card of an Event that has been and gone.
    */
   picking?: boolean;
-  /** What the fan has answered on this Bout so far, or null for nothing. */
-  pick?: BoutPick | null;
+  /** The one answer the fan has given on this Bout, or null for none. */
+  pick?: OutcomeAnswer | null;
 }>();
 
-const emit = defineEmits<{ "update:pick": [BoutPick | null] }>();
+const emit = defineEmits<{ "update:pick": [OutcomeAnswer | null] }>();
 
 const state = computed(() => (props.predictions ? boutState(props.predictions, props.now) : null));
 
-/** Answers one of this Bout's Questions, and hands the Prediction upwards. */
+/**
+ * Answers one of this Bout's Questions, and hands the Prediction upwards.
+ *
+ * A second answer replaces the first and the same answer twice takes it back,
+ * which is `pickAnswered`'s doing: an Entry holds one Prediction per Bout
+ * (ADR-0014), so there is one answer here at a time.
+ */
 function answer(outcome: OutcomeAnswer) {
   emit("update:pick", pickAnswered(props.pick ?? null, outcome));
 }
@@ -101,25 +101,22 @@ const lockNote = computed(() => {
  */
 const answering = computed(() => props.picking === true && state.value === "open");
 
-/** Why some of the answers cannot be given yet, while any of them cannot. */
-const answeringNote = computed(() => {
-  if (!answering.value) return null;
-  if (!props.pick) return ENTRY_MESSAGES.pickAWinnerFirst;
-  if (props.pick.method !== null && !isFinish(props.pick.method)) {
-    return ENTRY_MESSAGES.roundNeedsAFinish;
-  }
-
-  return null;
-});
-
 /** The two names this Bout is fought under, which names a winner Outcome. */
 const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blue.name }));
 
-/** The three Questions, each with the answers offered and what they pay. */
+/**
+ * The Questions this card offers, each with the answers to it and what they
+ * pay.
+ *
+ * `OFFERED_QUESTIONS` rather than all three: the method and round Outcomes are
+ * seeded, priced and stored, and are simply not on the card yet (#33, #34).
+ * Filtering the list rather than reaching for the Outcomes one Question at a
+ * time is what makes those two tickets a word each here.
+ */
 const questions = computed(() => {
   const offered = props.predictions?.outcomes ?? [];
 
-  return QUESTIONS.map((question) => ({
+  return OFFERED_QUESTIONS.map((question) => ({
     question,
     label: QUESTION_LABELS[question],
     outcomes: offered.filter((outcome) => outcome.question === question),
@@ -173,7 +170,15 @@ const questions = computed(() => {
         <p v-else-if="lockNote" class="text-xs text-on-surface/60">{{ lockNote }}</p>
       </div>
 
-      <div v-if="questions.length > 0" class="mt-6 grid gap-6 md:grid-cols-3">
+      <!--
+        As many columns as there are Questions on the card, so that the winner
+        standing alone fills the Bout rather than sitting in a third of it, and
+        so that #33 and #34 add a column each without a layout to redo.
+      -->
+      <div
+        v-if="questions.length > 0"
+        class="mt-6 grid gap-6 md:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]"
+      >
         <div v-for="asked in questions" :key="asked.question">
           <h4 class="font-headline text-xs font-black uppercase tracking-widest text-on-surface/60">
             {{ asked.label }}
@@ -184,13 +189,12 @@ const questions = computed(() => {
               <button
                 v-if="answering"
                 type="button"
-                :disabled="!canAnswer(pick ?? null, outcome)"
                 :aria-pressed="isAnswered(pick ?? null, outcome)"
-                class="flex w-full items-baseline justify-between gap-3 border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                class="flex w-full items-baseline justify-between gap-3 border px-3 py-2 text-left text-sm transition-colors"
                 :class="
                   isAnswered(pick ?? null, outcome)
                     ? 'border-primary bg-primary-container/20'
-                    : 'border-outline-variant/20 enabled:hover:border-primary/60'
+                    : 'border-outline-variant/20 hover:border-primary/60'
                 "
                 @click="answer(outcome)"
               >
@@ -213,8 +217,6 @@ const questions = computed(() => {
           </ul>
         </div>
       </div>
-
-      <p v-if="answeringNote" class="mt-4 text-xs text-on-surface/60">{{ answeringNote }}</p>
 
       <p v-if="questions.length === 0" class="mt-4 text-sm text-on-surface/60">
         {{ PREDICTION_MESSAGES.notOpenYet }}

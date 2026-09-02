@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { isFinish } from "#shared/entries";
 import type { Corner } from "#shared/events";
 import { MULTIPLIER, outcomeLabel, QUESTIONS, QUESTION_LABELS } from "#shared/pricing";
 import {
   boutEndingLabel,
+  isFinish,
   NO_RESULT_LABELS,
   NO_RESULT_REASONS,
   RECORDED_METHODS,

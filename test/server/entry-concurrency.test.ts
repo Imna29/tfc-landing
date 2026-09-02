@@ -47,7 +47,10 @@ describe("two requests in the same moment", async () => {
       card.bouts.map((bout) =>
         postJson(
           "/api/predictions/entries",
-          { amount: STARTING_BALANCE, predictions: [{ boutId: bout.id, corner: "red" }] },
+          {
+            amount: STARTING_BALANCE,
+            predictions: [{ boutId: bout.id, question: "winner", corner: "red" }],
+          },
           signedUp.cookie,
         ),
       ),
@@ -86,7 +89,10 @@ describe("two requests in the same moment", async () => {
 
     const submitted = await postJson(
       "/api/predictions/entries",
-      { amount: 40, predictions: [{ boutId: card.bouts[0]!.id, corner: "red" }] },
+      {
+        amount: 40,
+        predictions: [{ boutId: card.bouts[0]!.id, question: "winner", corner: "red" }],
+      },
       signedUp.cookie,
     );
 
@@ -139,7 +145,10 @@ describe("two requests in the same moment", async () => {
 
     const first = await postJson(
       "/api/predictions/entries",
-      { amount: 20, predictions: [{ boutId: card.bouts[0]!.id, corner: "red" }] },
+      {
+        amount: 20,
+        predictions: [{ boutId: card.bouts[0]!.id, question: "winner", corner: "red" }],
+      },
       signedUp.cookie,
     );
 
@@ -153,7 +162,10 @@ describe("two requests in the same moment", async () => {
       postJson(`/api/predictions/entries/${entry.id}/cancel`, {}, signedUp.cookie),
       postJson(
         "/api/predictions/entries",
-        { amount: 30, predictions: [{ boutId: card.bouts[1]!.id, corner: "blue" }] },
+        {
+          amount: 30,
+          predictions: [{ boutId: card.bouts[1]!.id, question: "winner", corner: "blue" }],
+        },
         signedUp.cookie,
       ),
     ]);

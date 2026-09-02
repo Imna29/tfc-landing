@@ -17,7 +17,6 @@ import { COIN_REASONS } from "#shared/coins";
 import {
   ENTRY_MESSAGES,
   potentialReward,
-  predictionMultiplier,
   priceOf,
   type OfferedAnswer,
   type PredictionAnswer,
@@ -25,7 +24,7 @@ import {
 } from "#shared/entries";
 import type { Corner } from "#shared/events";
 import { boutState } from "#shared/predictions";
-import { MULTIPLIER, type Method } from "#shared/pricing";
+import type { Method, Question } from "#shared/pricing";
 import { eq, inArray } from "drizzle-orm";
 import { bouts, entries, events, outcomes, predictions } from "../db/schema";
 import { balanceOf, balanceToMoveFrom, commitCoins } from "./coins";
@@ -35,7 +34,7 @@ import { firstOnTheCard, lockMomentOf, type AsAt } from "./locks";
 /** The name of the trigger that refuses a Prediction on a Bout that is not open. */
 export const PREDICTIONS_ARE_MADE_ON_OPEN_BOUTS = "predictions_are_made_on_open_bouts";
 
-/** The name of the index that holds ADR-0004's one Prediction per Bout. */
+/** The name of the index that holds ADR-0014's one Prediction per Bout. */
 export const ONE_PREDICTION_PER_BOUT = "predictions_one_per_bout_in_an_entry";
 
 /** The name of the trigger that refuses an Entry of no or too many Predictions. */
@@ -83,10 +82,11 @@ export type PricedAnswers =
 export interface SubmittedPrediction {
   boutId: string;
   cardOrder: number;
-  corner: Corner;
+  question: Question;
+  corner: Corner | null;
   method: Method | null;
   round: number | null;
-  /** What this Prediction pays: the product of the answers it is made of. */
+  /** What this Prediction pays: the Multiplier of the answer it gave. */
   multiplier: number;
 }
 
@@ -203,11 +203,11 @@ export async function priceAnswers(
     // Postgres holds rather than the ones the page was looking at. Null is an
     // answer this Bout does not offer — a round it is not scheduled for, or an
     // Outcome a re-import took away.
-    const price = priceOf(answer, offeredOn.get(answer.boutId) ?? []);
+    const multiplier = priceOf(answer, offeredOn.get(answer.boutId) ?? []);
 
-    if (price === null) return refuse(422, ENTRY_MESSAGES.answerNotOffered);
+    if (multiplier === null) return refuse(422, ENTRY_MESSAGES.answerNotOffered);
 
-    priced.push({ ...answer, cardOrder: bout.cardOrder, ...price });
+    priced.push({ ...answer, cardOrder: bout.cardOrder, multiplier });
   }
 
   return { predictions: priced };
@@ -255,12 +255,11 @@ export async function submitEntry(submission: {
         submission.predictions.map((prediction) => ({
           entryId: entry.id,
           boutId: prediction.boutId,
+          question: prediction.question,
           corner: prediction.corner,
           method: prediction.method,
           round: prediction.round,
-          winnerMultiplier: prediction.winnerMultiplier,
-          methodMultiplier: prediction.methodMultiplier,
-          roundMultiplier: prediction.roundMultiplier,
+          multiplier: prediction.multiplier,
         })),
       );
 
@@ -285,10 +284,11 @@ export async function submitEntry(submission: {
           predictions: submission.predictions.map((prediction) => ({
             boutId: prediction.boutId,
             cardOrder: prediction.cardOrder,
+            question: prediction.question,
             corner: prediction.corner,
             method: prediction.method,
             round: prediction.round,
-            multiplier: Number(predictionMultiplier(prediction).toFixed(MULTIPLIER.decimals)),
+            multiplier: prediction.multiplier,
           })),
         },
         balance: held - amount,

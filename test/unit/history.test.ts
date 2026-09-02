@@ -35,12 +35,11 @@ function prediction(overrides: Partial<HistoricPrediction> = {}): HistoricPredic
     cardOrder: 1,
     eventTitle: "TFC 12",
     corners: { red: "Giorgi Tsiklauri", blue: "Levan Beridze" },
+    question: "winner",
     corner: "red",
     method: null,
     round: null,
-    winnerMultiplier: 2,
-    methodMultiplier: null,
-    roundMultiplier: null,
+    multiplier: 2,
     ending: null,
     ...overrides,
   };
@@ -228,10 +227,10 @@ describe("reading one Entry back", () => {
       entry({
         amount: 10,
         predictions: [
-          prediction({ boutId: "bout-1", winnerMultiplier: 2, ending: { noResult: "cancelled" } }),
+          prediction({ boutId: "bout-1", multiplier: 2, ending: { noResult: "cancelled" } }),
           prediction({
             boutId: "bout-2",
-            winnerMultiplier: 3,
+            multiplier: 3,
             ending: { result: { winner: "red", method: "decision", round: null } },
           }),
         ],
@@ -250,7 +249,7 @@ describe("reading one Entry back", () => {
       entry({
         amount: 5,
         predictions: Array.from({ length: 8 }, (_, at) =>
-          prediction({ boutId: `bout-${at}`, winnerMultiplier: 4 }),
+          prediction({ boutId: `bout-${at}`, multiplier: 4 }),
         ),
       }),
     );

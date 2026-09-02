@@ -32,6 +32,7 @@ import {
   standingFor,
   submit,
   upcomingCard,
+  winnerOn,
 } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 
@@ -210,7 +211,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await postJson(`/api/admin/bouts/${card.bouts[0]!.id}/lock`, {}, card.admin.cookie);
 
       const refused = await closeSeasonRequest(await openedSeasonId(), card.admin.cookie);
@@ -284,7 +285,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       expect((await closeSeasonRequest(await openedSeasonId(), card.admin.cookie)).status).toBe(
@@ -305,8 +306,8 @@ describe("closing a Season, and the one after it", async () => {
       const ahead = await fanWithCoins();
       const behind = await fanWithCoins();
 
-      await submit(ahead, 50, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(behind, 10, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      await submit(ahead, 50, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(behind, 10, [winnerOn(card.bouts[0]!.id, "blue")]);
       await settle(card, 0, { winner: "red" });
 
       const seasonId = await openedSeasonId();
@@ -374,8 +375,8 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(fan, 10, [{ boutId: card.bouts[1]!.id, corner: "red" }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(fan, 10, [winnerOn(card.bouts[1]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
 
@@ -417,7 +418,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 50, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 50, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       const seasonId = await openedSeasonId();
@@ -612,7 +613,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const played = await submit(fan, 40, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const played = await submit(fan, 40, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -691,8 +692,8 @@ describe("closing a Season, and the one after it", async () => {
       const won = await fanWithCoins();
       const lost = await fanWithCoins();
 
-      await submit(won, 90, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(lost, 100, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      await submit(won, 90, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(lost, 100, [winnerOn(card.bouts[0]!.id, "blue")]);
       await settle(card, 0, { winner: "red" });
 
       expect(await balance(lost.cookie)).toMatchObject({ balance: 0 });
@@ -751,7 +752,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
       await closeOpenSeason(card.admin.cookie);
       await openSeason(card.admin.cookie, "Season 2");
@@ -768,7 +769,7 @@ describe("closing a Season, and the one after it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 90, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 90, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       const finished = await openedSeasonId();

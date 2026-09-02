@@ -4,10 +4,10 @@ import {
   CANCELLATION_MESSAGES,
   ENTRY_STATUS_LABELS,
   cancellationOf,
-  predictionLabel,
   type CommittedEntry,
 } from "#shared/entries";
 import { multiplierLabel } from "#shared/predictions";
+import { outcomeLabel } from "#shared/pricing";
 import { endingNote, entryAsItStands } from "#shared/results";
 
 /**
@@ -41,10 +41,10 @@ import { endingNote, entryAsItStands } from "#shared/results";
  * one Entry cannot come to be worth two different numbers on the two pages a
  * fan can have open at the same time.
  *
- * **A Prediction whose answers stopped counting says so, and says why.** It is
+ * **A Prediction whose answer stopped counting says so, and says why.** It is
  * the only place a fan finds out that a Bout was cancelled, lost a fighter,
- * drew, was ruled a no contest, or ended in the disqualification that leaves
- * their method and round with nothing to grade — and a Multiplier that quietly
+ * drew, was ruled a no contest, or ended in the disqualification that leaves a
+ * method or round Prediction with nothing to grade — and a Multiplier that quietly
  * dropped to ×1.0 with no sentence beside it reads as the game having taken
  * something away rather than as ADR-0005 protecting them from it. The sentence
  * is `endingNote`'s and the number is `settledPrice`'s, reached through the
@@ -72,9 +72,10 @@ const done = ref("");
  * Each Entry with what it is worth and whether it can still be taken back.
  *
  * Every Prediction is repriced against how its Bout ended before any of that is
- * worked out: a No Result contributes ×1.0 and a disqualification pays its
- * winner alone (ADR-0005), so a chain part-way through a card is shown what it
- * is now riding on rather than what it was priced at on the day.
+ * worked out: a No Result contributes ×1.0, and so does a Question a
+ * disqualification never settled (ADR-0005), so a chain part-way through a
+ * card is shown what it is now riding on rather than what it was priced at on
+ * the day.
  */
 const held = computed(() =>
   props.entries.map((entry) => {
@@ -164,7 +165,7 @@ async function cancel(entryId: string) {
                 <span class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
                   Bout {{ prediction.cardOrder }}
                 </span>
-                — {{ predictionLabel(prediction, prediction.corners) }}
+                — {{ outcomeLabel(prediction, prediction.corners) }}
               </span>
               <span class="shrink-0 font-bold tabular-nums">
                 {{ multiplierLabel(multiplier) }}

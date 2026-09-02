@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { BoutPick } from "#shared/entries";
 import { inCardOrder, type FightCard } from "#shared/fightCard";
 import type { CardPredictions } from "#shared/predictions";
+import type { OutcomeAnswer } from "#shared/pricing";
 
 /**
  * A fight card: an Event, and every Bout on it in the order they are fought.
@@ -18,11 +18,11 @@ import type { CardPredictions } from "#shared/predictions";
 const props = defineProps<{
   card: FightCard;
   predictions?: CardPredictions | null;
-  /** What the fan has answered, by the Bout it answers. */
-  picks?: Record<string, BoutPick>;
+  /** The one answer the fan has given on each Bout, by the Bout it answers. */
+  picks?: Record<string, OutcomeAnswer>;
 }>();
 
-const emit = defineEmits<{ pick: [boutId: string, pick: BoutPick | null] }>();
+const emit = defineEmits<{ pick: [boutId: string, pick: OutcomeAnswer | null] }>();
 
 /**
  * One clock for the card rather than one per Bout: ten Bouts counting down

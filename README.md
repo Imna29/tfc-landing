@@ -678,11 +678,20 @@ in it, the combined Multiplier, whether the ×100 cap has decided it, the Amount
 and the Coins it returns if it lands. `POST /api/predictions/entries` commits
 it.
 
-**A Prediction is one compound answer for one Bout**: a required winner, and
-optionally a method and a round, whose Multipliers multiply onto the winner
-(ADR-0004). Chaining is across *different* Bouts. Deepening one Prediction and
-chaining another are the two different things they look like, and an Entry holds
-**at most one Prediction per Bout**.
+**A Prediction is one answer to one Question on one Bout** (ADR-0014): a
+winner, a method or a round, carrying the Multiplier that answer pays. Each
+Multiplier stands for its answer outright and they never multiply together
+within a Bout; chaining is across *different* Bouts, which are independent of
+each other, so nothing correlated is ever multiplied. An Entry holds **at most
+one Prediction per Bout** — answering a second Question on a Bout replaces the
+first, and a fan holding two views on one Bout commits two Entries, separately
+funded and separately graded.
+
+The card asks the winner Question and only that one so far. Method and round
+Outcomes are seeded, priced by an admin and stored exactly as before;
+`OFFERED_QUESTIONS` in `shared/predictions.ts` is the list the card renders
+from, and #33 and #34 add a Question to it each, with the copy and the
+end-to-end coverage that go with one standing on its own.
 
 Three layers of the same rules, on purpose:
 
@@ -702,10 +711,10 @@ Three layers of the same rules, on purpose:
 
 | Rule | Held by |
 | --- | --- |
-| One Prediction per Bout in an Entry (ADR-0004) | `predictions_one_per_bout_in_an_entry` |
+| One Prediction per Bout in an Entry (ADR-0014) | `predictions_one_per_bout_in_an_entry` |
+| Exactly one answer, and the one its Question names | `predictions_answers_its_question` |
 | Between one and ten Predictions | `entries_hold_one_to_ten_predictions`, a deferred constraint trigger on both tables |
 | The answer was one that Bout offered | `predictions_winner_is_offered`, `…_method_is_offered`, `…_round_is_offered` |
-| No round alongside a Decision | `predictions_a_round_needs_a_finish` |
 | The Bout is open | `predictions_are_made_on_open_bouts` |
 | An Amount of at least 1 Coin | `entries_amount_is_committed` |
 | No Coins a fan does not hold | `entry_commitments_are_within_the_balance` |
@@ -713,26 +722,26 @@ Three layers of the same rules, on purpose:
 
 The three `…_is_offered` keys are the interesting ones. A Prediction stores the
 answer it gives — `red`, `ko_tko`, round 2 — rather than a reference to the
-Outcome row, because settlement grades answers and a disqualification settles
-the winner while leaving the method and round ungradable (#15). Each answer
-still points at the Outcome that priced it, through a composite key on
-`(bout_id, corner)`, `(bout_id, method)` and `(bout_id, round)`. So "round 4 of
-a three-round Bout" is refused by Postgres, and the stored answer and the
-Outcome behind it can never drift apart. Postgres does not check a key whose
-columns include a null, which is exactly right for the two optional answers.
+Outcome row, because a Prediction is a *copy* of the Outcome it was picked from
+(ADR-0002) and settlement grades the answer rather than the row. It still points
+at the Outcome that priced it, through a composite key on `(bout_id, corner)`,
+`(bout_id, method)` and `(bout_id, round)`. So "round 4 of a three-round Bout"
+is refused by Postgres, and the stored answer and the Outcome behind it can
+never drift apart. Postgres does not check a key whose columns include a null,
+which is exactly right here: two of the three are null on every row, and the one
+that is not is the one being held to the card.
 
-**A round only goes with a KO/TKO or a Submission.** ADR-0004 says so about a
-Decision, and the same sentence rules out a round with no method at all: "it
-ended in round 2" and "it went the distance" are not answers to the same
-question, and nothing could grade the pair. The card disables the rounds until
-a finish is picked, and says why.
+**A round stands on its own.** `predictions_a_round_needs_a_finish` went with
+the compound shape: "this Bout ends in round 2" is a whole Prediction now, and
+on a Bout that went the distance it is graded **wrong** rather than refused when
+it was made — a Decision ends in no round at all, which is precisely not ending
+in the one the fan named.
 
-**What is frozen, and what is worked out.** Each Prediction stores what each of
-its three answers paid at submission (ADR-0002) — three numbers, not the one
-they multiply out to, because they are graded separately. The Entry stores
-neither the combined Multiplier nor the Reward: both are the product of what is
-on its Predictions, and a stored copy would be a second answer to a question
-that already has one. `potentialReward` in `shared/entries.ts` is where they
+**What is frozen, and what is worked out.** Each Prediction stores what its one
+answer paid at submission (ADR-0002) — one number for one answer. The Entry
+stores neither the combined Multiplier nor the Reward: both are the product of
+what is on its Predictions, and a stored copy would be a second answer to a
+question that already has one. `potentialReward` in `shared/entries.ts` is where they
 become a Reward, capped at ×100 and rounded to whole Coins, said once for the
 panel, the API and the settlement that will eventually pay it. The cost of that
 is worth stating: the cap and the rounding are *rules*, applied wherever a

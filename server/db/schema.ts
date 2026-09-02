@@ -962,10 +962,12 @@ export const boutResults = pgTable(
       sql`(${table.noResult} is null) = (${table.winner} is not null
         and ${table.method} is not null)`,
     ),
-    // The same impossibility `predictions_a_round_needs_a_finish` refuses, said
-    // both ways round because a Result is a statement of fact rather than a
-    // pick somebody may leave shallow: a KO/TKO and a Submission happened in a
-    // round, and a Decision, a disqualification and a No Result did not.
+    // A round belongs to a finish, said both ways round because a Result is a
+    // statement of fact about the whole Bout rather than one answer to one of
+    // its Questions: a KO/TKO and a Submission happened in a round, and a
+    // Decision, a disqualification and a No Result did not. Deliberately not
+    // asked of a Prediction, which names a round on its own terms and is
+    // graded wrong on a Bout that went the distance (ADR-0014).
     check(
       "bout_results_a_round_is_a_finish",
       sql`(${table.round} is not null) = (${table.method} is not null
@@ -1144,16 +1146,24 @@ export const entries = pgTable(
 );
 
 /**
- * One compound answer for one Bout: a winner, and optionally how and when the
- * Bout ends.
+ * One answer to one Question on one Bout, carrying what that answer paid.
  *
- * **An Entry holds at most one Prediction per Bout** (ADR-0004), and
+ * The same shape as the {@link outcomes} row it is a copy of (ADR-0014): a
+ * Question, exactly one non-null answer among `corner`, `method` and `round`,
+ * and one Multiplier. `predictions_answers_its_question` says so here the way
+ * `outcomes_answers_its_question` says it there, and it is what stops a row
+ * carrying two answers — which nothing downstream could grade, because there
+ * would be no saying which of them the fan gave.
+ *
+ * **An Entry holds at most one Prediction per Bout**, and
  * `predictions_one_per_bout_in_an_entry` is what makes that true rather than
- * intended. Winner, method and round overlap heavily — "A wins" and "A wins by
- * KO" are nearly the same prediction — so chaining them as separate items
- * would pay as though a fan had predicted two things, which is a systematic
- * overpayment somebody would find and farm. Deepening is how a Prediction
- * grows; chaining is across Bouts.
+ * intended. "Fighter A wins" and "the Bout ends by KO" overlap heavily, so
+ * chaining them would pay as though a fan had predicted two things when they
+ * nearly predicted one — a systematic overpayment somebody would find and
+ * farm. Under this shape nothing correlated is ever multiplied: within a Bout
+ * there is one answer, and across Bouts the events are independent. A fan
+ * holding two views on one Bout commits two Entries, which are funded,
+ * cancelled and graded separately.
  *
  * The answer is stored as what it says rather than as a reference to the
  * Outcome that offered it, and the three foreign keys are what keep the two
@@ -1161,18 +1171,18 @@ export const entries = pgTable(
  * `(bout_id, round)` each point at an Outcome row of that Bout, so an answer
  * exists here only if the Bout was actually offering it — a three-round Bout
  * has no round 4 to point at. Postgres does not check a foreign key whose
- * columns include a null, which is exactly right for the two optional answers.
+ * columns include a null, which is exactly right: two of the three are null on
+ * every row, and the one that is not is the one being held to the card.
  *
- * Each answer carries what it paid at the moment of submission (ADR-0002).
- * Three numbers rather than the one they multiply out to, because they are
- * graded separately: a disqualification settles the winner and leaves the
- * method and round with nothing to grade (#15).
+ * The Multiplier is what that answer paid at the moment of submission
+ * (ADR-0002), and one number rather than three because every Multiplier stands
+ * for its own answer outright and none of them combine within a Bout.
  *
  * Neither foreign key cascades. A Bout fans hold Coins against is never
- * deleted — the trigger in `0004_event_import.sql` already refuses to replace
- * one that is not closed, and this is the same door locked from the other
- * side — and an Entry is not deleted either, for the reason ADR-0003 gives
- * about the ledger: what happened is not rewritten.
+ * deleted — the trigger in `20260825191407_event_import` already refuses to
+ * replace one that is not closed, and this is the same door locked from the
+ * other side — and an Entry is not deleted either, for the reason ADR-0003
+ * gives about the ledger: what happened is not rewritten.
  */
 export const predictions = pgTable(
   "predictions",
@@ -1184,30 +1194,26 @@ export const predictions = pgTable(
     boutId: uuid("bout_id")
       .notNull()
       .references(() => bouts.id),
-    /** Which corner the fan says wins. A Prediction cannot do without one. */
-    corner: text("corner").$type<Corner>().notNull(),
-    /** How they say it ends, or null on a Prediction that does not say. */
+    /** Which of the three Questions this Prediction answers. */
+    question: text("question").$type<Question>().notNull(),
+    /** Which corner the fan says wins, on a winner Prediction. Null on every other. */
+    corner: text("corner").$type<Corner>(),
+    /** How they say it ends, on a method Prediction. Null on every other. */
     method: text("method").$type<Method>(),
-    /** Which round they say it ends in, or null. */
+    /** Which round they say it ends in, on a round Prediction. Null on every other. */
     round: integer("round"),
     /**
-     * What each answer paid when the Entry was submitted.
+     * What that answer paid when the Entry was submitted.
      *
      * `numeric(5, 2)` like the Outcome it was copied from, so that the number
      * a fan was shown is the number stored, to the place they saw it.
      */
-    winnerMultiplier: numeric("winner_multiplier", {
-      precision: 5,
-      scale: 2,
-      mode: "number",
-    }).notNull(),
-    methodMultiplier: numeric("method_multiplier", { precision: 5, scale: 2, mode: "number" }),
-    roundMultiplier: numeric("round_multiplier", { precision: 5, scale: 2, mode: "number" }),
+    multiplier: numeric("multiplier", { precision: 5, scale: 2, mode: "number" }).notNull(),
   },
   (table) => [
-    // ADR-0004, held by Postgres rather than by whichever route remembers to
+    // ADR-0014, held by Postgres rather than by whichever route remembers to
     // ask. A rule that lives only in a handler is one refactor away from
-    // disappearing, and this one is what stops the correlation exploit.
+    // disappearing, and this one is what makes the model safe to multiply.
     uniqueIndex("predictions_one_per_bout_in_an_entry").on(table.entryId, table.boutId),
     // Everything settlement reads: every Prediction on a Bout that just got a
     // result (#14).
@@ -1231,7 +1237,11 @@ export const predictions = pgTable(
       columns: [table.boutId, table.round],
       foreignColumns: [outcomes.boutId, outcomes.round],
     }),
-    check("predictions_corner_known", sql`${table.corner} in ('red', 'blue')`),
+    check("predictions_question_known", sql`${table.question} in ('winner', 'method', 'round')`),
+    check(
+      "predictions_corner_known",
+      sql`${table.corner} is null or ${table.corner} in ('red', 'blue')`,
+    ),
     check(
       "predictions_method_known",
       sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
@@ -1244,31 +1254,25 @@ export const predictions = pgTable(
       "predictions_round_is_a_round",
       sql`${table.round} is null or ${table.round} between 1 and 12`,
     ),
-    // ADR-0004's impossible Prediction: a Decision is the Bout going the
-    // distance, so there is no round it ends in — and a round with no method
-    // at all is a Prediction nothing could grade, because "it ended in round
-    // 2" and "it went to a Decision" are not answers to the same question.
+    // One answer per Prediction, decided by the Question it answers — the same
+    // rule `outcomes_answers_its_question` holds the Outcome to, because this
+    // is a copy of one. Without it a row could carry a corner and a round at
+    // once, and nothing grading it would know which of them the fan gave.
     check(
-      "predictions_a_round_needs_a_finish",
-      sql`${table.round} is null or ${table.method} in ('ko_tko', 'submission')`,
-    ),
-    // An answer nobody priced, or a price for an answer nobody gave. Either
-    // way it is a Prediction whose Reward cannot be worked out.
-    check(
-      "predictions_answers_are_priced",
-      sql`(${table.method} is null) = (${table.methodMultiplier} is null)
-        and (${table.round} is null) = (${table.roundMultiplier} is null)`,
+      "predictions_answers_its_question",
+      sql`(${table.question} = 'winner' and ${table.corner} is not null
+            and ${table.method} is null and ${table.round} is null)
+        or (${table.question} = 'method' and ${table.method} is not null
+            and ${table.corner} is null and ${table.round} is null)
+        or (${table.question} = 'round' and ${table.round} is not null
+            and ${table.corner} is null and ${table.method} is null)`,
     ),
     // The same bounds an Outcome's Multiplier is held to, copied here because
     // this is a copy of one: a Prediction paying ×1 or less returns a fan who
     // was right their own Coins back or fewer.
     check(
-      "predictions_multipliers_pay",
-      sql`${table.winnerMultiplier} > 1 and ${table.winnerMultiplier} <= 100
-        and (${table.methodMultiplier} is null
-          or (${table.methodMultiplier} > 1 and ${table.methodMultiplier} <= 100))
-        and (${table.roundMultiplier} is null
-          or (${table.roundMultiplier} > 1 and ${table.roundMultiplier} <= 100))`,
+      "predictions_multiplier_pays",
+      sql`${table.multiplier} > 1 and ${table.multiplier} <= 100`,
     ),
   ],
 );

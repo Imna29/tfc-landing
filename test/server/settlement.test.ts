@@ -46,6 +46,7 @@ import {
   statusOf,
   submit,
   upcomingCard,
+  winnerOn,
 } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 
@@ -88,7 +89,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const { settlement } = await settle(card, 0, { winner: "red" });
 
@@ -112,7 +113,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "blue")]);
 
       const { settlement } = await settle(card, 0, { winner: "red" });
 
@@ -127,35 +128,21 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
-    it("is wrong when the method the fan named is not the one it ended by", async () => {
+    it("is graded on the Question it answered and nothing else about the Bout", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "submission", round: 2 },
-      ]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
-
-      expect(await statusOf(entry.id)).toBe("lost");
-    });
-
-    it("pays a deepened Prediction at the product of its answers", async () => {
-      const card = await upcomingCard(1);
-      const fan = await fanWithCoins();
-
-      const { entry } = await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
-      ]);
-
+      // Every other answer this Bout produced is one the fan did not give, and
+      // is not asked about (ADR-0014): they said red wins and red won.
       const { settlement } = await settle(card, 0, {
         winner: "red",
-        method: "ko_tko",
-        round: 2,
+        method: "submission",
+        round: 3,
       });
 
-      // ×2 for the winner, ×2.5 for the method and ×3 for the round is ×15.
-      expect(settlement.paid).toBe(150);
+      expect(settlement.paid).toBe(20);
       expect(await statusOf(entry.id)).toBe("won");
     });
   });
@@ -166,8 +153,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id },
-        { boutId: card.bouts[1]!.id },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       const first = await settle(card, 0, { winner: "red" });
@@ -190,9 +177,9 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id },
-        { boutId: card.bouts[2]!.id },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
+        winnerOn(card.bouts[2]!.id, "red"),
       ]);
 
       const { settlement } = await settle(card, 0, { winner: "red" });
@@ -206,8 +193,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -231,7 +218,7 @@ describe("entering a result", async () => {
       const { entry } = await submit(
         fan,
         10,
-        card.bouts.map((bout) => ({ boutId: bout.id })),
+        card.bouts.map((bout) => winnerOn(bout.id, "red")),
       );
 
       let paid = 0;
@@ -323,8 +310,11 @@ describe("entering a result", async () => {
       const card = await upcomingCard(2);
       const fans = [await fanWithCoins(), await fanWithCoins()];
 
-      await submit(fans[0]!, 30, [{ boutId: card.bouts[0]!.id }, { boutId: card.bouts[1]!.id }]);
-      await submit(fans[1]!, 15, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      await submit(fans[0]!, 30, [
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
+      ]);
+      await submit(fans[1]!, 15, [winnerOn(card.bouts[0]!.id, "blue")]);
 
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
@@ -360,7 +350,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       const again = await enterResult(
@@ -409,7 +399,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       // Deliberately not locked first, so that the Lock is one of the writes
       // this settlement makes and one of the writes it has to take back.
@@ -492,8 +482,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -659,7 +649,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -725,9 +715,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
-      ]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const { settlement } = await settleAsNoResult(card, 0, "withdrawal");
 
@@ -742,8 +730,8 @@ describe("entering a result", async () => {
       });
       expect(await statusOf(entry.id)).toBe("refunded");
 
-      // Deepened to ×15 at submission and worth ×1.0 now: the Amount comes
-      // back and nothing else does. A refund rather than a Reward, because the
+      // Priced at ×2 at submission and worth ×1.0 now: the Amount comes back
+      // and nothing else does. A refund rather than a Reward, because the
       // Entry did not win — there was nothing there to win.
       const ledger = await ledgerFor(fan.id);
 
@@ -803,8 +791,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       const first = await settle(card, 0, { winner: "red" });
@@ -830,9 +818,9 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "blue" },
-        { boutId: card.bouts[2]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "blue"),
+        winnerOn(card.bouts[2]!.id, "red"),
       ]);
 
       // A win, then the No Result, then the Bout that ends it: the order that
@@ -860,8 +848,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 25, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "submission", round: 1 },
-        { boutId: card.bouts[1]!.id, corner: "blue" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "blue"),
       ]);
 
       const first = await settleAsNoResult(card, 0, "draw");
@@ -886,7 +874,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settleAsNoResult(card, 0, "withdrawal");
 
       // Without this a fan reads a Prediction that counted for nothing and no
@@ -906,16 +894,15 @@ describe("entering a result", async () => {
    * Results because "won by DQ" is not one of the three answers offered.
    */
   describe("a disqualification", () => {
-    it("settles the winner Question and pays the winner's Multiplier alone", async () => {
+    it("is a win for the fan who picked the fighter who won by it", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      // ×2 for the winner, ×2.5 for the method and ×3 for the round is the ×15
-      // this was priced at. Only the first of the three is graded.
-      const { entry } = await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
-      ]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
+      // The DQ winner did win, so the winner Question settled and this
+      // Prediction pays the ×2 it was priced at — a fan who called the fight
+      // right is not left holding a Bout that decided nothing.
       const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
 
       expect(settlement).toMatchObject({ graded: 1, won: 1, refunded: 0, paid: 20 });
@@ -931,7 +918,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "blue")]);
 
       const { settlement } = await settle(card, 0, { winner: "red", method: "disqualification" });
 
@@ -951,26 +938,26 @@ describe("entering a result", async () => {
       });
     });
 
-    it("says on the fan's own Prediction what it did to their method and round", async () => {
+    it("leaves a winner Prediction with nothing needing explained", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
-      ]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red", method: "disqualification" });
 
-      // Their Multiplier fell from ×15 to ×2 with the method they picked still
-      // printed beside it. Without the sentence that is the game appearing to
-      // take something away for no reason anybody gave.
+      // The fan reads how the Bout ended and their Prediction pays what it was
+      // priced at. There is no sentence beside it because nothing happened to
+      // it: the Question they answered is the one a DQ settles, and the ones
+      // it leaves as No Results are Questions they did not ask.
       const listing = await listingFor(fan.cookie);
       const prediction = listing.entries[0]?.predictions[0];
 
       expect(prediction?.ending).toEqual({
         result: { winner: "red", method: "disqualification", round: null },
       });
-      expect(endingNote(prediction!, prediction!.ending)).toContain("disqualification");
+      expect(prediction?.multiplier).toBe(TEST_MULTIPLIERS.winner);
+      expect(endingNote(prediction!, prediction!.ending)).toBeNull();
     });
 
     it("refuses a round beside it, which the Bout is not being recorded as having", async () => {
@@ -1059,10 +1046,10 @@ describe("entering a result", async () => {
       // One chain that plays on past the No Result, and one Entry that is
       // nothing but it: the two Coin movements this ticket adds, on one card.
       await submit(paid, 30, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red", method: "ko_tko", round: 3 },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
-      await submit(madeWhole, 15, [{ boutId: card.bouts[1]!.id, corner: "blue" }]);
+      await submit(madeWhole, 15, [winnerOn(card.bouts[1]!.id, "blue")]);
 
       await settle(card, 0, { winner: "red" });
       await settleAsNoResult(card, 1, "withdrawal");
@@ -1086,8 +1073,8 @@ describe("entering a result", async () => {
       }
 
       // 30 Coins on a chain worth ×2 once the second link went neutral returns
-      // 60, not the ×30 it was priced at; 15 Coins on nothing gradable come
-      // back exactly.
+      // 60, not the ×4 two winner picks were priced at; 15 Coins on nothing
+      // gradable come back exactly.
       expect(await balance(paid.cookie)).toMatchObject({ balance: STARTING_BALANCE - 30 + 60 });
       expect(await balance(madeWhole.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
@@ -1144,7 +1131,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const written = await testDatabase()
         .execute(sql`update entries set status = 'refunded' where id = ${entry.id}::uuid`)
@@ -1160,7 +1147,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settleAsNoResult(card, 0, "draw");
 
@@ -1187,7 +1174,7 @@ describe("entering a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -1229,8 +1216,8 @@ describe("entering a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id },
-        { boutId: card.bouts[1]!.id },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       for (const bout of card.bouts) await lockBout(bout.id, card.admin.cookie);

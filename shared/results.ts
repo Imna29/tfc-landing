@@ -22,15 +22,20 @@
 import { coinsLabel } from "./coins";
 import {
   potentialReward,
-  predictionMultiplier,
-  type BoutPick,
   type EntryStatus,
   type PotentialReward,
   type PricedPrediction,
 } from "./entries";
 import type { Corner } from "./events";
 import { multiplierLabel } from "./predictions";
-import { isMethod, isRound, METHODS, METHOD_LABELS, type Method } from "./pricing";
+import {
+  isMethod,
+  isRound,
+  METHODS,
+  METHOD_LABELS,
+  type Method,
+  type OutcomeAnswer,
+} from "./pricing";
 
 /**
  * The four ways a Bout produces nothing gradable: it was cancelled, a fighter
@@ -89,6 +94,20 @@ export function isNoResultReason(value: unknown): value is NoResultReason {
 }
 
 /**
+ * Whether a Bout ending this way ends inside a round.
+ *
+ * A KO/TKO and a Submission happen in a round somebody can name; a Decision is
+ * the Bout going the distance, and a disqualification records no round either
+ * (ADR-0005). It is a fact about a {@link RecordedMethod} rather than about an
+ * answer a fan gave: a round Prediction stands on its own (ADR-0014), and the
+ * only thing left asking this is the Result an admin enters and the
+ * `bout_results_a_round_is_a_finish` constraint under it.
+ */
+export function isFinish(method: RecordedMethod | null): boolean {
+  return method === "ko_tko" || method === "submission";
+}
+
+/**
  * How a Bout ended, where it ended with a winner: one of the three methods the
  * game offers, or the disqualification it does not.
  *
@@ -122,10 +141,12 @@ export const RECORDED_METHOD_LABELS = {
  * What an admin records about a Bout that has been fought to a winner: who won,
  * how it ended, and — where it ended inside one — which round.
  *
- * The same three answers a Prediction is made of, which is what makes grading
- * a comparison rather than an interpretation. `winner` rather than `corner`,
- * because that is the Question it answers (`CONTEXT.md`) and because a Result
- * is a statement about the Bout rather than a pick somebody made.
+ * One statement about all three Questions, where a Prediction answers one of
+ * them — which is what makes grading a comparison rather than an
+ * interpretation: each Prediction is read against the one field of this that
+ * answers its Question. `winner` rather than `corner`, because that is the
+ * Question it answers (`CONTEXT.md`) and because a Result is a statement about
+ * the Bout rather than a pick somebody made.
  *
  * A Bout that produced nothing gradable is a No Result and is not one of these
  * (ADR-0005). See {@link BoutEnding}, which is what anything grading against a
@@ -190,40 +211,50 @@ export const PREDICTION_GRADE_LABELS = {
 /**
  * Whether this Prediction landed.
  *
- * Every answer the fan gave has to be right, and every answer they did not
- * give is not asked about: a winner-only Prediction on a Bout that went to a
- * Decision is correct, because ADR-0004 makes a method and a round a
- * *deepening* of the winner pick rather than three predictions standing beside
- * one another. That is also why a wrong winner ends it — the method was priced
- * knowing it multiplies onto that fighter winning.
+ * One answer against what the Bout produced, on the Question the fan chose to
+ * answer (ADR-0014). Nothing else about the Bout is asked: a winner Prediction
+ * is graded on who won however the Bout ended, and a method Prediction on how
+ * it ended whoever won it. A round Prediction on a Bout that went the distance
+ * is **wrong** — a Decision ends in no round, which is precisely not ending in
+ * the one the fan named.
  *
  * The two ADR-0005 cases are the ones worth reading closely. A Bout that
  * produced nothing gradable grades every Prediction on it a No Result,
  * whatever anybody answered — there is nothing to have been right or wrong
- * about. A disqualification grades the winner and stops: the method and the
- * round the fan may have named are No Results of their own, so naming one
- * cannot lose them the Entry.
+ * about. A disqualification settles the winner Question alone: it is not one
+ * of the three methods any fan was offered, so a method or round Prediction on
+ * that Bout is a No Result rather than a loss, and a fan is never marked wrong
+ * for failing to predict an answer that was never on the card.
  */
-export function gradePrediction(pick: BoutPick, ending: BoutEnding | null): PredictionGrade {
+export function gradePrediction(
+  prediction: OutcomeAnswer,
+  ending: BoutEnding | null,
+): PredictionGrade {
   if (ending === null) return "unresolved";
   if (ending.noResult) return "no result";
 
   const result = ending.result;
 
-  if (pick.corner !== result.winner) return "wrong";
+  // Graded on who won and nothing else, a disqualification included: the DQ
+  // winner did win.
+  if (prediction.question === "winner") {
+    return prediction.corner === result.winner ? "correct" : "wrong";
+  }
 
-  // The DQ winner did win, and that is the whole of what this Bout settled.
-  if (result.method === "disqualification") return "correct";
+  // And "won by DQ" is not one of the three methods any fan was offered, so
+  // the other two Questions have nothing here to be graded against.
+  if (result.method === "disqualification") return "no result";
 
-  if (pick.method !== null && pick.method !== result.method) return "wrong";
-  if (pick.round !== null && pick.round !== result.round) return "wrong";
+  if (prediction.question === "method") {
+    return prediction.method === result.method ? "correct" : "wrong";
+  }
 
-  return "correct";
+  return prediction.round === result.round ? "correct" : "wrong";
 }
 
 /** One Prediction of an Entry, beside how the Bout it answered ended. */
 export interface GradedPrediction {
-  prediction: BoutPick;
+  prediction: OutcomeAnswer;
   /** How its Bout ended, or null while that Bout has not settled. */
   ending: BoutEnding | null;
 }
@@ -259,16 +290,18 @@ export function gradeEntry(graded: readonly GradedPrediction[]): EntryStatus {
 }
 
 /**
- * What each answer of a Prediction ends up paying, now its Bout is decided.
+ * What a Prediction ends up paying, now its Bout is decided.
  *
- * ADR-0005 as arithmetic. A No Result contributes ×1.0, which is the winner at
- * ×1 and no method or round beside it; a disqualification leaves the winner at
- * what it was priced and drops the method and round, which were never asked
- * about. Everything else pays exactly what ADR-0002 froze onto it.
+ * ADR-0005 as arithmetic, and the same two cases {@link gradePrediction}
+ * answers a No Result for: a Bout that produced nothing gradable pays ×1.0
+ * whatever was answered on it, and a disqualification pays ×1.0 on the method
+ * and round Questions it never settled. Everything else pays exactly what
+ * ADR-0002 froze onto it — a winner Prediction on a disqualification included,
+ * because that Question was settled and the fan answered it.
  *
- * Answers the Multipliers rather than the number they multiply out to, so that
- * a settled Entry is priced by `potentialReward` — the same function that
- * priced the panel the fan confirmed in, cap and rounding included (ADR-0013).
+ * Answers a repriced Prediction rather than the number itself, so that a
+ * settled Entry is priced by `potentialReward` — the same function that priced
+ * the panel the fan confirmed in, cap and rounding included (ADR-0013).
  *
  * A Prediction whose Bout has not settled is left at what it was priced. That
  * is what "returns this if every Prediction lands" means while a card is still
@@ -280,19 +313,12 @@ export function settledPrice(
   ending: BoutEnding | null,
 ): PricedPrediction {
   if (ending === null) return prediction;
+  if (ending.noResult) return { ...prediction, multiplier: NEUTRAL };
 
-  if (ending.noResult) {
-    return {
-      ...prediction,
-      winnerMultiplier: NEUTRAL,
-      methodMultiplier: null,
-      roundMultiplier: null,
-    };
-  }
+  const neutralised =
+    ending.result.method === "disqualification" && prediction.question !== "winner";
 
-  if (ending.result.method !== "disqualification") return prediction;
-
-  return { ...prediction, methodMultiplier: null, roundMultiplier: null };
+  return neutralised ? { ...prediction, multiplier: NEUTRAL } : prediction;
 }
 
 /** A Prediction beside how the Bout it answered ended. */
@@ -339,7 +365,7 @@ export function entryAsItStands(entry: {
   );
 
   return {
-    multipliers: settled.map(predictionMultiplier),
+    multipliers: settled.map((prediction) => prediction.multiplier),
     returns: potentialReward(entry.amount, settled),
   };
 }
@@ -347,10 +373,11 @@ export function entryAsItStands(entry: {
 /**
  * One Result as a sentence: "Levan Beridze by KO/TKO in round 2".
  *
- * The same sentence `predictionLabel` in `shared/entries.ts` writes a
- * Prediction as, and deliberately so: an admin checking a Result against the
- * card, and a fan reading how close they were, are comparing two of these, and
- * two wordings would make that comparison work they have to do in their head.
+ * Written in the words `outcomeLabel` in `shared/pricing.ts` names the answers
+ * a fan picked from, and deliberately so: an admin checking a Result against
+ * the card, and a fan reading how close their Prediction was, are comparing
+ * this sentence with those words, and two vocabularies would make that
+ * comparison work they have to do in their head.
  */
 export function resultLabel(result: BoutResult, corners: Record<Corner, string>): string {
   const round = result.round === null ? "" : ` in round ${result.round}`;
@@ -422,21 +449,21 @@ export function isTheSameEnding(one: BoutEnding, other: BoutEnding): boolean {
 }
 
 /**
- * What how this Bout ended did to the answers this fan gave, where that needs
+ * What how this Bout ended did to the answer this fan gave, where that needs
  * saying — and null where it does not.
  *
  * The sentence ADR-0005 is unreadable without. A Multiplier that quietly
  * dropped to ×1.0 is the game appearing to take something away, and a fan who
  * cannot see why is reading an outcome that looks arbitrary — which is as true
- * of the disqualification that neutralised two of their three answers as it is
+ * of the disqualification that neutralised the Question they answered as it is
  * of the Bout that was cancelled outright.
  *
  * Null on everything that needs no explaining: a Bout that has not settled, a
  * Bout that produced an ordinary Result, and the disqualification a fan
- * answered with a winner and nothing else — that Prediction was graded on the
- * one Question it asked, and pays what it was priced at.
+ * answered the winner Question on — that Prediction was graded on the Question
+ * it asked, and pays what it was priced at.
  */
-export function endingNote(pick: BoutPick, ending: BoutEnding | null): string | null {
+export function endingNote(prediction: OutcomeAnswer, ending: BoutEnding | null): string | null {
   if (ending === null) return null;
 
   if (ending.noResult) {
@@ -448,12 +475,13 @@ export function endingNote(pick: BoutPick, ending: BoutEnding | null): string | 
   }
 
   if (ending.result.method !== "disqualification") return null;
-  if (pick.method === null && pick.round === null) return null;
+  if (prediction.question === "winner") return null;
 
   return (
     "Won by disqualification, which is not one of the three methods this Bout " +
-    `offered. The winner picked still stands; the method and the round count ` +
-    `as ${multiplierLabel(NEUTRAL)} each.`
+    `offered, so there was nothing here to be right or wrong about. This ` +
+    `Prediction counts as ${multiplierLabel(NEUTRAL)} and the rest of the ` +
+    "Entry plays on."
   );
 }
 

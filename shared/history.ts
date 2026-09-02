@@ -42,9 +42,9 @@ import {
 /**
  * One Prediction of an Entry, as the history reads it back.
  *
- * A {@link DraftPrediction} — the answer, what each part of it was priced at,
- * and the names the Bout was fought under — plus the two things only hindsight
- * adds: which card it was on, and how that Bout ended.
+ * A {@link DraftPrediction} — the one answer, what it was priced at, and the
+ * names the Bout was fought under — plus the two things only hindsight adds:
+ * which card it was on, and how that Bout ended.
  *
  * The Event is on the Prediction rather than on the Entry because an Entry is
  * not tied to one card. Nothing stops a Chained Entry answering Bouts on two

@@ -37,7 +37,7 @@ import {
   type CardInTheGame,
 } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
-import { cancel } from "../helpers/playing";
+import { cancel, winnerOn } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 import { confirmEmail, fanId } from "../helpers/users";
 
@@ -82,9 +82,22 @@ describe("the Entry a fan commits, and takes back", async () => {
     return (await response.json()) as { entry: SubmittedEntry; balance: number };
   }
 
-  /** A winner pick on one Bout of a card, which is the simplest Prediction. */
+  /** A winner Prediction on one Bout of a card, which is what the card offers. */
   function winner(card: CardInTheGame, place = 0, corner: "red" | "blue" = "red") {
-    return { boutId: card.bouts[place]!.id, corner };
+    return { boutId: card.bouts[place]!.id, question: "winner", corner };
+  }
+
+  /**
+   * A round Prediction on one Bout of a card.
+   *
+   * Here because two cases below are about the keys holding an answer to the
+   * ones its Bout was offering, and a round is where that is provable without
+   * a second card: a three-round Bout has no round 4 to point at. #34 is what
+   * puts this Question on the card; the Outcomes it answers are priced and
+   * stored either way (ADR-0014).
+   */
+  function inRound(card: CardInTheGame, place: number, round: number) {
+    return { boutId: card.bouts[place]!.id, question: "round", round };
   }
 
   /** What the site header would show this fan. */
@@ -135,6 +148,7 @@ describe("the Entry a fan commits, and takes back", async () => {
         {
           boutId: card.bouts[0]!.id,
           cardOrder: 1,
+          question: "winner",
           corner: "red",
           method: null,
           round: null,
@@ -167,36 +181,55 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(commitment?.reason).toMatch(/Entry of 1 Prediction/);
     });
 
-    it("deepens a Prediction with a method and a round", async () => {
+    it("writes one answer, in the shape of the Outcome it was copied from", async () => {
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
       const { entry } = await accepted(
-        await submit(
-          {
-            amount: 10,
-            predictions: [{ ...winner(card), method: "ko_tko", round: 2 }],
-          },
-          fan.cookie,
-        ),
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
       );
 
-      // ×2 for the winner, ×2.5 for the method and ×3 for the round, which
-      // multiply onto the winner rather than chaining beside it (ADR-0004).
-      expect(entry).toMatchObject({ multiplier: 15, reward: 150 });
-      expect(entry.predictions[0]).toMatchObject({ method: "ko_tko", round: 2, multiplier: 15 });
+      expect(entry).toMatchObject({ multiplier: 2, reward: 20 });
 
-      // Each answer's Multiplier is frozen separately, because a
-      // disqualification settles the winner and leaves the rest ungradable.
+      // A Question, exactly one non-null answer, and the one Multiplier that
+      // answer pays (ADR-0014) — the same three columns and the same number
+      // the Outcome row carries, so nothing joining or grading the two carries
+      // a translation step.
       const [written] = await predictionsIn(entry.id);
 
       expect(written).toMatchObject({
+        question: "winner",
         corner: "red",
-        method: "ko_tko",
+        method: null,
+        round: null,
+        multiplier: 2,
+      });
+    });
+
+    it("writes a round Prediction with no method beside it", async () => {
+      // The constraint that required a round to sit alongside a finish went
+      // with the compound shape (ADR-0014): a round stands on its own now, and
+      // is graded wrong rather than refused on a Bout that goes the distance.
+      // The card does not offer the Question yet (#34) and the Outcome is
+      // priced and stored all the same — which is what makes this the case
+      // that proves the old rule is not still standing underneath.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [inRound(card, 0, 2)] }, fan.cookie),
+      );
+
+      expect(entry).toMatchObject({ multiplier: 3, reward: 30 });
+
+      const [written] = await predictionsIn(entry.id);
+
+      expect(written).toMatchObject({
+        question: "round",
+        corner: null,
+        method: null,
         round: 2,
-        winnerMultiplier: 2,
-        methodMultiplier: 2.5,
-        roundMultiplier: 3,
+        multiplier: 3,
       });
     });
 
@@ -230,7 +263,8 @@ describe("the Entry a fan commits, and takes back", async () => {
       );
 
       // Two theories about the same Bout are two Entries, which is allowed:
-      // ADR-0004's rule is one Prediction per Bout *within* an Entry.
+      // ADR-0014's rule is one Prediction per Bout *within* an Entry, and two
+      // Entries are separately funded with nothing multiplying between them.
       expect(second.balance).toBe(STARTING_BALANCE - 25);
       expect((await entriesOf(fan.id)).length).toBe(2);
     });
@@ -301,7 +335,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // panel showed it with.
       const held = await predictionsIn(entry.id);
 
-      expect(held[0]?.winnerMultiplier).toBe(2);
+      expect(held[0]?.multiplier).toBe(2);
       expect(potentialReward(entry.amount, held).reward).toBe(20);
 
       // And the correction did take: the next Entry is offered the new price.
@@ -314,17 +348,37 @@ describe("the Entry a fan commits, and takes back", async () => {
   });
 
   describe("the Predictions the game refuses", () => {
-    it("refuses a round alongside a Decision, which cannot both happen", async () => {
+    it("refuses a Prediction carrying more than one answer", async () => {
+      // A Prediction is one answer to one Question (ADR-0014), so a body
+      // naming a corner and a round at once is not a Prediction anything could
+      // grade — there would be no saying which of them the fan gave.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
       const response = await submit(
-        { amount: 10, predictions: [{ ...winner(card), method: "decision", round: 2 }] },
+        { amount: 10, predictions: [{ ...winner(card), round: 2 }] },
         fan.cookie,
       );
 
       expect(response.status).toBe(422);
-      expect((await response.json()).message).toBe(ENTRY_MESSAGES.roundNeedsAFinish);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.unreadable);
+      expect(await entriesOf(fan.id)).toEqual([]);
+    });
+
+    it("refuses a Prediction whose answer is not the one its Question asks for", async () => {
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const response = await submit(
+        {
+          amount: 10,
+          predictions: [{ boutId: card.bouts[0]!.id, question: "round", round: null }],
+        },
+        fan.cookie,
+      );
+
+      expect(response.status).toBe(422);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.unreadable);
       expect(await entriesOf(fan.id)).toEqual([]);
     });
 
@@ -334,10 +388,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       const card = await upcomingCard({ bouts: [cardBout({ scheduledRounds: 3 })] });
       const fan = await fanWithCoins();
 
-      const response = await submit(
-        { amount: 10, predictions: [{ ...winner(card), method: "ko_tko", round: 4 }] },
-        fan.cookie,
-      );
+      const response = await submit({ amount: 10, predictions: [inRound(card, 0, 4)] }, fan.cookie);
 
       expect(response.status).toBe(422);
       expect((await response.json()).message).toBe(ENTRY_MESSAGES.answerNotOffered);
@@ -351,10 +402,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       const response = await submit(
         {
           amount: 10,
-          predictions: [
-            { ...winner(card), method: "ko_tko" },
-            { ...winner(card), method: "submission" },
-          ],
+          predictions: [winner(card, 0, "red"), winner(card, 0, "blue")],
         },
         fan.cookie,
       );
@@ -364,10 +412,10 @@ describe("the Entry a fan commits, and takes back", async () => {
     });
 
     it("refuses the second Prediction on a Bout even when it is written by hand", async () => {
-      // ADR-0004 is what stops the correlation exploit — "A wins" and "A wins
-      // by KO" are nearly the same prediction, and chaining them would pay as
-      // though a fan had predicted two things. A rule that lived only in the
-      // route above would be one refactor away from disappearing.
+      // ADR-0014 is what makes this model safe to multiply — "A wins" and "the
+      // Bout ends by KO" are nearly the same prediction, and chaining them
+      // would pay as though a fan had predicted two things. A rule that lived
+      // only in the route above would be one refactor away from disappearing.
       const card = await upcomingCard();
       const fan = await fanWithCoins();
 
@@ -377,8 +425,8 @@ describe("the Entry a fan commits, and takes back", async () => {
 
       const written = await testDatabase()
         .execute(
-          sql`insert into predictions (entry_id, bout_id, corner, winner_multiplier)
-              values (${entry.id}::uuid, ${card.bouts[0]!.id}::uuid, 'blue', 2.00)`,
+          sql`insert into predictions (entry_id, bout_id, question, corner, multiplier)
+              values (${entry.id}::uuid, ${card.bouts[0]!.id}::uuid, 'winner', 'blue', 2.00)`,
         )
         .then(
           () => "wrote it",
@@ -386,6 +434,30 @@ describe("the Entry a fan commits, and takes back", async () => {
         );
 
       expect(written).toMatch(/predictions_one_per_bout_in_an_entry/);
+    });
+
+    it("refuses a row carrying two answers, even written by hand", async () => {
+      // The rule the route asks about above, held by Postgres — the same one
+      // `outcomes_answers_its_question` holds the Outcome to, because a
+      // Prediction is a copy of one.
+      const card = await upcomingCard();
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie),
+      );
+
+      const written = await testDatabase()
+        .execute(
+          sql`insert into predictions (entry_id, bout_id, question, corner, round, multiplier)
+              values (${entry.id}::uuid, ${card.bouts[0]!.id}::uuid, 'winner', 'blue', 2, 2.00)`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(written).toMatch(/predictions_answers_its_question/);
     });
 
     it("refuses more Predictions than an Entry holds", async () => {
@@ -397,7 +469,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       const fan = await fanWithCoins();
 
       const response = await submit(
-        { amount: 10, predictions: card.bouts.map((bout) => ({ boutId: bout.id, corner: "red" })) },
+        { amount: 10, predictions: card.bouts.map((bout) => winnerOn(bout.id, "red")) },
         fan.cookie,
       );
 
@@ -410,7 +482,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       const ten = card.bouts.slice(0, ENTRY_PREDICTIONS.maximum);
 
       const accepted10 = await submit(
-        { amount: 10, predictions: ten.map((bout) => ({ boutId: bout.id, corner: "red" })) },
+        { amount: 10, predictions: ten.map((bout) => winnerOn(bout.id, "red")) },
         fan.cookie,
       );
 
@@ -499,7 +571,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       await upcomingCard();
 
       const response = await submit(
-        { amount: 10, predictions: [{ boutId: "the main event", corner: "red" }] },
+        { amount: 10, predictions: [winnerOn("the main event", "red")] },
         fan.cookie,
       );
 
@@ -608,8 +680,8 @@ describe("the Entry a fan commits, and takes back", async () => {
           );
 
           await tx.execute(
-            sql`insert into predictions (entry_id, bout_id, corner, winner_multiplier)
-                values (${rows[0]!.id}::uuid, ${card.bouts[0]!.id}::uuid, 'red', 2.00)`,
+            sql`insert into predictions (entry_id, bout_id, question, corner, multiplier)
+                values (${rows[0]!.id}::uuid, ${card.bouts[0]!.id}::uuid, 'winner', 'red', 2.00)`,
           );
         })
         .then(
@@ -637,14 +709,11 @@ describe("the Entry a fan commits, and takes back", async () => {
       );
 
       // On the Bout the Entry has nothing on yet, so that what refuses this is
-      // the round rather than ADR-0004's one Prediction per Bout.
+      // the round rather than ADR-0014's one Prediction per Bout.
       const written = await testDatabase()
         .execute(
-          sql`insert into predictions
-                (entry_id, bout_id, corner, method, round,
-                 winner_multiplier, method_multiplier, round_multiplier)
-              values (${entry.id}::uuid, ${card.bouts[1]!.id}::uuid, 'blue', 'ko_tko', 4,
-                      2.00, 2.50, 3.00)`,
+          sql`insert into predictions (entry_id, bout_id, question, round, multiplier)
+              values (${entry.id}::uuid, ${card.bouts[1]!.id}::uuid, 'round', 4, 3.00)`,
         )
         .then(
           () => "wrote it",
@@ -1006,8 +1075,8 @@ describe("the Entry a fan commits, and takes back", async () => {
           );
 
           await tx.execute(
-            sql`insert into predictions (entry_id, bout_id, corner, winner_multiplier)
-                values (${rows[0]!.id}::uuid, ${card.bouts[0]!.id}::uuid, 'red', 2.00)`,
+            sql`insert into predictions (entry_id, bout_id, question, corner, multiplier)
+                values (${rows[0]!.id}::uuid, ${card.bouts[0]!.id}::uuid, 'winner', 'red', 2.00)`,
           );
         })
         .then(

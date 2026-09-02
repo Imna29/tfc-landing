@@ -15,6 +15,7 @@ import {
   standingFor,
   submit,
   upcomingCard,
+  winnerOn,
 } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
 
@@ -58,7 +59,7 @@ describe("a fan's own profile", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settle(card, 0, { winner: "red" });
 
       // The winner Outcome pays ×2, so the Entry returns 40 on the 20 it took.
@@ -75,8 +76,8 @@ describe("a fan's own profile", async () => {
       const winner = await fanWithCoins();
       const loser = await fanWithCoins();
 
-      await submit(winner, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(loser, 20, [{ boutId: card.bouts[0]!.id, corner: "blue" }]);
+      await submit(winner, 20, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(loser, 20, [winnerOn(card.bouts[0]!.id, "blue")]);
       await settle(card, 0, { winner: "red" });
 
       // 120, 100 and 80: the fan who was right, the admin who has not played,
@@ -126,8 +127,8 @@ describe("a fan's own profile", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      const first = await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
-      const second = await submit(fan, 15, [{ boutId: card.bouts[1]!.id }]);
+      const first = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+      const second = await submit(fan, 15, [winnerOn(card.bouts[1]!.id, "red")]);
 
       const { entries } = await historyFor(fan.cookie);
 
@@ -136,29 +137,28 @@ describe("a fan's own profile", async () => {
       expect(entries.map((entry) => entry.status)).toEqual(["open", "open"]);
     });
 
-    it("carries what each answer was priced at, and the card it was on", async () => {
+    it("carries the answer as the fan gave it, what it was priced at, and the card it was on", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "ko_tko", round: 2 },
-      ]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const [entry] = (await historyFor(fan.cookie)).entries;
 
+      // One answer, in the same three columns the Outcome it was copied from
+      // carries it in: the Question, the answer to it, and nothing else set.
       expect(entry?.predictions).toEqual([
         expect.objectContaining({
           boutId: card.bouts[0]!.id,
           cardOrder: 1,
           eventTitle: "TFC 12",
           corners: { red: "Giorgi Tsiklauri", blue: "Levan Beridze" },
+          question: "winner",
           corner: "red",
-          method: "ko_tko",
-          round: 2,
-          // ADR-0002: what each answer paid on the day, frozen onto it.
-          winnerMultiplier: 2,
-          methodMultiplier: 2.5,
-          roundMultiplier: 3,
+          method: null,
+          round: null,
+          // ADR-0002: what that answer paid on the day, frozen onto it.
+          multiplier: 2,
           ending: null,
         }),
       ]);
@@ -169,9 +169,9 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
 
       await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
-        { boutId: card.bouts[2]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
+        winnerOn(card.bouts[2]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -191,9 +191,9 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
 
       await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
-        { boutId: card.bouts[2]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
+        winnerOn(card.bouts[2]!.id, "red"),
       ]);
 
       // The first Bout ends the Entry; the second is fought afterwards and is
@@ -212,8 +212,8 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
       const somebodyElse = await fanWithCoins();
 
-      await submit(somebodyElse, 30, [{ boutId: card.bouts[0]!.id }]);
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      await submit(somebodyElse, 30, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const { entries } = await historyFor(fan.cookie);
 
@@ -231,7 +231,7 @@ describe("a fan's own profile", async () => {
       const first = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: first.bouts[0]!.id }]);
+      await submit(fan, 10, [winnerOn(first.bouts[0]!.id, "red")]);
 
       // Season 1 finishes its card before it rolls over, which is what closing
       // one requires: their Entry wins, and stays in the history as a Season
@@ -244,7 +244,7 @@ describe("a fan's own profile", async () => {
         card: { prismicId: "event-tfc-13", title: "TFC 13" },
       });
 
-      await submit(fan, 25, [{ boutId: second.bouts[0]!.id }]);
+      await submit(fan, 25, [winnerOn(second.bouts[0]!.id, "red")]);
 
       return { fan, first, second };
     }
@@ -294,9 +294,9 @@ describe("a fan's own profile", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      const kept = await submit(fan, 10, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const kept = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
-      await submit(fan, 15, [{ boutId: card.bouts[1]!.id, corner: "blue" }]);
+      await submit(fan, 15, [winnerOn(card.bouts[1]!.id, "blue")]);
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
 
@@ -312,7 +312,7 @@ describe("a fan's own profile", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 10, [{ boutId: card.bouts[0]!.id }]);
+      await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const history = await historyFor(fan.cookie, { status: "winning", season: "not-an-id" });
 
@@ -340,8 +340,8 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
 
       await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -362,8 +362,8 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
 
       await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -381,8 +381,8 @@ describe("a fan's own profile", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      await submit(fan, 11, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      await submit(fan, 22, [{ boutId: card.bouts[1]!.id, corner: "blue" }]);
+      await submit(fan, 11, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(fan, 22, [winnerOn(card.bouts[1]!.id, "blue")]);
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
 

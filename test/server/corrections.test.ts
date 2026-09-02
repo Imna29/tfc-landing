@@ -27,6 +27,7 @@ import {
   statusOf,
   submit,
   upcomingCard,
+  winnerOn,
 } from "../helpers/playing";
 
 /**
@@ -54,7 +55,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       // Entered the wrong way round: the admin read the card upside down, and
       // every Entry on the Bout has already settled against it.
@@ -82,7 +83,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -110,18 +111,17 @@ describe("correcting a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
-    it("moves nothing at all for a fan the corrected answer does not change", async () => {
+    it("moves nothing at all for the fans the corrected answer does not change", async () => {
       const card = await upcomingCard(1);
-      const unaffected = await fanWithCoins();
-      const affected = await fanWithCoins();
+      const won = await fanWithCoins();
+      const lost = await fanWithCoins();
 
-      // One fan answered the winner only, the other named the method as well.
-      // Correcting a Decision to a KO/TKO is nothing to the first of them and
-      // is the whole Entry to the second (ADR-0004).
-      const shallow = await submit(unaffected, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
-      const deep = await submit(affected, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red", method: "decision" },
-      ]);
+      // Both fans answered the winner Question, one either way. The Bout was
+      // recorded as ending by Decision and actually ended by KO/TKO, which is
+      // a correction to a Question neither of them asked (ADR-0014): it is
+      // re-graded and neither Entry moves.
+      const right = await submit(won, 20, [winnerOn(card.bouts[0]!.id, "red")]);
+      const wrong = await submit(lost, 20, [winnerOn(card.bouts[0]!.id, "blue")]);
 
       await settle(card, 0, { winner: "red", method: "decision" });
 
@@ -131,23 +131,23 @@ describe("correcting a result", async () => {
         round: 2,
       });
 
-      expect(correction).toMatchObject({ graded: 2, won: 1, lost: 1, reversed: 100, paid: 0 });
-      expect(await statusOf(shallow.entry.id)).toBe("won");
-      expect(await statusOf(deep.entry.id)).toBe("lost");
+      expect(correction).toMatchObject({ graded: 2, won: 1, lost: 1, reversed: 0, paid: 0 });
+      expect(await statusOf(right.entry.id)).toBe("won");
+      expect(await statusOf(wrong.entry.id)).toBe("lost");
 
-      // Nothing was written about the fan whose Entry is exactly where it was:
-      // no reversal, no second Reward, and the row they were paid with is the
-      // row they are still holding.
-      expect((await ledgerFor(unaffected.id)).map((row) => row.kind)).toEqual([
+      // Nothing was written about either of them: no reversal, no second
+      // Reward, and the row the winner was paid with is the row they are
+      // still holding.
+      expect((await ledgerFor(won.id)).map((row) => row.kind)).toEqual([
         "season_grant",
         "entry_commitment",
         "entry_reward",
       ]);
 
-      expect(await balance(unaffected.cookie)).toMatchObject({
+      expect(await balance(won.cookie)).toMatchObject({
         balance: STARTING_BALANCE - 20 + 40,
       });
-      expect(await balance(affected.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
+      expect(await balance(lost.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
   });
 
@@ -157,8 +157,8 @@ describe("correcting a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "blue" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "blue"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -194,9 +194,9 @@ describe("correcting a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 10, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
-        { boutId: card.bouts[2]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
+        winnerOn(card.bouts[2]!.id, "red"),
       ]);
 
       for (const place of card.bouts.keys()) await settle(card, place, { winner: "red" });
@@ -299,7 +299,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "blue" });
 
@@ -324,7 +324,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settleAsNoResult(card, 0, "draw");
 
@@ -352,8 +352,8 @@ describe("correcting a result", async () => {
       const fan = await fanWithCoins();
 
       const { entry } = await submit(fan, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
 
       await settle(card, 0, { winner: "red" });
@@ -385,9 +385,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
-      const spent = await submit(fan, STARTING_BALANCE, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-      ]);
+      const spent = await submit(fan, STARTING_BALANCE, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -395,9 +393,7 @@ describe("correcting a result", async () => {
       // the card before anybody noticed the result was wrong.
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE * 2 });
 
-      const riding = await submit(fan, STARTING_BALANCE * 2, [
-        { boutId: card.bouts[1]!.id, corner: "red" },
-      ]);
+      const riding = await submit(fan, STARTING_BALANCE * 2, [winnerOn(card.bouts[1]!.id, "red")]);
 
       expect(await balance(fan.cookie)).toMatchObject({ balance: 0 });
 
@@ -433,10 +429,10 @@ describe("correcting a result", async () => {
       const player = await fanWithCoins();
 
       const taken = await submit(quitter, 20, [
-        { boutId: card.bouts[0]!.id, corner: "red" },
-        { boutId: card.bouts[1]!.id, corner: "red" },
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
       ]);
-      const played = await submit(player, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const played = await submit(player, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       const cancelled = await postJson(
         `/api/predictions/entries/${taken.entry.id}/cancel`,
@@ -550,7 +546,7 @@ describe("correcting a result", async () => {
     /** A fan with a Reward standing, which is what a correction reverses. */
     async function fanWhoWon(card: Awaited<ReturnType<typeof upcomingCard>>) {
       const fan = await fanWithCoins();
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settle(card, 0, { winner: "red" });
 
@@ -679,7 +675,7 @@ describe("correcting a result", async () => {
     it("refuses an Entry moved off Refunded with its Amount still returned", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
-      const { entry } = await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      const { entry } = await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
 
       await settleAsNoResult(card, 0, "draw");
 
@@ -702,7 +698,7 @@ describe("correcting a result", async () => {
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      await submit(fan, 20, [{ boutId: card.bouts[0]!.id, corner: "red" }]);
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
       await settleAsNoResult(card, 0, "draw");
 
       const [refund] = (await ledgerFor(fan.id)).filter((row) => row.kind === "entry_refund");

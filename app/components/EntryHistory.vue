@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { coinsLabel } from "#shared/coins";
-import { ENTRY_STATUSES, ENTRY_STATUS_LABELS, predictionLabel } from "#shared/entries";
+import { ENTRY_STATUSES, ENTRY_STATUS_LABELS } from "#shared/entries";
 import { HISTORY_MESSAGES, bySeason, type FanHistory, type RewardState } from "#shared/history";
 import { multiplierLabel } from "#shared/predictions";
+import { outcomeLabel } from "#shared/pricing";
 import { PREDICTION_GRADE_LABELS } from "#shared/results";
 
 /**
@@ -182,7 +183,7 @@ const REWARD_TONE = {
                   <span class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
                     {{ prediction.eventTitle }} · Bout {{ prediction.cardOrder }}
                   </span>
-                  — {{ predictionLabel(prediction, prediction.corners) }}
+                  — {{ outcomeLabel(prediction, prediction.corners) }}
                 </span>
                 <span class="shrink-0 font-bold tabular-nums">{{
                   multiplierLabel(multiplier)

@@ -14,7 +14,7 @@
  * What is decided here is only what the database knows: which Entries this Bout
  * touches, which of their other Bouts have settled, and what the Coins are
  * doing. Whether a Prediction landed, where an Entry now stands and what each
- * of its answers ended up paying is `shared/results.ts`, and what a winning
+ * of its Predictions ended up paying is `shared/results.ts`, and what a winning
  * Entry returns is `potentialReward` in `shared/entries.ts` — the same function
  * that priced the panel the fan confirmed in, which is what ADR-0013 means by
  * the cap being a rule rather than a number anybody was quoted.
@@ -307,12 +307,11 @@ export async function entriesToGrade(
       amount: entries.amount,
       status: entries.status,
       boutId: predictions.boutId,
+      question: predictions.question,
       corner: predictions.corner,
       method: predictions.method,
       round: predictions.round,
-      winnerMultiplier: predictions.winnerMultiplier,
-      methodMultiplier: predictions.methodMultiplier,
-      roundMultiplier: predictions.roundMultiplier,
+      multiplier: predictions.multiplier,
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
       resultRound: boutResults.round,
@@ -339,12 +338,11 @@ export async function entriesToGrade(
 
     entry.predictions.push({
       boutId: row.boutId,
+      question: row.question,
       corner: row.corner,
       method: row.method,
       round: row.round,
-      winnerMultiplier: row.winnerMultiplier,
-      methodMultiplier: row.methodMultiplier,
-      roundMultiplier: row.roundMultiplier,
+      multiplier: row.multiplier,
       ending: endingFrom(row),
     });
   }

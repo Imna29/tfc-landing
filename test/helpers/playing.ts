@@ -9,6 +9,7 @@ import type {
   Leaderboard,
 } from "../../shared/standings";
 import type { Corner } from "../../shared/events";
+import type { Method, Question } from "../../shared/pricing";
 import type { Correction, NoResultReason, RecordedMethod, Settlement } from "../../shared/results";
 import { coinTransactions, entries } from "../../server/db/schema";
 import { postJson, signUp } from "./accounts";
@@ -64,15 +65,48 @@ export function upcomingCard(
   });
 }
 
+/**
+ * One Prediction as a case gives it: the Bout, the Question, and the answer.
+ *
+ * Nothing is defaulted and nothing is implied. A Prediction is one answer to
+ * one Question (ADR-0014), so a case that means "red wins Bout 1" says that
+ * and a case that means anything else says that instead — there is no shape
+ * here that quietly becomes a winner pick because a field was left off.
+ */
+export interface Answered {
+  boutId: string;
+  question: Question;
+  corner?: Corner;
+  method?: Method;
+  round?: number;
+}
+
+/**
+ * The winner Prediction a case commits: this corner, on this Bout.
+ *
+ * The one Question the card offers today, and the answer nearly every case in
+ * these suites is about — a settlement, a correction, a refund and a
+ * leaderboard are none of them about *which* Question was answered. #33 and
+ * #34 bring the other two, and a case that is about one of them says so by
+ * naming it here rather than by leaving a field off.
+ */
+export function winnerOn(boutId: string, corner: Corner): Answered {
+  return { boutId, question: "winner", corner };
+}
+
 /** Submits an Entry the way the panel on the card does. */
-export async function submit(
-  fan: { cookie: string },
-  amount: number,
-  predictions: { boutId: string; corner?: Corner; method?: string; round?: number }[],
-) {
+export async function submit(fan: { cookie: string }, amount: number, predictions: Answered[]) {
   const response = await postJson(
     "/api/predictions/entries",
-    { amount, predictions: predictions.map((one) => ({ corner: "red", ...one })) },
+    {
+      amount,
+      predictions: predictions.map((one) => ({
+        corner: null,
+        method: null,
+        round: null,
+        ...one,
+      })),
+    },
     fan.cookie,
   );
 

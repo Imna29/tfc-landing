@@ -5,12 +5,11 @@ import {
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   potentialReward,
-  predictionLabel,
-  predictionMultiplier,
   type DraftPrediction,
 } from "#shared/entries";
 import type { Fan } from "#shared/fan";
 import { multiplierLabel } from "#shared/predictions";
+import { outcomeLabel } from "#shared/pricing";
 
 /**
  * The Entry a fan is building, and the button that commits it.
@@ -128,8 +127,9 @@ async function submit() {
       method: "POST",
       body: {
         amount: amount.value,
-        predictions: props.predictions.map(({ boutId, corner, method, round }) => ({
+        predictions: props.predictions.map(({ boutId, question, corner, method, round }) => ({
           boutId,
+          question,
           corner,
           method,
           round,
@@ -169,12 +169,12 @@ async function submit() {
           <p class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
             Bout {{ prediction.cardOrder }}
           </p>
-          <p class="mt-1 text-sm">{{ predictionLabel(prediction, prediction.corners) }}</p>
+          <p class="mt-1 text-sm">{{ outcomeLabel(prediction, prediction.corners) }}</p>
         </div>
 
         <div class="flex shrink-0 items-baseline gap-3">
           <span class="text-sm font-bold tabular-nums">
-            {{ multiplierLabel(predictionMultiplier(prediction)) }}
+            {{ multiplierLabel(prediction.multiplier) }}
           </span>
           <button
             type="button"
