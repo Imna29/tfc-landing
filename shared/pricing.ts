@@ -159,9 +159,13 @@ export interface SeededOutcome extends OutcomeAnswer {
  * the table inventing an opinion about a round nobody schedules.
  *
  * The deepest number of the five-round row, said here so that it stays the
- * deepest: the row ends with it.
+ * deepest: the row ends with it. It is on that row's terms rather than on terms
+ * of its own — per corner, like every number beside it — so it moves whenever
+ * the row does. A deepest number left behind while the row was re-priced around
+ * it would pay the deepest round of all on the terms of a table that no longer
+ * exists.
  */
-const DEEPEST_ROUND_MULTIPLIER = 14.25;
+const DEEPEST_ROUND_MULTIPLIER = 28.5;
 
 /**
  * What a finish in each round pays on a five-round Bout — a main event or a
@@ -174,7 +178,7 @@ const DEEPEST_ROUND_MULTIPLIER = 14.25;
  * than late: reaching round 5 at all means four rounds already failed to end
  * the Bout.
  */
-const FIVE_ROUND_MULTIPLIERS = [3.75, 5.95, 8.9, 11.85, DEEPEST_ROUND_MULTIPLIER] as const;
+const FIVE_ROUND_MULTIPLIERS = [7.5, 11.9, 17.8, 23.7, DEEPEST_ROUND_MULTIPLIER] as const;
 
 /**
  * What each Outcome pays before anybody has looked at the Bout.
@@ -185,11 +189,32 @@ const FIVE_ROUND_MULTIPLIERS = [3.75, 5.95, 8.9, 11.85, DEEPEST_ROUND_MULTIPLIER
  * pays more than a KO/TKO, and a deep round more than an early one — so an
  * admin pricing a card is correcting numbers rather than inventing them.
  *
+ * **Every number here is what one corner pays, which is why the method and
+ * round rows are twice what a Bout-level table would carry.** Every answer
+ * names a fighter (ADR-0015) and this table cannot tell the two apart, so a
+ * chance about the Bout — that it ends by Submission, that it ends in round 2 —
+ * splits evenly between the corners, and half a chance is twice the Multiplier.
+ * That is not a new principle: it is the one already seeding both winner
+ * Outcomes at 1.90, applied to the other two Questions now that they have
+ * corners to be level between. The winner row does not move, because "red
+ * wins" always named a fighter. There is no per-corner row here for the same
+ * reason there is no favourite: nothing that writes this knows which fighter is
+ * which, so one number is what each of the two is seeded from.
+ *
+ * The split is a fact about these numbers before it is a fact about the
+ * Outcomes they seed. {@link defaultOutcomes} still writes one method Outcome
+ * and one round Outcome per Bout rather than one per corner — #41 is what gives
+ * them their corners — so until it lands a card offers half the answers these
+ * numbers are priced for, and implies half the totals below.
+ *
  * Every number stands for its own answer outright (ADR-0014): "Submission at
- * 4.05" means 4.05 if the Bout ends that way, whoever wins it. Nothing here is
+ * 8.10" means 8.10 if that fighter wins the Bout that way. Nothing here is
  * conditional on anything else, which is what lets a Question be read back as
- * the chances it implies — 1 ÷ each Multiplier — and each Question implies a
- * total somebody chose rather than a total nobody noticed.
+ * the chances it implies — 1 ÷ each Multiplier, across both corners — and each
+ * Question implies a total somebody chose rather than a total nobody noticed.
+ * **Those totals are exactly what they were before the answers named a
+ * fighter**: the split spreads each of them over twice as many answers rather
+ * than moving any of them.
  *
  * That total is what the Question is worth plus a margin, and **the margin
  * scales with how well the table knows the answer.** The winner Question
@@ -200,18 +225,29 @@ const FIVE_ROUND_MULTIPLIERS = [3.75, 5.95, 8.9, 11.85, DEEPEST_ROUND_MULTIPLIER
  * extra points are protection against that estimate being off, not a wider
  * spread taken for its own sake.
  *
- * **Decision going up, 2.00 → 2.65, is the cell that reads like a typo.** It is
- * the one an admin is most likely to "correct" back, and correcting it back is
- * the expensive mistake. 2.00 implies a Decision every other Bout; at regional
- * level roughly two Bouts in three end in a finish, which leaves a Decision at
- * about 35%, and 2.65 is that 35% carrying the method Question's 8% — a 37.7%
- * implied chance. Seeded at 2.00 the method Question implies about 120% rather
- * than 108%: a 20% margin, all of it charged on one answer, and on the ending a
- * fan is second most likely to be right about.
+ * **Decision at 5.30 is the cell that reads like a typo**, and it is the one an
+ * admin is most likely to "correct" back. Two numbers look righter than it and
+ * both are expensive. 2.65 is this one with the corner split undone, and pays a
+ * Decision by a named fighter at the chance of a Decision by either of them.
+ * 2.00 is the older mistake beneath that: it implies a Decision every other
+ * Bout, where at regional level roughly two Bouts in three end in a finish,
+ * which leaves a Decision at about 35%. Split between the corners and carrying
+ * the method Question's 8%, that 35% is 5.30 — an 18.9% implied chance for each
+ * fighter, 37.7% across the pair. Halved back to 2.65 the method Question
+ * implies about 146% rather than 108%, and at 2.00 about 170%: a margin charged
+ * almost entirely on one answer, and on the ending a fan is second most likely
+ * to be right about.
+ *
+ * **Round 5 of a five-round Bout seeds at 28.50, and that is the cell of the
+ * round rows that reads like a typo.** It is the deepest round of the format
+ * least likely to reach it, split between two corners: reaching round 5 at all
+ * means four rounds already failed to end the Bout, and then it has to be that
+ * fighter who ends it. An admin who "corrects" it back to 14.25 is pricing a
+ * Bout ending in round 5 at twice its chance, and paying for it every card.
  */
 export const DEFAULT_MULTIPLIERS = {
   winner: { red: 1.9, blue: 1.9 },
-  method: { ko_tko: 2.2, submission: 4.05, decision: 2.65 },
+  method: { ko_tko: 4.4, submission: 8.1, decision: 5.3 },
   /**
    * By the rounds the Bout is scheduled for, then by the round.
    *
@@ -221,15 +257,15 @@ export const DEFAULT_MULTIPLIERS = {
    * five-rounder is a middle round with two more behind it. One row served
    * both, and it was wrong for at least one of them everywhere they differ.
    *
-   * A row totals to the finishes, not to the whole Bout: about 70%, which is
-   * the same 65% prior the method row carries with the same 8% on it. What is
-   * missing from 100% is the Decisions — 35% as a prior, and the 37.7% the
-   * method row prices them at — because a Decision ends in no round at all. A
-   * round Prediction on a Bout that went the distance is wrong rather than
-   * unanswered (ADR-0014).
+   * A row read across both corners totals to the finishes, not to the whole
+   * Bout: about 70%, which is the same 65% prior the method row carries with
+   * the same 8% on it. What is missing from 100% is the Decisions — 35% as a
+   * prior, and the 37.7% the method row prices them at — because a Decision
+   * ends in no round at all. A round Prediction on a Bout that went the
+   * distance is wrong rather than unanswered (ADR-0014).
    */
   round: {
-    3: [3.15, 4.75, 5.7],
+    3: [6.3, 9.5, 11.4],
     5: FIVE_ROUND_MULTIPLIERS,
   } as Record<number, readonly number[]>,
 } as const satisfies {

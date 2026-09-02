@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { SCHEDULED_ROUNDS } from "../../shared/events";
 import {
+  CORNERS,
+  DEFAULT_MULTIPLIERS,
   defaultOutcomes,
+  METHODS,
   MULTIPLIER,
   outcomeLabel,
   outcomeKey,
   parseMultipliers,
   PRICING_MESSAGES,
   type OutcomeAnswer,
+  type Question,
 } from "../../shared/pricing";
 
 /**
@@ -77,74 +81,97 @@ describe("what an Outcome is seeded to pay", () => {
     );
   }
 
-  /** What each round of a Bout of this many rounds is seeded at, in order. */
-  function rounds(scheduledRounds: number): number[] {
+  /** What a Bout's answers to one Question are seeded at, in the asked order. */
+  function pays(question: Question, scheduledRounds: number): number[] {
     return defaultOutcomes(scheduledRounds)
-      .filter((outcome) => outcome.question === "round")
+      .filter((outcome) => outcome.question === question)
       .map((outcome) => outcome.multiplier);
   }
 
-  /** The chances a Question's Multipliers imply, totalled: 1 ÷ each of them. */
-  function implied(answers: string[], scheduledRounds: number): number {
-    const table = seeded(scheduledRounds);
-
-    return answers.reduce((total, answer) => total + 1 / (table[answer] ?? 0), 0);
+  /** The chances a set of Multipliers implies, totalled: 1 ÷ each of them. */
+  function implied(multipliers: readonly number[]): number {
+    return multipliers.reduce((total, multiplier) => total + 1 / multiplier, 0);
   }
 
-  it("prices each answer to stand on its own, whoever wins the Bout", () => {
+  /**
+   * A Question's seeded answers, each counted once per fighter it is asked of.
+   *
+   * The method and round rows hold one number per answer, and both corners are
+   * seeded from it, so those Questions only total to the chances they mean when
+   * each number is read twice. Seeding one Outcome per corner is #41's, and
+   * this is what the totals below mean until it lands. The winner Question is
+   * already asked of each fighter and needs no such spreading.
+   */
+  function perCorner(answers: readonly number[]): number[] {
+    return CORNERS.flatMap(() => answers);
+  }
+
+  it("prices each answer to stand on its own, for the fighter it names", () => {
     // ADR-0014: nothing here is conditional on anything else, so an admin can
-    // read one number against one answer.
+    // read one number against one answer. ADR-0015: that answer names a
+    // corner, so every number is what one fighter pays.
     expect(seeded(3)).toEqual({
       "winner:red": 1.9,
       "winner:blue": 1.9,
-      "method:ko_tko": 2.2,
-      "method:submission": 4.05,
-      "method:decision": 2.65,
-      "round:1": 3.15,
-      "round:2": 4.75,
-      "round:3": 5.7,
+      "method:ko_tko": 4.4,
+      "method:submission": 8.1,
+      "method:decision": 5.3,
+      "round:1": 6.3,
+      "round:2": 9.5,
+      "round:3": 11.4,
     });
   });
 
+  it("seeds the two corners level, because nothing here knows who is favoured", () => {
+    // The winner Question is asked of each fighter already, so it says so
+    // outright: the same number against both names.
+    expect(pays("winner", 3)).toEqual([1.9, 1.9]);
+
+    // The other two say it by holding one number per answer rather than one
+    // per fighter — three method numbers and one row per format — so there is
+    // nothing for one corner to be seeded above the other from.
+    expect(Object.keys(DEFAULT_MULTIPLIERS.method).sort()).toEqual([...METHODS].sort());
+    expect(Object.keys(DEFAULT_MULTIPLIERS.round).sort()).toEqual(["3", "5"]);
+  });
+
   it("prices a five-round Bout's rounds from a row of its own", () => {
-    expect(rounds(5)).toEqual([3.75, 5.95, 8.9, 11.85, 14.25]);
+    expect(pays("round", 5)).toEqual([7.5, 11.9, 17.8, 23.7, 28.5]);
   });
 
   it("asks a different question of round 3 in each format TFC books", () => {
     // Round 3 ends a three-round Bout and catches everything still standing;
     // on a five-rounder it is a middle round with two more behind it.
-    expect(rounds(3).at(2)).toBe(5.7);
-    expect(rounds(5).at(2)).toBe(8.9);
+    expect(pays("round", 3).at(2)).toBe(11.4);
+    expect(pays("round", 5).at(2)).toBe(17.8);
   });
 
   it("seeds a Bout booked over any other number of rounds from the five-round row", () => {
     // `SCHEDULED_ROUNDS` allows one to twelve as a guard against a stuck key,
     // not because anybody books one.
-    expect(rounds(4)).toEqual([3.75, 5.95, 8.9, 11.85]);
+    expect(pays("round", 4)).toEqual([7.5, 11.9, 17.8, 23.7]);
 
     // Past the fifth the row has nothing to say, so it repeats its deepest
-    // number rather than inventing one.
-    expect(rounds(7)).toEqual([3.75, 5.95, 8.9, 11.85, 14.25, 14.25, 14.25]);
+    // number rather than inventing one. That number is the end of the row it
+    // repeats, so it is on the row's terms rather than on terms of its own.
+    expect(pays("round", 7)).toEqual([7.5, 11.9, 17.8, 23.7, 28.5, 28.5, 28.5]);
   });
 
   it("charges the thinnest margin on the Question it already knows the answer to", () => {
-    // Read back as chances: 1 ÷ each Multiplier, totalled across a Question.
-    // 50/50 is known before anybody looks at the fighters, so the winner
-    // Question has no estimate to be wrong about; method rests on a prior and
-    // carries three more points against that prior being off.
-    expect(implied(["winner:red", "winner:blue"], 3)).toBeCloseTo(1.05, 2);
-    expect(implied(["method:ko_tko", "method:submission", "method:decision"], 3)).toBeCloseTo(
-      1.08,
-      2,
-    );
+    // Read back as chances: 1 ÷ each Multiplier, totalled across a Question
+    // and across both corners. 50/50 is known before anybody looks at the
+    // fighters, so the winner Question has no estimate to be wrong about;
+    // method rests on a prior and carries three more points against that prior
+    // being off.
+    expect(implied(pays("winner", 3))).toBeCloseTo(1.05, 2);
+    expect(implied(perCorner(pays("method", 3)))).toBeCloseTo(1.08, 2);
   });
 
   it("totals a round Question to the finishes rather than to the whole Bout", () => {
     // About 65% of Bouts at this level end in a finish, and the other 35% end
     // in no round at all. Both formats carry the same prior and the same
     // margin, which is what makes them comparable at all.
-    expect(implied(["round:1", "round:2", "round:3"], 3)).toBeCloseTo(0.7, 2);
-    expect(implied(["round:1", "round:2", "round:3", "round:4", "round:5"], 5)).toBeCloseTo(0.7, 2);
+    expect(implied(perCorner(pays("round", 3)))).toBeCloseTo(0.7, 2);
+    expect(implied(perCorner(pays("round", 5)))).toBeCloseTo(0.7, 2);
   });
 });
 

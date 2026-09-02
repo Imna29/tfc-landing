@@ -180,8 +180,8 @@ describe("a fight card in the game", async () => {
 
       // Round 3 is the last round of the opener and a middle round of the
       // headliner, so it is not the same question and is not seeded the same.
-      expect(await seededRounds(threeRounder.id)).toEqual([3.15, 4.75, 5.7]);
-      expect(await seededRounds(fiveRounder.id)).toEqual([3.75, 5.95, 8.9, 11.85, 14.25]);
+      expect(await seededRounds(threeRounder.id)).toEqual([6.3, 9.5, 11.4]);
+      expect(await seededRounds(fiveRounder.id)).toEqual([7.5, 11.9, 17.8, 23.7, 28.5]);
     });
   });
 

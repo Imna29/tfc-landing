@@ -448,18 +448,26 @@ in `20260825204211_multipliers_and_opening_bouts` — the rule holds for a hand-
 `update`, and for a Bout inserted open, which has no Outcomes at all. `/admin/events` lists, per card, how many Bouts are still to price
 and how many are open.
 
-Every number in that table stands for its own answer outright (ADR-0014):
-"Submission ×4.05" means ×4.05 if the Bout ends that way, whoever wins it. What
-each number is worth, why the winner Question carries a thinner margin than the
-other two, and why **Decision went up** from ×2.00 to ×2.65 — the cell an admin
-is most likely to "correct" back — are argued where they can be read beside the
-numbers, in the docblock over `DEFAULT_MULTIPLIERS`.
+Every number in that table stands for its own answer outright (ADR-0014), and
+**is what one corner pays** (ADR-0015): "Submission ×8.10" means ×8.10 if that
+fighter wins the Bout that way. Nothing seeding a Bout knows which fighter is
+favoured, so a chance about the Bout splits evenly between the two and half a
+chance is twice the Multiplier — which is why the method and round numbers are
+twice what a Bout-level table would carry, and why the winner row is unmoved at
+×1.90, having always named a fighter. The split is in the numbers ahead of the
+Outcomes: seeding still writes one method and one round Outcome per Bout rather
+than one per corner, so until #41 gives them their corners a card offers half
+the answers these numbers are priced for. What each number is worth, why the
+winner Question carries a thinner margin than the other two, and which two cells
+read like typos — Decision at ×5.30 and round 5 of a five-rounder at ×28.50,
+both of them numbers an admin is likely to "correct" back — are argued where
+they can be read beside the numbers, in the docblock over `DEFAULT_MULTIPLIERS`.
 
 What is worth knowing here is that the round Multipliers come from **two rows
 keyed by the rounds the Bout is scheduled for** — three and five, the two
 formats TFC books. Round 3 ends a three-round Bout and catches everything still
 standing; on a five-rounder it is a middle round with two more behind it. Not
-the same question, so not the same number: ×5.70 against ×8.90. A Bout booked
+the same question, so not the same number: ×11.40 against ×17.80. A Bout booked
 over any other number of rounds seeds from the five-round row, and a round past
 its fifth repeats its deepest number rather than the table inventing one.
 
