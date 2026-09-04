@@ -103,16 +103,20 @@ onMounted(load);
   height: 34px;
   transform: translateY(-50%);
   filter: drop-shadow(0 2px 0 rgba(4, 7, 7, 0.55));
+  /* Turning, unhurried, so the one way into the game is the one thing in the
+     header that moves. The 49th frame is the first one again, so the loop
+     comes round rather than snapping back. */
+  animation: tfc-coin-turn 2.8s steps(48) infinite;
 }
 
 /*
-  The coin turns once on hover: one step per frame across the strip `TfcCoin`
-  is drawn from, and back to the face it started on. An animation rather than a
-  transition to a turned state, because that state has to be left again when
-  the pointer goes, and leaving it is the same turn run backwards.
+  A pointer turns it over. Half the strip rather than all of it — frame 0 to
+  frame 24, which is the obverse to the reverse — and it stays there while the
+  pointer does, which is what `forwards` is for: hovering PlayTFC shows the
+  other side of the coin rather than spinning it back to where it was.
 */
-.play-tfc:hover :deep(.tfc-coin) {
-  animation: tfc-coin-turn 0.62s steps(48, jump-none);
+.play-tfc:hover .play-tfc__coin {
+  animation: tfc-coin-flip 0.35s steps(24) forwards;
 }
 
 @keyframes tfc-coin-turn {
@@ -122,6 +126,16 @@ onMounted(load);
 
   to {
     background-position-x: 100%;
+  }
+}
+
+@keyframes tfc-coin-flip {
+  from {
+    background-position-x: 0%;
+  }
+
+  to {
+    background-position-x: 50%;
   }
 }
 
@@ -166,7 +180,8 @@ onMounted(load);
     transition: none;
   }
 
-  .play-tfc:hover :deep(.tfc-coin) {
+  .play-tfc__coin,
+  .play-tfc:hover .play-tfc__coin {
     animation: none;
   }
 }
