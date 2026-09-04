@@ -106,21 +106,22 @@ onMounted(load);
 }
 
 /*
-  The coin turns once on hover. An animation rather than a transition to a
-  turned state: that state has to be left again when the pointer goes, and
-  leaving it is the same turn run backwards.
+  The coin turns once on hover: one step per frame across the strip `TfcCoin`
+  is drawn from, and back to the face it started on. An animation rather than a
+  transition to a turned state, because that state has to be left again when
+  the pointer goes, and leaving it is the same turn run backwards.
 */
-.play-tfc:hover :deep(.tfc-coin__face) {
-  animation: tfc-coin-turn 0.62s cubic-bezier(0.4, 0, 0.25, 1);
+.play-tfc:hover :deep(.tfc-coin) {
+  animation: tfc-coin-turn 0.62s steps(48, jump-none);
 }
 
 @keyframes tfc-coin-turn {
   from {
-    transform: rotateY(0);
+    background-position-x: 0%;
   }
 
   to {
-    transform: rotateY(360deg);
+    background-position-x: 100%;
   }
 }
 
@@ -165,7 +166,7 @@ onMounted(load);
     transition: none;
   }
 
-  .play-tfc:hover :deep(.tfc-coin__face) {
+  .play-tfc:hover :deep(.tfc-coin) {
     animation: none;
   }
 }
