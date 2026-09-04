@@ -253,18 +253,21 @@ export function importCard(
           blueFighterUid: bout.blue.fighterUid,
           blueImageUrl: bout.blue.imageUrl,
           blueRecord: bout.blue.record,
+          discipline: bout.discipline,
           division: bout.division,
           scheduledRounds: bout.scheduledRounds,
           mainEvent: bout.mainEvent,
           titleFight: bout.titleFight,
         })),
       )
-      .returning({ id: bouts.id });
+      .returning({ id: bouts.id, discipline: bouts.discipline });
 
     // Seeded here rather than by the admin who prices the card, so that a Bout
-    // exists with its Questions already asked and eight numbers to correct.
-    // A re-imported Bout is a new row, so this is also what makes a lineup
-    // change a card to be priced again (ADR-0002).
+    // exists with its Questions already asked and its numbers to correct — as
+    // many as its discipline asks for (ADR-0017), which is why the discipline
+    // comes back off the insert rather than being looked up again. A
+    // re-imported Bout is a new row, so this is also what makes a lineup change
+    // a card to be priced again (ADR-0002).
     await seedOutcomes(tx, written);
 
     return {

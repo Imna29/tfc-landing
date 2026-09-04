@@ -24,6 +24,7 @@ function bout(overrides: Partial<FightCardBout> = {}): FightCardBout {
     cardOrder: 1,
     red: { name: "Giorgi Tsiklauri", ...corner },
     blue: { name: "Levan Beridze", ...corner },
+    discipline: "mma",
     division: "Lightweight",
     scheduledRounds: 3,
     mainEvent: false,

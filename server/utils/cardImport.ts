@@ -17,7 +17,8 @@
  * checked against a tsconfig that does not include it — and because a reader
  * of untrusted content should say exactly what it needs.
  */
-import { EVENT_MESSAGES, SCHEDULED_ROUNDS } from "#shared/events";
+import { disciplineFor, EVENT_MESSAGES, SCHEDULED_ROUNDS } from "#shared/events";
+import type { Discipline } from "#shared/fightCard";
 
 /** A link to another document, as the Document API answers with one. */
 export interface PrismicLink {
@@ -33,6 +34,15 @@ export interface PrismicBout {
   red_corner_name: string | null;
   blue_corner: PrismicLink | null;
   blue_corner_name: string | null;
+  /**
+   * The `discipline` document this Bout is fought under, which is what decides
+   * the Questions it is asked (ADR-0017).
+   *
+   * `null` for a Bout authored before the field existed on the custom type, the
+   * same as one an editor has left empty — and refused either way, because
+   * there is no honest default for what a Bout offers.
+   */
+  discipline: PrismicLink | null;
   division: PrismicLink | null;
   scheduled_rounds: number | null;
   /**
@@ -59,11 +69,13 @@ export interface PrismicEvent {
 
 /**
  * A document a Bout points at: a `fighter` for a corner, a `division` for the
- * weight class.
+ * weight class, a `discipline` for what is being fought.
  *
- * One shape for both, because the import wants the same thing from each — the
- * name it is published under, and for a fighter the image, the record and the
- * uid their profile page is reached by.
+ * One shape for all three, because the import wants nearly the same thing from
+ * each — the name it is published under, and for a fighter the image, the
+ * record and the uid their profile page is reached by. A discipline is the one
+ * read by uid instead of by name: it is a value the game recognises rather than
+ * text it repeats (ADR-0017).
  */
 export interface PrismicReference {
   id: string;
@@ -110,6 +122,8 @@ export interface CardBout {
   cardOrder: number;
   red: CardCorner;
   blue: CardCorner;
+  /** What is being fought, which is what the Bout is asked (ADR-0017). */
+  discipline: Discipline;
   division: string;
   scheduledRounds: number;
   mainEvent: boolean;
@@ -133,9 +147,9 @@ export type ReadCard = { card: Card; problem?: undefined } | { card?: undefined;
  * Reads an `event` document and the documents it references into the card that
  * will be written to Postgres.
  *
- * `referenced` is every `fighter` and `division` document the card points at,
- * already fetched. Resolving them is a query, and a pure function cannot make
- * one — see `server/utils/prismic.ts`, which does.
+ * `referenced` is every `fighter`, `division` and `discipline` document the
+ * card points at, already fetched. Resolving them is a query, and a pure
+ * function cannot make one — see `server/utils/prismic.ts`, which does.
  */
 export function readCard(event: PrismicEvent, referenced: readonly PrismicReference[]): ReadCard {
   const documents = new Map(referenced.map((document) => [document.id, document]));
@@ -215,6 +229,27 @@ function readBout(
 
   if (!division) return { problem: EVENT_MESSAGES.divisionMissing(position) };
 
+  // Read by uid rather than by name, because the game runs a closed set of
+  // disciplines and the name is display text an editor may reword (ADR-0017).
+  // A link with nothing behind it — empty, or pointing at a document that has
+  // gone back to a draft — is the same missing discipline either way, unlike a
+  // corner: there is no fallback to type instead.
+  const disciplineDocument = documents.get(linkedId(row.discipline) ?? "");
+
+  if (!disciplineDocument) return { problem: EVENT_MESSAGES.disciplineMissing(position) };
+
+  const discipline = disciplineFor(disciplineDocument.uid);
+
+  // A published document the game has never been taught about. Refused while
+  // the fix is still an edit in a CMS rather than imported as a Bout nothing
+  // knows what to ask about — and named by its uid, which is what an editor
+  // would have to change.
+  if (!discipline) {
+    return {
+      problem: EVENT_MESSAGES.disciplineNotKnown(position, disciplineDocument.uid ?? ""),
+    };
+  }
+
   const scheduledRounds = row.scheduled_rounds;
 
   if (
@@ -231,6 +266,7 @@ function readBout(
       cardOrder,
       red: red.corner,
       blue: blue.corner,
+      discipline,
       division,
       scheduledRounds,
       mainEvent: row.main_event ?? false,

@@ -1,19 +1,26 @@
 /**
- * Pricing a Bout: the two Questions asked about it, the Outcomes that answer
- * them, and the table every Multiplier starts from.
+ * Pricing a Bout: the Questions asked about it, the Outcomes that answer them,
+ * and the table every Multiplier starts from.
  *
  * ADR-0002 chose fixed Multipliers set by hand over a self-balancing pool,
  * because a fan has to know what they stand to win at the moment they commit.
  * The bill for that choice is this module: somebody at TFC prices every card
  * before it opens, for every card, forever. Seeding each Outcome from a
- * default is what keeps that bill payable — an admin adjusts eight numbers per
- * Bout rather than authoring them from blank.
+ * default is what keeps that bill payable — an admin adjusts a Bout's numbers
+ * rather than authoring them from blank.
+ *
+ * **How many of them there are is the discipline's to say** (ADR-0017): eight
+ * on an MMA Bout, six on a CageBox one, and two on a Cage Grappling Bout, which
+ * is asked for a winner and nothing else. What is being fought decides what can
+ * be asked about it, and this module is where that becomes the Outcomes a Bout
+ * carries.
  *
  * Shared for the same reason `shared/events.ts` is: the server refuses with the
  * sentence the admin area shows, and `test/unit/vocabulary.test.ts` holds all
  * of it to `CONTEXT.md` at once.
  */
 import type { Corner } from "./events";
+import type { Discipline } from "./fightCard";
 
 /**
  * One thing asked about a Bout. There are two — a Question is not a field
@@ -24,13 +31,24 @@ import type { Corner } from "./events";
  * offering depend on how long it was booked for, and the game asks the winner
  * and the method of victory now.
  *
+ * **Not every Bout is asked both.** The winner Question is asked of every Bout
+ * on every card; the method Question is asked only where the discipline has
+ * methods, which is everything but Cage Grappling (ADR-0017). See
+ * {@link questionsAsked}.
+ *
  * Spelled out again in the `outcomes_question_known` and
  * `predictions_question_known` check constraints, for the reason given on
  * `Role` in `server/db/schema.ts`.
  */
 export type Question = "winner" | "method";
 
-/** How a Bout ends, when it ends in something gradable. */
+/**
+ * How a Bout ends, when it ends in something gradable.
+ *
+ * The three the game has between them, rather than the three any one Bout can
+ * end by: which of these a given Bout may produce is its discipline's to say
+ * (ADR-0017), and {@link methodsAsked} is where that is asked.
+ */
 export type Method = "ko_tko" | "submission" | "decision";
 
 /**
@@ -42,7 +60,12 @@ export type Method = "ko_tko" | "submission" | "decision";
  */
 export const QUESTIONS = ["winner", "method"] as const satisfies readonly Question[];
 
-/** The methods of victory, in the order an admin prices them. */
+/**
+ * Every method of victory the game has, in the order an admin prices them.
+ *
+ * The whole vocabulary. What one Bout is asked is {@link methodsAsked}, which
+ * is a subset of this, in this order.
+ */
 export const METHODS = ["ko_tko", "submission", "decision"] as const satisfies readonly Method[];
 
 /** The corners, in the order they are asked about: red is the home corner. */
@@ -95,10 +118,10 @@ export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, str
  * Beside {@link outcomeLabel} rather than in the admin area, because these are
  * two ways of saying one thing and the danger is that they come to say
  * different things. What a fan reads is always the full name; this is the
- * layout the admin pricing screen needs to hold eight inputs per Bout legibly
- * (ADR-0015), where the corner is a heading over a row of answers rather than a
- * word repeated down every label. Every input on that screen is still labelled
- * to a screen reader with the full name.
+ * layout the admin pricing screen needs to hold up to eight inputs per Bout
+ * legibly (ADR-0015), where the corner is a heading over a row of answers
+ * rather than a word repeated down every label. Every input on that screen is
+ * still labelled to a screen reader with the full name.
  *
  * "Wins" rather than nothing on the winner Question, because a box with no
  * words beside it is a Multiplier nobody can check.
@@ -145,11 +168,13 @@ export function isQuestion(value: unknown): value is Question {
 }
 
 /**
- * Whether this is one of the three methods a Bout can end by.
+ * Whether this is one of the methods the game knows a Bout can end by.
  *
  * Here rather than beside either of its callers, because both of them are
  * reading the same thing off the wire — a fan's Prediction and an admin's
- * Result — and a Bout ends the same three ways whichever of them is asking.
+ * Result — and the word means the same thing whichever of them is asking.
+ * **Whether this Bout may end that way is a different question**, asked of its
+ * discipline by {@link methodsAsked} (ADR-0017).
  * Spelled out again in `outcomes_method_known`, `predictions_method_known` and
  * `bout_results_method_known`.
  */
@@ -222,38 +247,120 @@ export interface SeededOutcome extends OutcomeAnswer {
  * almost entirely on one answer, and on the ending a fan is second most likely
  * to be right about.
  *
- * There is no round row, and there is no row that depends on the format a Bout
- * is booked in. ADR-0016 retired the round Question, and with it the one part
- * of this table that had to know whether a Bout was scheduled for three rounds
- * or five.
+ * There is no round row, and there is no row that depends on how many rounds a
+ * Bout is booked over. ADR-0016 retired the round Question, and with it the one
+ * part of this table that had to know whether a Bout was scheduled for three
+ * rounds or five.
+ *
+ * **The method row is per discipline, and that is not the same thing coming
+ * back** (ADR-0017). The format a Bout is booked in is a rule about how long it
+ * lasts; the discipline it is fought in is what is being fought, and it decides
+ * which endings exist at all — a CageBox Bout cannot end in a Submission, and a
+ * Cage Grappling Bout has no method of victory to ask about. So this table is
+ * also **where a discipline's methods are written down**: a method with no
+ * number here is one that discipline is not asked, because a Bout with an
+ * unpriced Outcome cannot be opened and an answer nobody could price is an
+ * answer no fan could ever be offered. {@link methodsAsked} reads it back.
+ *
+ * **A narrowed Question is worth what it was worth**, spread over the answers
+ * that remain. CageBox's two numbers are MMA's KO/TKO and Decision with the
+ * Submission's share of the chance shared out between them in proportion to
+ * what the table already said about the pair, so the method Question still
+ * implies about 108% across both corners. Taking an answer away does not make
+ * the Question easier to be right about — it makes the answers that are left
+ * likelier — and a table that simply dropped the row would have priced a
+ * two-answer Question at a three-answer Question's margin, handing back about
+ * 25 points of it on every CageBox Bout on every card.
+ *
+ * Cage Grappling has no method row at all, and an empty object rather than a
+ * row of zeroes: there is nothing to price, because there is nothing asked.
  */
 export const DEFAULT_MULTIPLIERS = {
   winner: { red: 1.9, blue: 1.9 },
-  method: { ko_tko: 4.4, submission: 8.1, decision: 5.3 },
+  method: {
+    mma: { ko_tko: 4.4, submission: 8.1, decision: 5.3 },
+    cagebox: { ko_tko: 3.39, decision: 4.09 },
+    cage_grappling: {},
+  },
 } as const satisfies {
   winner: Record<Corner, number>;
-  method: Record<Method, number>;
+  method: Record<Discipline, Partial<Record<Method, number>>>;
 };
 
 /**
- * Every Outcome a Bout is imported with, in the order an admin prices them.
+ * The methods of victory this discipline's Bouts can end by, each with what it
+ * is seeded at, in the order an admin prices them.
  *
- * **Each Question asked of both fighters** (ADR-0015): two winner Outcomes and
- * six method Outcomes, eight on every Bout. Each corner is seeded from the same
- * number, because nothing here knows which fighter is favoured; that is the
- * same reason both winner Outcomes seed level, applied to the method Question
- * now that it has corners to be level between.
+ * **The one place the method half of {@link DEFAULT_MULTIPLIERS} is read**, and
+ * what makes "a method with no number in the table is a method this discipline
+ * is not asked" a fact rather than a comment: the list and the prices come out
+ * of the same pass over the same object, so there is nothing for them to
+ * disagree about.
+ *
+ * Filtered out of {@link METHODS} rather than listed again, so a discipline's
+ * answers come back in the order every other Bout's do: a CageBox Bout reads
+ * KO/TKO then Decision, which is an MMA Bout with the Submission taken out.
+ */
+function seededMethods(discipline: Discipline): { method: Method; multiplier: number }[] {
+  const seeded: Partial<Record<Method, number>> = DEFAULT_MULTIPLIERS.method[discipline];
+
+  return METHODS.flatMap((method) => {
+    const multiplier = seeded[method];
+
+    return multiplier === undefined ? [] : [{ method, multiplier }];
+  });
+}
+
+/**
+ * The methods of victory this discipline's Bouts can end by, in the order an
+ * admin prices them.
+ *
+ * MMA has all three, CageBox has KO/TKO and Decision, and Cage Grappling has
+ * none — which is the Question not being asked rather than a Question with no
+ * answers (ADR-0017). {@link questionsAsked} is where that difference is said.
+ *
+ * Spelled out again in the `a_result_records_the_method_its_discipline_asks`
+ * trigger, which is what holds a Result to it, and
+ * `test/server/settlement.test.ts` is what holds the two lists together.
+ */
+export function methodsAsked(discipline: Discipline): Method[] {
+  return seededMethods(discipline).map((seeded) => seeded.method);
+}
+
+/**
+ * The Questions this discipline's Bouts are asked, in the order they are asked.
+ *
+ * Two for MMA and CageBox, one for Cage Grappling. A discipline with no method
+ * of victory is not asked the method Question at all — there is no Outcome to
+ * offer, no Prediction to make, and nothing for an admin to record — which is
+ * the difference between a Question narrowed and a Question dropped.
+ */
+export function questionsAsked(discipline: Discipline): Question[] {
+  return QUESTIONS.filter(
+    (question) => question !== "method" || methodsAsked(discipline).length > 0,
+  );
+}
+
+/**
+ * Every Outcome a Bout of this discipline is imported with, in the order an
+ * admin prices them.
+ *
+ * **Each Question it is asked, of both fighters** (ADR-0015). An MMA Bout is
+ * eight answers, a CageBox Bout six, and a Cage Grappling Bout two — because
+ * what a Bout offers is what it is fought under (ADR-0017), and the winner
+ * Question is the one every discipline is asked. Each corner is seeded from the
+ * same number, because nothing here knows which fighter is favoured.
  *
  * The order is the order they are asked in and the order they are read in:
  * winner, then method, and red before blue within each. It is what
  * {@link inAskedOrder} sorts everything else back into.
  *
- * **Takes nothing**, which is the shape ADR-0016 leaves it in: every Bout is
- * asked the same eight things, whether it is booked over three rounds or five.
- * How long a Bout is scheduled for is a fact a fan reads on the card and
- * nothing prices.
+ * **Takes the discipline and nothing else.** How long a Bout is booked for
+ * still decides nothing (ADR-0016): a three-round MMA Bout and a five-round one
+ * are asked the same eight things, and it is a Cage Grappling Bout beside them
+ * that is asked something different.
  */
-export function defaultOutcomes(): SeededOutcome[] {
+export function defaultOutcomes(discipline: Discipline): SeededOutcome[] {
   const winners: SeededOutcome[] = CORNERS.map((corner) => ({
     question: "winner",
     corner,
@@ -262,11 +369,11 @@ export function defaultOutcomes(): SeededOutcome[] {
   }));
 
   const methods: SeededOutcome[] = CORNERS.flatMap((corner) =>
-    METHODS.map((method) => ({
+    seededMethods(discipline).map(({ method, multiplier }) => ({
       question: "method" as const,
       corner,
       method,
-      multiplier: DEFAULT_MULTIPLIERS.method[method],
+      multiplier,
     })),
   );
 
@@ -335,26 +442,47 @@ export function outcomeKey(outcome: OutcomeAnswer): string {
 }
 
 /**
+ * Every answer the game has, in the order it asks them: winner then method,
+ * red before blue, KO/TKO before Submission before Decision.
+ *
+ * The whole vocabulary rather than any one Bout's share of it, which is what
+ * lets {@link inAskedOrder} sort without being told the discipline. A CageBox
+ * Bout's answers are a subsequence of this, so sorting them by it reads winner,
+ * KO/TKO, Decision — an MMA Bout with the Submission taken out — and a Cage
+ * Grappling Bout's two winner answers sort the same way they always did.
+ */
+const ASKED_ORDER: string[] = [
+  ...CORNERS.map((corner) => outcomeKey({ question: "winner", corner, method: null })),
+  ...CORNERS.flatMap((corner) =>
+    METHODS.map((method) => outcomeKey({ question: "method", corner, method })),
+  ),
+];
+
+/**
  * Outcomes in the order they were seeded, which is the order an admin prices
  * them in and the order a fan is offered them in.
  *
  * Sorted here rather than in SQL because the order is a fact about the domain
  * — winner, then method; red before blue; KO/TKO before Submission before
- * Decision — and {@link defaultOutcomes} is where that is written down.
- * Ordering by the columns would put "blue" before "red" and "method" before
- * "winner", and would need saying again in every query.
+ * Decision — and {@link ASKED_ORDER} is where that is written down. Ordering by
+ * the columns would put "blue" before "red" and "method" before "winner", and
+ * would need saying again in every query.
+ *
+ * **Takes no discipline**, and does not need one. What a Bout offers is a
+ * subset of what the game asks (ADR-0017), so the order of the whole is the
+ * order of every part of it — and a function told which Bout's Outcomes these
+ * are could be told wrong.
  */
 export function inAskedOrder<Outcome extends OutcomeAnswer>(
   unordered: readonly Outcome[],
 ): Outcome[] {
-  const asked = defaultOutcomes().map(outcomeKey);
   const place = (outcome: Outcome) => {
-    const at = asked.indexOf(outcomeKey(outcome));
+    const at = ASKED_ORDER.indexOf(outcomeKey(outcome));
 
-    // An Outcome the table no longer asks about — a round Outcome written
+    // An Outcome the game no longer asks about — a round Outcome written
     // before ADR-0016 would have been one, if the migration that retired the
     // Question had left any behind. It sorts last rather than disappearing.
-    return at === -1 ? asked.length : at;
+    return at === -1 ? ASKED_ORDER.length : at;
   };
 
   return [...unordered].sort((one, another) => place(one) - place(another));

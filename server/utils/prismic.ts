@@ -56,7 +56,7 @@ function asEvent(document: PrismicDocument & { id: string }): PrismicEvent {
   return document as unknown as PrismicEvent;
 }
 
-/** The same claim about a `fighter` or `division` document. */
+/** The same claim about a `fighter`, `division` or `discipline` document. */
 function asReference(document: PrismicDocument & { id: string }): PrismicReference {
   return document as unknown as PrismicReference;
 }
@@ -114,7 +114,7 @@ export interface FetchedCard {
 
 /**
  * One card and everything needed to read it: the `event` document, plus the
- * `fighter` and `division` documents its Bouts link to.
+ * `fighter`, `division` and `discipline` documents its Bouts link to.
  *
  * Two queries rather than one. Prismic can return chosen fields of a linked
  * document inline, but then the model would have to name every field the
@@ -148,7 +148,7 @@ export async function fetchCard(prismicId: string): Promise<FetchedCard | null> 
   const referencedIds = [
     ...new Set(
       (event.data.bouts ?? [])
-        .flatMap((bout) => [bout.red_corner, bout.blue_corner, bout.division])
+        .flatMap((bout) => [bout.red_corner, bout.blue_corner, bout.division, bout.discipline])
         .flatMap((link) => (link?.link_type === "Document" && link.id ? [link.id] : [])),
     ),
   ];

@@ -56,7 +56,10 @@ export default defineEventHandler(async (event) => {
   // this refusal is keeping open rather than the one it is shutting.
   if (bout.status === "closed") throw refuse(409, RESULT_MESSAGES.boutNotOpened);
 
-  const { ending, problem } = parseEnding(await readBody(event));
+  // Read against the discipline this Bout is fought in (ADR-0017): a
+  // CageBox Bout cannot have ended in a Submission, and a Cage Grappling
+  // Bout is settled on its winner alone.
+  const { ending, problem } = parseEnding(await readBody(event), bout.discipline);
 
   if (problem !== undefined) throw refuse(422, problem);
 

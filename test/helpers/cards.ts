@@ -59,6 +59,7 @@ export function cardBout(overrides: Partial<CardBout> = {}): CardBout {
     cardOrder: 1,
     red: corner("Giorgi Tsiklauri"),
     blue: corner("Levan Beridze"),
+    discipline: "mma",
     division: "Lightweight",
     scheduledRounds: 3,
     mainEvent: false,

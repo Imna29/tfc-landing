@@ -27,8 +27,9 @@ import {
   type PricedPrediction,
 } from "./entries";
 import type { Corner } from "./events";
+import { DISCIPLINE_LABELS, type Discipline } from "./fightCard";
 import { multiplierLabel } from "./predictions";
-import { isMethod, METHODS, METHOD_LABELS, type Method, type OutcomeAnswer } from "./pricing";
+import { isMethod, methodsAsked, METHOD_LABELS, type Method, type OutcomeAnswer } from "./pricing";
 
 /**
  * The four ways a Bout produces nothing gradable: it was cancelled, a fighter
@@ -103,11 +104,24 @@ export function isNoResultReason(value: unknown): value is NoResultReason {
  */
 export type RecordedMethod = Method | "disqualification";
 
-/** The ways a Bout ends with a winner, in the order an admin is offered them. */
-export const RECORDED_METHODS = [
-  ...METHODS,
-  "disqualification",
-] as const satisfies readonly RecordedMethod[];
+/**
+ * The ways a Bout of this discipline ends with a winner, in the order an admin
+ * is offered them.
+ *
+ * The methods it asks about plus the disqualification behind them — and
+ * **empty where it asks about none** (ADR-0017). A Cage Grappling Bout is
+ * settled on its winner alone, so an admin is offered no method at all rather
+ * than a list holding only a DQ: the reason a DQ is recorded is that it turns
+ * the method Question into a No Result, and there is no such Question here.
+ *
+ * A function rather than the constant it replaces, because "the ways a Bout
+ * ends" stopped being one answer the moment what is being fought decided it.
+ */
+export function recordedMethods(discipline: Discipline): RecordedMethod[] {
+  const asked = methodsAsked(discipline);
+
+  return asked.length === 0 ? [] : [...asked, "disqualification"];
+}
 
 /** What each of them is called wherever one is shown. */
 export const RECORDED_METHOD_LABELS = {
@@ -132,13 +146,21 @@ export const RECORDED_METHOD_LABELS = {
  * at the round Outcomes themselves. A Result records what the game asked about,
  * and the game does not ask about the round.
  *
+ * **The method is null where the Bout's discipline asks for none** (ADR-0017).
+ * A Cage Grappling Bout is settled on its winner and nothing else, so there is
+ * no method to record and none is asked for. Null rather than a fourth method
+ * value, because "no method was asked about" is the absence of an answer rather
+ * than an answer: everything reading a Result reads the field it needs, and a
+ * Bout with nothing in this one has nothing there.
+ *
  * A Bout that produced nothing gradable is a No Result and is not one of these
  * (ADR-0005). See {@link BoutEnding}, which is what anything grading against a
  * Bout is handed.
  */
 export interface BoutResult {
   winner: Corner;
-  method: RecordedMethod;
+  /** How it ended, or null on a Bout whose discipline asks no method. */
+  method: RecordedMethod | null;
 }
 
 /**
@@ -222,10 +244,12 @@ export function gradePrediction(
     return prediction.corner === result.winner ? "correct" : "wrong";
   }
 
-  // And "won by DQ" is not one of the three methods any fan was offered, so
-  // the method Question has nothing here to be graded against — whichever
-  // fighter it named, the one who was disqualified included.
-  if (result.method === "disqualification") return "no result";
+  // And "won by DQ" is not one of the methods any fan was offered, so the
+  // method Question has nothing here to be graded against — whichever fighter
+  // it named, the one who was disqualified included. A Result with no method
+  // at all is the same answer for a sharper reason: its Bout was never asked
+  // the method Question, so nobody can have answered it (ADR-0017).
+  if (result.method === null || result.method === "disqualification") return "no result";
 
   // **The corner has to match as well.** A method answer names the fighter it
   // is about (ADR-0015), so "Beridze by Submission" on a Bout Tsiklauri
@@ -299,8 +323,11 @@ export function settledPrice(
   if (ending === null) return prediction;
   if (ending.noResult) return { ...prediction, multiplier: NEUTRAL };
 
+  // The two endings that settle no method Question: a disqualification, and a
+  // Bout whose discipline never asked one (ADR-0017).
   const neutralised =
-    ending.result.method === "disqualification" && prediction.question !== "winner";
+    (ending.result.method === null || ending.result.method === "disqualification") &&
+    prediction.question !== "winner";
 
   return neutralised ? { ...prediction, multiplier: NEUTRAL } : prediction;
 }
@@ -364,7 +391,14 @@ export function entryAsItStands(entry: {
  * comparison work they have to do in their head.
  */
 export function resultLabel(result: BoutResult, corners: Record<Corner, string>): string {
-  return `${corners[result.winner]} by ${RECORDED_METHOD_LABELS[result.method]}`;
+  const fighter = corners[result.winner];
+
+  // A Bout whose discipline asked no method (ADR-0017). "by" with nothing after
+  // it is a sentence missing its end, and the bare name on its own reads as a
+  // caption rather than as a statement about a fight.
+  if (result.method === null) return `${fighter} wins`;
+
+  return `${fighter} by ${RECORDED_METHOD_LABELS[result.method]}`;
 }
 
 /**
@@ -451,11 +485,24 @@ export function endingNote(prediction: OutcomeAnswer, ending: BoutEnding | null)
     );
   }
 
-  if (ending.result.method !== "disqualification") return null;
   if (prediction.question === "winner") return null;
 
+  // A Bout whose discipline asked no method Question offers no method answer,
+  // so there is no such Prediction to explain anything to (ADR-0017). Answered
+  // all the same, because the union allows the pair and a note is cheaper than
+  // a fan reading a Multiplier that dropped for no stated reason.
+  if (ending.result.method === null) {
+    return (
+      "This Bout was settled on its winner alone, so there was nothing here to " +
+      `be right or wrong about. This Prediction counts as ${multiplierLabel(NEUTRAL)} ` +
+      "and the rest of the Entry plays on."
+    );
+  }
+
+  if (ending.result.method !== "disqualification") return null;
+
   return (
-    "Won by disqualification, which is not one of the three methods this Bout " +
+    "Won by disqualification, which is not one of the methods this Bout " +
     `offered, so there was nothing here to be right or wrong about. This ` +
     `Prediction counts as ${multiplierLabel(NEUTRAL)} and the rest of the ` +
     "Entry plays on."
@@ -547,10 +594,18 @@ export const RESULT_MESSAGES = {
     "Choose which corner won. Every Prediction on this Bout is graded against " +
     "it first, so it is the one answer a Result cannot be entered without. A " +
     "Bout that decided no winner at all is a No Result instead.",
-  methodNotChosen:
-    "Choose how the Bout ended: KO/TKO, Submission, Decision, or a " +
-    "disqualification. A Bout that ended in none of those produced nothing " +
-    "the game can grade, which is a No Result rather than a method.",
+  methodNotChosen: (discipline: Discipline) =>
+    `Choose how this ${DISCIPLINE_LABELS[discipline]} Bout ended: ` +
+    `${methodsAsked(discipline)
+      .map((method) => METHOD_LABELS[method])
+      .join(", ")}, or a disqualification. A Bout that ended in none of those ` +
+    "produced nothing the game can grade, which is a No Result rather than a " +
+    "method.",
+  methodNotAsked: (discipline: Discipline) =>
+    `A ${DISCIPLINE_LABELS[discipline]} Bout is settled on its winner and ` +
+    "nothing else, so there is no method to record on this one. Nobody was " +
+    "offered a method of victory on it either, so there is nothing a method " +
+    "here could grade.",
   noResultReasonNotChosen:
     "Say why this Bout produced nothing to grade: it was cancelled, a fighter " +
     "withdrew, it was a draw, or it was a no contest. Every Prediction on it " +
@@ -604,13 +659,18 @@ export type ParsedEnding =
   | { ending?: undefined; problem: string };
 
 /**
- * Reads what an admin entered about a Bout.
+ * Reads what an admin entered about a Bout, against what its discipline asks.
  *
- * Takes nothing but the body, which is the shape ADR-0016 leaves it in. It used
- * to be handed the Bout as well, for one thing and only one: how many rounds it
- * was scheduled for, which was what made "round 4" wrong on a three-round
- * opener. With no round to record, what a Result may be made of at all is the
- * same question on every Bout on every card.
+ * **The discipline decides what a Result may be made of** (ADR-0017): an MMA
+ * Bout ends the three ways plus a disqualification, a CageBox Bout cannot end
+ * in a Submission, and a Cage Grappling Bout is settled on its winner alone and
+ * takes no method at all. So a method is checked against the Bout in front of
+ * the admin rather than against the whole vocabulary.
+ *
+ * It takes the discipline and nothing else about the Bout, which is a narrower
+ * argument than the one ADR-0016 removed: that was the scheduled rounds, a fact
+ * about one booking, and this is what is being fought. How long a Bout is
+ * booked for still decides nothing about what may be recorded on it.
  *
  * A No Result is read first because it is a statement about the whole Bout:
  * nothing was decided, so there is no winner to check and no method to reject.
@@ -623,7 +683,7 @@ export type ParsedEnding =
  * is asked here so that an admin is told which answer is wrong rather than
  * being handed the database's opinion.
  */
-export function parseEnding(value: unknown): ParsedEnding {
+export function parseEnding(value: unknown, discipline: Discipline): ParsedEnding {
   const entered = (value ?? {}) as {
     winner?: unknown;
     method?: unknown;
@@ -651,12 +711,30 @@ export function parseEnding(value: unknown): ParsedEnding {
 
   if (winner !== "red" && winner !== "blue") return { problem: RESULT_MESSAGES.winnerNotChosen };
 
-  // A disqualification is a winner and nothing else: it is not one of the three
+  const asked = methodsAsked(discipline);
+
+  // A discipline with no method Question is settled on its winner (ADR-0017),
+  // and a body carrying a method anyway is refused rather than read past. The
+  // retired round is read past because it arrives from a page that no longer
+  // exists; a method here is a statement about the fight, and one the Bout was
+  // never asked for.
+  if (asked.length === 0) {
+    if (method !== null) return { problem: RESULT_MESSAGES.methodNotAsked(discipline) };
+
+    return { ending: { result: { winner, method: null } } };
+  }
+
+  // A disqualification is a winner and nothing else: it is not one of the
   // methods any fan was offered, so it settles the winner Question and leaves
   // the method Question a No Result (ADR-0005).
   if (method === "disqualification") return { ending: { result: { winner, method } } };
 
-  if (!isMethod(method)) return { problem: RESULT_MESSAGES.methodNotChosen };
+  // Both halves, and the second is the discipline's: a Submission is a method
+  // the game knows and one a CageBox Bout could never produce, so a Result
+  // naming it is refused with the endings this Bout actually has.
+  if (!isMethod(method) || !asked.includes(method)) {
+    return { problem: RESULT_MESSAGES.methodNotChosen(discipline) };
+  }
 
   return { ending: { result: { winner, method } } };
 }

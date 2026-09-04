@@ -46,7 +46,10 @@ export default defineEventHandler(async (event) => {
   // that happens after the card is over.
   if (bout.status !== "settled") throw refuse(409, RESULT_MESSAGES.notSettled);
 
-  const { ending, problem } = parseEnding(await readBody(event));
+  // Read against the discipline this Bout is fought in (ADR-0017): a
+  // CageBox Bout cannot have ended in a Submission, and a Cage Grappling
+  // Bout is settled on its winner alone.
+  const { ending, problem } = parseEnding(await readBody(event), bout.discipline);
 
   if (problem !== undefined) throw refuse(422, problem);
 

@@ -82,7 +82,9 @@ Bout produced rather than against the moment it stopped taking answers.
 
 ### Result
 
-What happened in a [[bout]], as an admin records it: who won and the method it ended by.
+What happened in a [[bout]], as an admin records it: who won and the method it ended by —
+or who won and nothing else, on a Bout whose [[discipline]] asks no method Question
+([[adr-0017]]). A Result records what the game asked about.
 
 Not the round it ended in. That was recorded while the game asked a round of victory
 Question and existed to grade the answers to it; with the Question retired ([[adr-0016]])
@@ -94,8 +96,9 @@ travels: closed, open, locked, settled. A Result entered wrong is corrected rath
 deleted, the way a Coin Transaction is — see [[correction]] and [[adr-0003]].
 
 A Result may record one more method than the game offers: a **disqualification**. It is
-how a Bout ends and it is not one of the three answers any fan was shown, so it settles
-the winner Question and turns the method Question into a [[no-result]].
+how a Bout ends and it is not one of the answers any fan was shown, so it settles the winner
+Question and turns the method Question into a [[no-result]]. It is not recorded on a Bout
+with no method Question, because there is nothing there for it to do.
 
 Not a "score" and not an "outcome": an [[outcome]] is an answer the game offered, and a
 Result is what actually happened. A [[bout]] that produced nothing gradable is a
@@ -135,7 +138,8 @@ Prediction — the [[result]] is the only record of what happened.
 ### Bout
 
 A single scheduled fight between two fighters on an event card. Carries its two fighters,
-its weight class, and how many rounds it is scheduled for.
+the [[discipline]] it is fought in, its weight class, and how many rounds it is scheduled
+for.
 
 Not a "match", "fight", or "matchup". A Bout is the thing users predict against; the
 `fighter` documents it references are the same fighters shown on the marketing site.
@@ -150,6 +154,26 @@ A corner with only a name is a **fallback name**, and is how a late replacement 
 days before a card appears on it at all. Requiring a document would mean either a rushed
 half-empty one or a Bout that cannot be published, and the second costs predictions on a
 fight that is actually happening. See [[adr-0001]].
+
+### Discipline
+
+What is being fought: **MMA**, **CageBox** or **Cage Grappling**. TFC books all three and
+puts them on one card, so it is a fact about a [[bout]] rather than about an [[event]].
+
+The one fact about a fight that changes what the game asks about it ([[adr-0017]]). An MMA
+Bout is asked both [[question]]s and carries eight [[outcome]]s; a CageBox Bout is boxing, so
+Submission is not an ending it has, and it carries six; a Cage Grappling Bout is asked the
+winner Question alone and carries two. A [[result]] records what its discipline asked, so a
+Cage Grappling Bout is settled on its winner and records no method at all.
+
+A closed set the game recognises, deliberately unlike the weight class beside it. A division
+is text a card shows; a discipline is priced and graded against, so one the game has never
+been taught is refused at [[import]] rather than written as a Bout nothing knows what to ask.
+It is read from the uid of the `discipline` document in Prismic — the name there is what an
+editor picks it by and nothing reads.
+
+Not a "sport", not a "ruleset" and not a "format". Format is how long a Bout is booked for,
+which decides nothing ([[adr-0016]]).
 
 ### Card order
 
@@ -173,6 +197,10 @@ Not a "sync": nothing goes back the other way, and nothing repeats it on a sched
 
 One thing asked about a Bout. There are two: **winner** and **method of victory**.
 
+**Not every Bout is asked both.** The winner Question is asked of every Bout on every card;
+the method Question is asked only where the [[discipline]] has methods, which is everything
+but Cage Grappling ([[adr-0017]]).
+
 There were three. A **round of victory** was retired by [[adr-0016]]: it was the Question a
 fan was least equipped to answer, the one that made what a Bout offers depend on how long it
 was booked for, and the one whose price was hardest to be right about. Nothing about it
@@ -185,6 +213,9 @@ Each is also asked about a [[corner]] ([[adr-0015]]): the answers are "Fighter A
 "Fighter A by KO/TKO", never a bare method. The words "of victory" name a victor because the
 answer names one.
 
+Which methods it may be answered with is the [[discipline]]'s to say as well: three on an MMA
+Bout, two on a CageBox one, which cannot end in a Submission.
+
 A Question is never an answer — "KO/TKO" is not a Question. Previously called a "market";
 renamed because "market" reads as sportsbook, and now banned outright by the naming rule
 above.
@@ -195,8 +226,10 @@ One selectable answer to a Question — "Fighter A", "Fighter A by KO/TKO" — c
 Multiplier that answer pays.
 
 Every Outcome names the [[corner]] it is about ([[adr-0015]]), so a method is an answer about
-a fighter rather than about the Bout. A Bout offers two winner Outcomes and six method
-Outcomes: eight, and the same eight whatever format it is booked in ([[adr-0016]]).
+a fighter rather than about the Bout. **How many a Bout offers is its [[discipline]]'s to
+say** ([[adr-0017]]): eight on an MMA Bout — two winner and six method — six on a CageBox
+one, and two on a Cage Grappling Bout. It is the same number whatever format it is booked in
+([[adr-0016]]).
 
 ### Multiplier
 
@@ -211,9 +244,13 @@ Every Multiplier stands for its own answer outright ([[adr-0014]]): a method of 
 different Bouts, never between the Questions asked about one.
 
 Every Outcome is [[import]]ed carrying a **seeded** Multiplier from a fixed table, so that
-pricing a card is eight numbers per Bout adjusted rather than authored from blank. A seeded
+pricing a card is a Bout's numbers adjusted rather than authored from blank. A seeded
 Multiplier is deliberately not a price: an Outcome is **priced** only once an admin has set
 it, and a Bout with an **unpriced** Outcome cannot be opened.
+
+The table is per [[discipline]], and a Question a discipline asks fewer answers to is still
+worth what it was worth: CageBox's two method numbers carry the chance the Submission answer
+was holding, rather than being MMA's with a row deleted ([[adr-0017]]).
 
 ### Prediction
 
@@ -233,7 +270,8 @@ they gave nearly one ([[adr-0015]]).
 
 A method of victory stands on its own — a fan can say Fighter A wins by Submission without
 having answered the winner Question first. It is graded on the winner as well as the method,
-because it names one: "Fighter B by Submission" is wrong on a Bout Fighter A submitted.
+because it names one: "Fighter B by Submission" is wrong on a Bout Fighter A submitted. On a
+Bout whose [[discipline]] asks no method Question there is no such Prediction to make.
 
 ### Entry
 
@@ -415,6 +453,9 @@ disqualification settles the winner Question and leaves the method Question a No
 winner Prediction on that Bout is graded normally while a method Prediction on it counts for
 nothing. A No Result is a thing that happens to a Question, and a Bout that produced nothing
 gradable is the case where it happens to both.
+
+A Question the [[discipline]] never asked is not a No Result. Nothing was offered, so there
+is no Prediction on it to count for anything.
 
 Never "void". See [[adr-0005]].
 

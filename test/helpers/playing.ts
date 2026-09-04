@@ -1,6 +1,7 @@
 import { $fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import type { CommittedEntries } from "../../shared/entries";
+import type { Discipline } from "../../shared/fightCard";
 import type { FanHistory } from "../../shared/history";
 import type {
   ClosedSeason,
@@ -51,17 +52,28 @@ export async function fanWithCoins() {
   return { ...signedUp, id: await fanId(signedUp.details.email) };
 }
 
-/** A card two hours out, which is a card every Bout on is still open. */
+/**
+ * A card two hours out, which is a card every Bout on is still open.
+ *
+ * Every Bout on it is MMA unless a case says otherwise, because that is the
+ * format nearly every case here is indifferent to — a settlement, a refund and
+ * a correction are none of them about what is being fought. A case that is
+ * about the discipline names it, and gets a card of that format throughout.
+ */
 export function upcomingCard(
   bouts: number,
-  options: Omit<Parameters<typeof cardInTheGame>[0], "scheduledStart" | "bouts"> = {},
+  options: Omit<NonNullable<Parameters<typeof cardInTheGame>[0]>, "scheduledStart" | "bouts"> & {
+    discipline?: Discipline;
+  } = {},
 ): Promise<CardInTheGame> {
+  const { discipline = "mma", ...rest } = options;
+
   return cardInTheGame({
     scheduledStart: new Date(Date.now() + 120 * 60_000),
     bouts: Array.from({ length: bouts }, (_, place) =>
-      cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1 }),
+      cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1, discipline }),
     ),
-    ...options,
+    ...rest,
   });
 }
 
@@ -126,7 +138,12 @@ export async function submit(fan: { cookie: string }, amount: number, prediction
 /** How a Bout ended, as a case says it: everything optional, nothing implied. */
 export interface EnteredResult {
   winner?: Corner;
-  method?: RecordedMethod;
+  /**
+   * `null` for a Bout whose discipline asks no method (ADR-0017), which is
+   * what the result form sends on one: the control is not rendered, so the
+   * field goes over as empty rather than absent.
+   */
+  method?: RecordedMethod | null;
 }
 
 /** Locks a Bout and enters its result, which is how a card is settled. */

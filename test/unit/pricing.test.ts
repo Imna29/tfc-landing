@@ -1,16 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { Corner } from "../../shared/events";
+import { DISCIPLINES, type Discipline } from "../../shared/fightCard";
 import {
   answerLabel,
   CORNERS,
   DEFAULT_MULTIPLIERS,
   defaultOutcomes,
+  inAskedOrder,
   METHODS,
+  methodsAsked,
   MULTIPLIER,
   outcomeLabel,
   outcomeKey,
   parseMultipliers,
   PRICING_MESSAGES,
+  questionsAsked,
   QUESTION_LABELS,
   type OutcomeAnswer,
   type Question,
@@ -21,13 +25,14 @@ import {
  * allowed to change it to.
  *
  * Worth testing on its own because it is what makes pricing a card minutes of
- * work rather than an hour (ADR-0002): an admin adjusts eight numbers per Bout
+ * work rather than an hour (ADR-0002): an admin adjusts a Bout's numbers
  * instead of authoring them from blank, and every card has to be priced before
- * it opens.
+ * it opens. How many numbers that is is what the Bout is fought under
+ * (ADR-0017).
  */
 describe("the Outcomes a Bout is seeded with", () => {
-  it("asks both Questions of each fighter, in eight numbers", () => {
-    const seeded = defaultOutcomes();
+  it("asks both Questions of each fighter on an MMA Bout, in eight numbers", () => {
+    const seeded = defaultOutcomes("mma");
 
     // Every answer names the corner it is about (ADR-0015), so each of the two
     // Questions the game asks (ADR-0016) is asked of both fighters: two winner
@@ -44,27 +49,27 @@ describe("the Outcomes a Bout is seeded with", () => {
     ]);
   });
 
-  it("asks a Bout the same eight things however many rounds it is booked over", () => {
+  it("asks an MMA Bout the same eight things however many rounds it is booked over", () => {
     // The round of victory is not a Question the game asks (ADR-0016), so how
     // long a Bout is scheduled for no longer decides what it offers. It is a
     // fact about the fight a fan reads on the card and nothing prices.
-    expect(defaultOutcomes().length).toBe(8);
+    expect(defaultOutcomes("mma").length).toBe(8);
   });
 
   it("tells two answers apart when the only difference is the fighter", () => {
     // What `outcomeKey` is for: an Entry is priced by matching the answer a
     // fan gave against the answers the Bout offered, and "Tsiklauri by KO/TKO"
     // and "Beridze by KO/TKO" are two answers at two prices.
-    const [red, blue] = defaultOutcomes().filter(
+    const [red, blue] = defaultOutcomes("mma").filter(
       (outcome) => outcome.question === "method" && outcome.method === "ko_tko",
     );
 
     expect(outcomeKey(red!)).not.toBe(outcomeKey(blue!));
-    expect(new Set(defaultOutcomes().map(outcomeKey)).size).toBe(8);
+    expect(new Set(defaultOutcomes("mma").map(outcomeKey)).size).toBe(8);
   });
 
   it("seeds every Outcome above 1, so a correct Prediction cannot lose Coins", () => {
-    const seeded = defaultOutcomes();
+    const seeded = defaultOutcomes("mma");
 
     expect(seeded.every((outcome) => outcome.multiplier > MULTIPLIER.above)).toBe(true);
     expect(seeded.every((outcome) => outcome.multiplier <= MULTIPLIER.maximum)).toBe(true);
@@ -80,9 +85,9 @@ describe("the Outcomes a Bout is seeded with", () => {
 
 describe("what an Outcome is seeded to pay", () => {
   /** Every seeded Multiplier of a Bout, keyed the way an admin reads them. */
-  function seeded(): Record<string, number> {
+  function seeded(discipline: Discipline = "mma"): Record<string, number> {
     return Object.fromEntries(
-      defaultOutcomes().map((outcome) => [outcomeKey(outcome), outcome.multiplier]),
+      defaultOutcomes(discipline).map((outcome) => [outcomeKey(outcome), outcome.multiplier]),
     );
   }
 
@@ -93,8 +98,12 @@ describe("what an Outcome is seeded to pay", () => {
    * and reading the pair back would say each of them twice. Which corner is
    * arbitrary, and {@link seeded} is where that is proved rather than assumed.
    */
-  function pays(question: Question, corner: Corner = "red"): number[] {
-    return defaultOutcomes()
+  function pays(
+    question: Question,
+    corner: Corner = "red",
+    discipline: Discipline = "mma",
+  ): number[] {
+    return defaultOutcomes(discipline)
       .filter((outcome) => outcome.question === question && outcome.corner === corner)
       .map((outcome) => outcome.multiplier);
   }
@@ -105,8 +114,8 @@ describe("what an Outcome is seeded to pay", () => {
   }
 
   /** A Question's seeded answers as a whole Bout offers them: both corners. */
-  function acrossBothCorners(question: Question): number[] {
-    return CORNERS.flatMap((corner) => pays(question, corner));
+  function acrossBothCorners(question: Question, discipline: Discipline = "mma"): number[] {
+    return CORNERS.flatMap((corner) => pays(question, corner, discipline));
   }
 
   it("prices each answer to stand on its own, for the fighter it names", () => {
@@ -133,7 +142,7 @@ describe("what an Outcome is seeded to pay", () => {
 
     // And it is level because the table has nothing to be uneven from: three
     // method numbers with no corner in them.
-    expect(Object.keys(DEFAULT_MULTIPLIERS.method).sort()).toEqual([...METHODS].sort());
+    expect(Object.keys(DEFAULT_MULTIPLIERS.method.mma).sort()).toEqual([...METHODS].sort());
   });
 
   it("charges the thinnest margin on the Question it already knows the answer to", () => {
@@ -152,6 +161,104 @@ describe("what an Outcome is seeded to pay", () => {
     // margin. Nothing is missing from it now that no round is priced beside
     // it: a round was never part of this total (ADR-0016).
     expect(pays("method")).toEqual([4.4, 8.1, 5.3]);
+  });
+});
+
+describe("what each discipline asks", () => {
+  it("asks an MMA Bout every way a fight can end", () => {
+    expect(methodsAsked("mma")).toEqual(["ko_tko", "submission", "decision"]);
+    expect(questionsAsked("mma")).toEqual(["winner", "method"]);
+  });
+
+  it("does not ask a CageBox Bout about a Submission nobody may attempt", () => {
+    // ADR-0017: a CageBox Bout is boxing, so a Submission is not an ending it
+    // has — an answer that cannot happen is one a fan cannot be right about.
+    expect(methodsAsked("cagebox")).toEqual(["ko_tko", "decision"]);
+    expect(questionsAsked("cagebox")).toEqual(["winner", "method"]);
+    expect(defaultOutcomes("cagebox").map(outcomeKey)).toEqual([
+      "winner:red:",
+      "winner:blue:",
+      "method:red:ko_tko",
+      "method:red:decision",
+      "method:blue:ko_tko",
+      "method:blue:decision",
+    ]);
+  });
+
+  it("asks a Cage Grappling Bout for a winner and nothing else", () => {
+    // The method Question is not narrowed on a Cage Grappling Bout, it is not
+    // asked (ADR-0017): a submission grappling match has no method of victory
+    // the game separates from winning.
+    expect(methodsAsked("cage_grappling")).toEqual([]);
+    expect(questionsAsked("cage_grappling")).toEqual(["winner"]);
+    expect(defaultOutcomes("cage_grappling").map(outcomeKey)).toEqual([
+      "winner:red:",
+      "winner:blue:",
+    ]);
+  });
+
+  it("asks every discipline the winner Question, of both fighters", () => {
+    // The one Question every Bout is asked, whatever is being fought — which
+    // is what makes a card of three disciplines one game rather than three.
+    for (const discipline of DISCIPLINES) {
+      expect(
+        defaultOutcomes(discipline)
+          .filter((outcome) => outcome.question === "winner")
+          .map((outcome) => [outcome.corner, outcome.multiplier]),
+      ).toEqual([
+        ["red", 1.9],
+        ["blue", 1.9],
+      ]);
+    }
+  });
+
+  it("seeds every answer it asks, because an unpriced Outcome cannot be opened", () => {
+    // The rule that makes the seeded table the place a discipline's methods
+    // are written down: a Bout with one unpriced Outcome cannot be opened, so
+    // an answer with no number here is an answer no Bout could ever offer.
+    for (const discipline of DISCIPLINES) {
+      const seeded = defaultOutcomes(discipline);
+
+      expect(seeded.every((outcome) => outcome.multiplier > MULTIPLIER.above)).toBe(true);
+      expect(seeded.every((outcome) => outcome.multiplier <= MULTIPLIER.maximum)).toBe(true);
+      expect(
+        seeded.every(
+          (outcome) =>
+            Number(outcome.multiplier.toFixed(MULTIPLIER.decimals)) === outcome.multiplier,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps a narrowed Question worth what it was worth, spread over what is left", () => {
+    // ADR-0017's pricing rule. Dropping the Submission answers does not make
+    // the method Question cheaper to be right about — it makes the two answers
+    // that remain likelier — so what the Question implies has to stay where it
+    // was and the answers move instead.
+    const implied = (multipliers: readonly number[]) =>
+      multipliers.reduce((total, multiplier) => total + 1 / multiplier, 0);
+
+    const methodsOf = (discipline: Discipline) =>
+      defaultOutcomes(discipline)
+        .filter((outcome) => outcome.question === "method")
+        .map((outcome) => outcome.multiplier);
+
+    expect(implied(methodsOf("cagebox"))).toBeCloseTo(implied(methodsOf("mma")), 3);
+    expect(implied(methodsOf("cagebox"))).toBeCloseTo(1.08, 2);
+
+    // And a KO/TKO still pays less than a Decision, because that is what the
+    // table already said about the pair before the Submission was taken out.
+    expect(methodsOf("cagebox")).toEqual([3.39, 4.09, 3.39, 4.09]);
+  });
+
+  it("orders a narrowed Bout's answers the way every other Bout's are ordered", () => {
+    // `inAskedOrder` sorts by the whole vocabulary rather than by what this
+    // Bout happens to offer, so a CageBox Bout reads winner, KO/TKO, Decision
+    // — the order an MMA Bout reads with the Submission removed.
+    const offered = defaultOutcomes("cagebox");
+    const shuffled = [...offered].reverse();
+
+    expect(inAskedOrder(shuffled).map(outcomeKey)).toEqual(offered.map(outcomeKey));
   });
 });
 

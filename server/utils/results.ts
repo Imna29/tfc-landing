@@ -486,10 +486,16 @@ export interface RecordedEnding {
  * combinations of them are possible. `bout_results_is_a_result_or_no_result`
  * is what makes the half-filled row this would have to guess about
  * unwriteable.
+ *
+ * **The winner alone is what says this is a Result** (ADR-0017), which is the
+ * same thing that check constraint says. A Cage Grappling Bout is settled on
+ * its winner and records no method, so a null one here is an answer rather than
+ * a gap — reading it as a Bout that has not settled would leave every Entry on
+ * that card Open forever, with the Coins already moved.
  */
 export function endingFrom(row: RecordedEnding): BoutEnding | null {
   if (row.resultNoResult !== null) return { noResult: row.resultNoResult };
-  if (row.resultWinner === null || row.resultMethod === null) return null;
+  if (row.resultWinner === null) return null;
 
   return { result: { winner: row.resultWinner, method: row.resultMethod } };
 }

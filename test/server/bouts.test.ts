@@ -246,6 +246,73 @@ describe("a fight card in the game", async () => {
       expect(await seededMethods(threeRounder.id, "blue")).toEqual(seeded);
       expect(await seededMethods(fiveRounder.id, "blue")).toEqual(seeded);
     });
+
+    /** A card of all three formats TFC books, in the order it books them. */
+    async function importedDisciplines() {
+      const { id } = await admin();
+
+      const imported = await importTestCard(id, {
+        prismicId: "event-tfc-13",
+        bouts: [
+          cardBout({ cardOrder: 1, discipline: "cage_grappling" }),
+          cardBout({ cardOrder: 2, discipline: "cagebox" }),
+          cardBout({ cardOrder: 3, discipline: "mma", mainEvent: true }),
+        ],
+      });
+
+      const [grappling, cagebox, mma] = await importedBouts(imported.id);
+
+      return { grappling: grappling!, cagebox: cagebox!, mma: mma! };
+    }
+
+    it("asks each Bout what its own discipline asks, on one card", async () => {
+      // ADR-0017. TFC books three formats on one card and they are not three
+      // names for one sport: eight answers, six and two, decided per Bout by
+      // what is being fought.
+      const { grappling, cagebox, mma } = await importedDisciplines();
+
+      expect(await boutOutcomes(mma.id)).toHaveLength(8);
+      expect(await boutOutcomes(cagebox.id)).toHaveLength(6);
+      expect(await boutOutcomes(grappling.id)).toHaveLength(2);
+
+      // The two every Bout is asked, whatever it is fought under.
+      expect(
+        (await boutOutcomes(grappling.id)).map((outcome) => [outcome.question, outcome.corner]),
+      ).toEqual([
+        ["winner", "blue"],
+        ["winner", "red"],
+      ]);
+    });
+
+    it("prices a narrowed method Question at what the Question is worth", async () => {
+      const { grappling, cagebox } = await importedDisciplines();
+
+      // A CageBox Bout is boxing, so a Submission is not an ending it has —
+      // and the two that remain carry the share of the chance it was holding,
+      // so the Question still implies what it implied on an MMA Bout.
+      expect(await seededMethods(cagebox.id)).toEqual({ ko_tko: 3.39, decision: 4.09 });
+      expect(await seededMethods(cagebox.id, "blue")).toEqual({ ko_tko: 3.39, decision: 4.09 });
+
+      // And a Cage Grappling Bout is asked no method Question at all, so there
+      // is nothing to price rather than a Question with no answers.
+      expect(await seededMethods(grappling.id)).toEqual({});
+    });
+
+    it("refuses a discipline the game does not run, in Postgres as well", async () => {
+      // `bouts_discipline_known`. The import refuses it first, naming the
+      // document to go and fix — this is the copy that survives a refactor, and
+      // the one a hand-written `update` meets.
+      const { mma } = await importedDisciplines();
+
+      const renamed = await testDatabase()
+        .execute(sql`update bouts set discipline = 'kickboxing' where id = ${mma.id}::uuid`)
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(renamed).toMatch(/bouts_discipline_known/);
+    });
   });
 
   describe("what an admin is shown to price", () => {

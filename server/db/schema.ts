@@ -37,6 +37,7 @@ import {
 // below, where Postgres can hold them.
 import type { EntryStatus } from "../../shared/entries";
 import type { BoutStatus, Corner } from "../../shared/events";
+import type { Discipline } from "../../shared/fightCard";
 import type { LockKind } from "../../shared/locks";
 import type { Method, Question } from "../../shared/pricing";
 import type { NoResultReason, RecordedMethod } from "../../shared/results";
@@ -655,6 +656,17 @@ export const bouts = pgTable(
     blueFighterUid: text("blue_fighter_uid"),
     blueImageUrl: text("blue_image_url"),
     blueRecord: text("blue_record"),
+    /**
+     * What is being fought, and the one fact about a Bout the game asks a
+     * different Question because of (ADR-0017).
+     *
+     * A value the game recognises rather than the name an editor typed, unlike
+     * the division beside it: an MMA Bout carries eight Outcomes, a CageBox
+     * Bout six and a Cage Grappling Bout two, so a discipline nothing knows
+     * about is a Bout nothing can price. Read from the uid of the `discipline`
+     * document in Prismic — see `disciplineFor` in `shared/events.ts`.
+     */
+    discipline: text("discipline").$type<Discipline>().notNull(),
     /** The weight class, as the `division` document names it. */
     division: text("division").notNull(),
     scheduledRounds: integer("scheduled_rounds").notNull(),
@@ -684,6 +696,13 @@ export const bouts = pgTable(
       "bouts_corners_are_two_fighters",
       sql`${table.redFighterId} is null or ${table.redFighterId} <> ${table.blueFighterId}`,
     ),
+    // Spelled out again in `Discipline` in `shared/fightCard.ts`, and read
+    // again by `a_result_records_the_method_its_discipline_asks`, which is the
+    // trigger holding a Result to what its Bout was asked.
+    check(
+      "bouts_discipline_known",
+      sql`${table.discipline} in ('mma', 'cagebox', 'cage_grappling')`,
+    ),
     check("bouts_division_is_written", sql`length(trim(${table.division})) > 0`),
   ],
 );
@@ -692,11 +711,13 @@ export const bouts = pgTable(
  * One selectable answer to one Question about a Bout — "Fighter A", "Fighter A
  * by KO/TKO" — carrying the Multiplier that answer pays.
  *
- * Every Bout is imported with its whole set: two winner Outcomes and six method
- * Outcomes, eight on every Bout however long it is booked for. They are written
- * by the import that creates the Bout and by nothing else — see
- * `defaultOutcomes` in `shared/pricing.ts`, which is the one place that says
- * what a Bout is asked.
+ * Every Bout is imported with its whole set, and **how big that set is is the
+ * discipline's to say** (ADR-0017): eight on an MMA Bout, six on a CageBox one
+ * — which cannot end in a Submission — and two on a Cage Grappling Bout, which
+ * is asked for a winner and nothing else. How long a Bout is booked for still
+ * decides nothing (ADR-0016). They are written by the import that creates the
+ * Bout and by nothing else — see `defaultOutcomes` in `shared/pricing.ts`,
+ * which is the one place that says what a Bout is asked.
  *
  * **Every answer names the corner it is about** (ADR-0015), so `corner` is on
  * every row and `method` is the thing it is asked *about*: a corner always,
@@ -714,8 +735,8 @@ export const bouts = pgTable(
  * whole table, which is what lets `predictions` point at it.
  *
  * `pricedAt` and `pricedBy` are the difference between a seeded default and a
- * price. Import seeds a Multiplier on every Outcome so that pricing a card is
- * eight numbers adjusted rather than authored from blank (ADR-0002), and those
+ * price. Import seeds a Multiplier on every Outcome so that pricing a card is a
+ * Bout's numbers adjusted rather than authored from blank (ADR-0002), and those
  * seeded numbers are deliberately not a price: they are null here until an
  * admin has saved the Bout, and a Bout with an unpriced Outcome cannot be
  * opened. The migration that creates this table holds that with a trigger, so
@@ -912,12 +933,19 @@ export const boutResults = pgTable(
      */
     winner: text("winner").$type<Corner>(),
     /**
-     * How it ended, or null on a Bout that produced nothing gradable.
+     * How it ended, or null on a Bout that produced nothing gradable — and null
+     * as well on one whose discipline asks no method Question (ADR-0017).
      *
      * `RecordedMethod` rather than `Method`: a disqualification is a way a
-     * Bout ends and is not one of the three answers the game offers, so it
-     * settles the winner Question and turns the method Question into a No
-     * Result.
+     * Bout ends and is not one of the answers the game offers, so it settles
+     * the winner Question and turns the method Question into a No Result.
+     *
+     * The two ways this is null are told apart by `winner`, which is null on
+     * one and not on the other — and that is what `endingFrom` in
+     * `server/utils/results.ts` reads. Which methods a Bout may record is a
+     * fact about the row in {@link bouts} beside it, so it is held by the
+     * `a_result_records_the_method_its_discipline_asks` trigger rather than by
+     * a check here — a check constraint cannot read another table.
      */
     method: text("method").$type<RecordedMethod>(),
     /**
@@ -953,10 +981,18 @@ export const boutResults = pgTable(
     // naming a reason and a winner would be two accounts of one Bout with
     // nothing to say which of them every Prediction on it is graded against,
     // and a row naming neither would settle a Bout while saying nothing at all.
+    //
+    // **The winner alone is what tells them apart** (ADR-0017). It used to be
+    // the winner and the method together, because every Bout was asked both
+    // Questions; a Cage Grappling Bout is asked one, and a Result on it names a
+    // winner and no method. That a Bout records the methods its discipline asks
+    // — and only those — is the
+    // `a_result_records_the_method_its_discipline_asks` trigger's, which can
+    // read the Bout this check cannot.
     check(
       "bout_results_is_a_result_or_no_result",
-      sql`(${table.noResult} is null) = (${table.winner} is not null
-        and ${table.method} is not null)`,
+      sql`(${table.noResult} is null) = (${table.winner} is not null)
+        and (${table.noResult} is null or ${table.method} is null)`,
     ),
   ],
 );
@@ -1029,10 +1065,15 @@ export const boutResultCorrections = pgTable(
       sql`${table.noResult} is null
         or ${table.noResult} in ('cancelled', 'withdrawal', 'draw', 'no_contest')`,
     ),
+    // The same shape as `bout_results_is_a_result_or_no_result`, for the reason
+    // given above: a log that could hold a shape the table it logs could never
+    // have held is a log of something that did not happen. The superseded
+    // Result of a Cage Grappling Bout named a winner and no method (ADR-0017),
+    // and this is where that stays writeable.
     check(
       "bout_result_corrections_is_a_result_or_no_result",
-      sql`(${table.noResult} is null) = (${table.winner} is not null
-        and ${table.method} is not null)`,
+      sql`(${table.noResult} is null) = (${table.winner} is not null)
+        and (${table.noResult} is null or ${table.method} is null)`,
     ),
   ],
 );

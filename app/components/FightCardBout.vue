@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { isAnswered, pickAnswered } from "#shared/entries";
-import { boutHeadline, roundsLabel, type FightCardBout } from "#shared/fightCard";
+import {
+  boutHeadline,
+  DISCIPLINE_LABELS,
+  roundsLabel,
+  type FightCardBout,
+} from "#shared/fightCard";
 import {
   boutState,
   BOUT_STATE_LABELS,
@@ -11,13 +16,14 @@ import {
 import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
 
 /**
- * One Bout on a card: the two fighters, the weight class, how many rounds —
- * and, only when it is given any, what the game holds against it.
+ * One Bout on a card: the two fighters, what is being fought, the weight class,
+ * how many rounds — and, only when it is given any, what the game holds against
+ * it.
  *
  * `predictions` is the whole of TFC Predictions as far as this component is
- * concerned, and it is optional. Left off, this renders a fight: two names,
- * two records, a division and a number of rounds, which is what a Bout is
- * anywhere it is shown. See `shared/fightCard.ts`.
+ * concerned, and it is optional. Left off, this renders a fight: two names, two
+ * records, a discipline, a division and a number of rounds, which is what a
+ * Bout is anywhere it is shown. See `shared/fightCard.ts`.
  *
  * `picking` is the layer above that, and optional in the same way: with it,
  * every answer on an open Bout is a button and the Prediction the fan is
@@ -107,15 +113,16 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
  * The Questions this Bout is asking, each with the answers to it and what
  * they pay.
  *
- * Both of them, in the order `QUESTIONS` asks them, each answered on its own
- * terms (ADR-0014) and each answer naming the fighter it is about (ADR-0015) —
- * two winner answers and six method answers, eight on every Bout.
+ * In the order `QUESTIONS` asks them, each answered on its own terms (ADR-0014)
+ * and each answer naming the fighter it is about (ADR-0015).
  *
- * The one thing dropped is a Question with no Outcomes on it, which is every
- * Question on a Bout nobody has opened: nothing on it is priced yet. There is
- * no list of its own here to drop anything else, because a Bout with one
- * unpriced Outcome cannot be opened — so every Question a fan is shown is one
- * an admin went through, and the same `QUESTIONS` they went through it in.
+ * **A Question with no Outcomes on it is dropped**, and that one line now does
+ * two jobs. It is every Question on a Bout nobody has opened, where nothing is
+ * priced yet — and it is the method Question on a Cage Grappling Bout, which
+ * has no method Outcomes because its discipline is not asked that Question
+ * (ADR-0017). Nothing here has to know which of the two it is looking at: the
+ * Outcomes on the Bout are what say what it offers, and they are the same rows
+ * an Entry is priced against.
  *
  * Which Questions may be *committed* is not decided here or anywhere in the
  * app: the server prices whatever answer the Bout is offering, and the Outcome
@@ -144,7 +151,8 @@ const questions = computed(() => {
         <template v-if="bout.titleFight"> · Title fight</template>
       </p>
       <p class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
-        {{ bout.division }} · {{ roundsLabel(bout.scheduledRounds) }}
+        {{ DISCIPLINE_LABELS[bout.discipline] }} · {{ bout.division }} ·
+        {{ roundsLabel(bout.scheduledRounds) }}
       </p>
     </header>
 
@@ -179,10 +187,10 @@ const questions = computed(() => {
       </div>
 
       <!--
-        As many columns as there are Questions on the card, which is three on
-        an open Bout and none on one nobody has opened. Laid out from what is
-        actually asked rather than from a number written here, which is what
-        kept the Bout filled while the three arrived one at a time.
+        As many columns as there are Questions on this Bout: two on an open MMA
+        or CageBox Bout, one on an open Cage Grappling Bout (ADR-0017), and none
+        on a Bout nobody has opened. Laid out from what is actually asked rather
+        than from a number written here.
       -->
       <div
         v-if="questions.length > 0"

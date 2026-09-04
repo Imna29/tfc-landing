@@ -35,6 +35,7 @@ function bout(overrides: Partial<FightCardBout> = {}): FightCardBout {
     cardOrder: 1,
     red: corner(),
     blue: corner({ name: "Levan Beridze", fighterUid: "levan-beridze" }),
+    discipline: "mma",
     division: "Lightweight",
     scheduledRounds: 3,
     mainEvent: false,

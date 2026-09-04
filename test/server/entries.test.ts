@@ -562,6 +562,56 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
 
+    it("refuses a method answer on a Bout whose discipline asks no method", async () => {
+      // ADR-0017, and no new rule: a Cage Grappling Bout carries no method
+      // Outcome, so a method answer on it is an answer the Bout is not
+      // offering — the same refusal as one a re-import took away.
+      const card = await upcomingCard({
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true, discipline: "cage_grappling" })],
+      });
+      const fan = await fanWithCoins();
+
+      const response = await submit(
+        { amount: 10, predictions: [byMethod(card, 0, "submission", "red")] },
+        fan.cookie,
+      );
+
+      expect(response.status).toBe(422);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.answerNotOffered);
+      expect(await entriesOf(fan.id)).toEqual([]);
+
+      // And the winner answer on the same Bout is taken, because that is the
+      // Question it is asked.
+      expect(
+        await accepted(await submit({ amount: 10, predictions: [winner(card)] }, fan.cookie)),
+      ).toMatchObject({ entry: { amount: 10 } });
+    });
+
+    it("refuses a Submission on a CageBox Bout, which is not offering one", async () => {
+      const card = await upcomingCard({
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true, discipline: "cagebox" })],
+      });
+      const fan = await fanWithCoins();
+
+      const response = await submit(
+        { amount: 10, predictions: [byMethod(card, 0, "submission", "red")] },
+        fan.cookie,
+      );
+
+      expect(response.status).toBe(422);
+      expect((await response.json()).message).toBe(ENTRY_MESSAGES.answerNotOffered);
+
+      // The two endings it does have are chained the way any other Bout's are.
+      expect(
+        await accepted(
+          await submit(
+            { amount: 10, predictions: [byMethod(card, 0, "ko_tko", "red")] },
+            fan.cookie,
+          ),
+        ),
+      ).toMatchObject({ entry: { amount: 10 } });
+    });
+
     it("refuses two Predictions on the same Bout in one Entry", async () => {
       const card = await upcomingCard();
       const fan = await fanWithCoins();

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { EVENT_MESSAGES } from "../../shared/events";
 import {
   readCard,
   type PrismicBout,
@@ -38,6 +39,16 @@ function division(id: string, name: string): PrismicReference {
   return { id, uid: name.toLowerCase(), data: { name } };
 }
 
+/**
+ * A discipline document, which the import wants for its uid alone.
+ *
+ * The name is what an editor picks it by in Prismic; the game recognises the
+ * uid, and writes the label itself (ADR-0017).
+ */
+function discipline(id: string, uid: string, name: string): PrismicReference {
+  return { id, uid, data: { name } };
+}
+
 /** A link to a document, as the Document API answers with one. */
 function linkTo(id: string) {
   return { link_type: "Document" as const, id, type: "fighter", tags: [], lang: "en-us" };
@@ -54,6 +65,7 @@ function boutRow(overrides: Partial<PrismicBout> = {}): PrismicBout {
     red_corner_name: null,
     blue_corner: linkTo("fighter-blue"),
     blue_corner_name: null,
+    discipline: linkTo("discipline-mma"),
     division: linkTo("division-lightweight"),
     scheduled_rounds: 3,
     main_event: false,
@@ -98,6 +110,10 @@ const REFERENCED: PrismicReference[] = [
     },
   }),
   division("division-lightweight", "Lightweight"),
+  discipline("discipline-mma", "mma", "MMA"),
+  discipline("discipline-cagebox", "cagebox", "CageBox"),
+  discipline("discipline-grappling", "cage-grappling", "Cage Grappling"),
+  discipline("discipline-kickboxing", "kickboxing", "Kickboxing"),
 ];
 
 describe("reading a card out of Prismic", () => {
@@ -128,6 +144,7 @@ describe("reading a card out of Prismic", () => {
             imageUrl: "https://images.prismic.io/tfc/beridze.png",
             record: "9-2-1",
           },
+          discipline: "mma",
           division: "Lightweight",
           scheduledRounds: 3,
           mainEvent: false,
@@ -149,6 +166,70 @@ describe("reading a card out of Prismic", () => {
 
     expect(problem).toBeUndefined();
     expect(card?.bouts.at(0)).toMatchObject({ mainEvent: false, titleFight: false });
+  });
+
+  it("reads which discipline a Bout is fought in, by the document's uid", () => {
+    const grappling = eventDocument({
+      bouts: [boutRow({ discipline: linkTo("discipline-grappling") })],
+    });
+
+    const { card, problem } = readCard(grappling, REFERENCED);
+
+    expect(problem).toBeUndefined();
+    expect(card?.bouts.at(0)?.discipline).toBe("cage_grappling");
+  });
+
+  it("reads a card whose Bouts are fought in different disciplines", () => {
+    // One card, three formats — which is how TFC actually books them, and the
+    // reason the discipline is a fact about a Bout rather than about an Event.
+    const mixed = eventDocument({
+      bouts: [
+        boutRow({ card_order: 1, discipline: linkTo("discipline-grappling") }),
+        boutRow({ card_order: 2, discipline: linkTo("discipline-cagebox") }),
+        boutRow({ card_order: 3, discipline: linkTo("discipline-mma") }),
+      ],
+    });
+
+    const { card, problem } = readCard(mixed, REFERENCED);
+
+    expect(problem).toBeUndefined();
+    expect(card?.bouts.map((bout) => bout.discipline)).toEqual([
+      "cage_grappling",
+      "cagebox",
+      "mma",
+    ]);
+  });
+
+  it("refuses a card whose Bout has no discipline", () => {
+    // Not defaulted to MMA. What a Bout is asked follows from this (ADR-0017),
+    // so guessing it would price a card on a guess.
+    const unnamed = eventDocument({ bouts: [boutRow({ discipline: NOTHING })] });
+
+    expect(readCard(unnamed, REFERENCED)).toEqual({
+      problem: EVENT_MESSAGES.disciplineMissing(1),
+    });
+  });
+
+  it("refuses a card pointing at a discipline document that is not published", () => {
+    const draft = eventDocument({ bouts: [boutRow({ discipline: linkTo("discipline-sumo") })] });
+
+    expect(readCard(draft, REFERENCED)).toEqual({
+      problem: EVENT_MESSAGES.disciplineMissing(1),
+    });
+  });
+
+  it("refuses a discipline the game does not run, naming the ones it does", () => {
+    // A published document the game has never been taught about. Refused while
+    // the fix is still an edit in a CMS, rather than imported as a Bout nothing
+    // knows what to ask about.
+    const kickboxing = eventDocument({
+      bouts: [boutRow({ discipline: linkTo("discipline-kickboxing") })],
+    });
+
+    const { problem } = readCard(kickboxing, REFERENCED);
+
+    expect(problem).toBe(EVENT_MESSAGES.disciplineNotKnown(1, "kickboxing"));
+    expect(problem).toContain("cage-grappling");
   });
 
   it("imports a Bout whose corner is only a name, for a replacement with no profile yet", () => {

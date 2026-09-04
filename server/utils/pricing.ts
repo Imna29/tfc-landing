@@ -10,6 +10,7 @@
  * nothing to self-correct a mispriced Outcome once fans are on it.
  */
 import type { BoutStatus } from "#shared/events";
+import type { Discipline } from "#shared/fightCard";
 import type { BoutLock } from "#shared/locks";
 import type { BoutEnding, ResultCorrection } from "#shared/results";
 import {
@@ -37,16 +38,20 @@ export const BOUTS_ARE_OPENED_ONLY_WHEN_PRICED = "bouts_are_opened_only_when_pri
  * Takes the transaction to run inside rather than opening one: a Bout written
  * without its Outcomes is a fight the game cannot ask a Question about, and it
  * would be one nothing later notices — the Bout looks imported.
+ *
+ * Each Bout is asked what its own discipline asks (ADR-0017), so a card of
+ * three formats is seeded in one insert and each Bout on it comes out with the
+ * eight, six or two answers it offers.
  */
 export async function seedOutcomes(
   tx: DatabaseTransaction,
-  imported: readonly { id: string }[],
+  imported: readonly { id: string; discipline: Discipline }[],
 ): Promise<void> {
   await tx
     .insert(outcomes)
     .values(
       imported.flatMap((bout) =>
-        defaultOutcomes().map((outcome) => ({ boutId: bout.id, ...outcome })),
+        defaultOutcomes(bout.discipline).map((outcome) => ({ boutId: bout.id, ...outcome })),
       ),
     );
 }
@@ -73,6 +78,15 @@ export interface BoutToPrice {
   /** The name each corner is fought under, as the card was imported with. */
   redName: string;
   blueName: string;
+  /**
+   * What is being fought, which is what the result form may record (ADR-0017).
+   *
+   * Here rather than worked out from the Outcomes below, because it is also
+   * what a Bout with no Outcomes on the page is: an admin correcting a settled
+   * Cage Grappling Bout is offered no method, and that is true of the Bout
+   * rather than of what happens to have been priced on it.
+   */
+  discipline: Discipline;
   division: string;
   scheduledRounds: number;
   mainEvent: boolean;
@@ -227,7 +241,7 @@ export async function openBout(boutId: string): Promise<boolean> {
  * were asked and the Lock it has if it has one.
  *
  * One query with a join rather than a query per Bout: a card is up to a dozen
- * Bouts of eight Outcomes each, and this is read on every save.
+ * Bouts of up to eight Outcomes each, and this is read on every save.
  * The Lock audit log, the Results and the corrections made to them are separate
  * queries rather than more joins onto that one, because each belongs to the
  * module that writes it and because a card holds few enough of each to ask for
@@ -241,6 +255,7 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
       status: bouts.status,
       redName: bouts.redName,
       blueName: bouts.blueName,
+      discipline: bouts.discipline,
       division: bouts.division,
       scheduledRounds: bouts.scheduledRounds,
       mainEvent: bouts.mainEvent,

@@ -160,6 +160,26 @@ describe("grading one Prediction against a No Result", () => {
   });
 });
 
+describe("grading a Bout its discipline asked no method about", () => {
+  const grappled: BoutEnding = { result: { winner: "red", method: null } };
+
+  it("grades the winner Question the way every other Bout does", () => {
+    expect(gradePrediction(pick({ corner: "red" }), grappled)).toBe("correct");
+    expect(gradePrediction(pick({ corner: "blue" }), grappled)).toBe("wrong");
+  });
+
+  it("counts a method answer for nothing rather than against the fan", () => {
+    // Unreachable through the game — a Bout with no method Question offers no
+    // method Outcome, so there is no such Prediction to make (ADR-0017). Graded
+    // the way a disqualification is anyway, because the shape allows it and
+    // "wrong" would mark a fan down for an answer nobody offered them.
+    expect(gradePrediction(byMethod("submission"), grappled)).toBe("no result");
+    expect(settledPrice(priced(byMethod("submission")), grappled)).toMatchObject({
+      multiplier: 1,
+    });
+  });
+});
+
 describe("grading one Prediction against a disqualification", () => {
   const dq = result({ winner: "red", method: "disqualification" });
 
@@ -269,19 +289,19 @@ describe("what a Prediction is worth once its Bout is decided", () => {
 
 describe("reading what an admin entered about a Bout", () => {
   it("reads a finish", () => {
-    expect(parseEnding({ winner: "blue", method: "submission" })).toEqual({
+    expect(parseEnding({ winner: "blue", method: "submission" }, "mma")).toEqual({
       ending: { result: { winner: "blue", method: "submission" } },
     });
   });
 
   it("reads a Decision", () => {
-    expect(parseEnding({ winner: "red", method: "decision" })).toEqual({
+    expect(parseEnding({ winner: "red", method: "decision" }, "mma")).toEqual({
       ending: { result: { winner: "red", method: "decision" } },
     });
   });
 
   it("reads a disqualification, which settles the winner and nothing else", () => {
-    expect(parseEnding({ winner: "red", method: "disqualification" })).toEqual({
+    expect(parseEnding({ winner: "red", method: "disqualification" }, "mma")).toEqual({
       ending: { result: { winner: "red", method: "disqualification" } },
     });
   });
@@ -290,7 +310,7 @@ describe("reading what an admin entered about a Bout", () => {
     // A card left open in an admin's tab from before ADR-0016 sends one. The
     // round is not part of a Result any more, so it is read past rather than
     // refused: the two answers this Bout is settled on are both there.
-    expect(parseEnding({ winner: "blue", method: "submission", round: 3 })).toEqual({
+    expect(parseEnding({ winner: "blue", method: "submission", round: 3 }, "mma")).toEqual({
       ending: { result: { winner: "blue", method: "submission" } },
     });
   });
@@ -298,19 +318,19 @@ describe("reading what an admin entered about a Bout", () => {
   it("reads each of the four ways a Bout produces nothing gradable", () => {
     const reasons: NoResultReason[] = ["cancelled", "withdrawal", "draw", "no_contest"];
 
-    expect(reasons.map((reason) => parseEnding({ noResult: reason }))).toEqual(
+    expect(reasons.map((reason) => parseEnding({ noResult: reason }, "mma"))).toEqual(
       reasons.map((reason) => ({ ending: { noResult: reason } })),
     );
   });
 
   it("asks for the method when the winner is the only answer given", () => {
-    expect(parseEnding({ winner: "red", method: null })).toEqual({
-      problem: RESULT_MESSAGES.methodNotChosen,
+    expect(parseEnding({ winner: "red", method: null }, "mma")).toEqual({
+      problem: RESULT_MESSAGES.methodNotChosen("mma"),
     });
   });
 
   it("refuses a reason no Bout produces nothing for", () => {
-    expect(parseEnding({ noResult: "boring" })).toEqual({
+    expect(parseEnding({ noResult: "boring" }, "mma")).toEqual({
       problem: RESULT_MESSAGES.noResultReasonNotChosen,
     });
   });
@@ -319,33 +339,103 @@ describe("reading what an admin entered about a Bout", () => {
     // The field being there at all is what says which control was pressed, so
     // an admin who has not said why is asked why — rather than being told to
     // choose a winner, which is the other form's question.
-    expect(parseEnding({ noResult: null })).toEqual({
+    expect(parseEnding({ noResult: null }, "mma")).toEqual({
       problem: RESULT_MESSAGES.noResultReasonNotChosen,
     });
   });
 
   it("asks for the winner when the result form was the empty one", () => {
-    expect(parseEnding({ winner: null, method: null })).toEqual({
+    expect(parseEnding({ winner: null, method: null }, "mma")).toEqual({
       problem: RESULT_MESSAGES.winnerNotChosen,
     });
   });
 
   it("refuses a Result and a No Result entered as one", () => {
-    expect(parseEnding({ winner: "red", method: "decision", noResult: "draw" })).toEqual({
+    expect(parseEnding({ winner: "red", method: "decision", noResult: "draw" }, "mma")).toEqual({
       problem: RESULT_MESSAGES.aNoResultDecidedNothing,
     });
   });
 
   it("refuses a corner that is not one", () => {
-    expect(parseEnding({ winner: "green", method: "ko_tko" })).toEqual({
+    expect(parseEnding({ winner: "green", method: "ko_tko" }, "mma")).toEqual({
       problem: RESULT_MESSAGES.winnerNotChosen,
     });
   });
 
   it("refuses a method the game does not ask about", () => {
-    expect(parseEnding({ winner: "red", method: "knockdown" })).toEqual({
-      problem: RESULT_MESSAGES.methodNotChosen,
+    expect(parseEnding({ winner: "red", method: "knockdown" }, "mma")).toEqual({
+      problem: RESULT_MESSAGES.methodNotChosen("mma"),
     });
+  });
+
+  it("reads a Cage Grappling Bout, which is settled on its winner alone", () => {
+    // ADR-0017: the discipline asks no method Question, so a Result records
+    // none — and the method is null rather than missing, because that is the
+    // shape everything downstream reads a Result in.
+    expect(parseEnding({ winner: "blue" }, "cage_grappling")).toEqual({
+      ending: { result: { winner: "blue", method: null } },
+    });
+  });
+
+  it("refuses a method on a Bout whose discipline asks for none", () => {
+    // Not read past, the way the retired round is. A round arrived from a page
+    // that no longer exists; a method here is somebody telling the game
+    // something about a fight it never asked about, and the two would settle
+    // the Bout differently.
+    expect(parseEnding({ winner: "blue", method: "submission" }, "cage_grappling")).toEqual({
+      problem: RESULT_MESSAGES.methodNotAsked("cage_grappling"),
+    });
+  });
+
+  it("refuses a disqualification where no method Question was asked", () => {
+    // A DQ is recorded at all because it turns the method Question into a No
+    // Result (ADR-0005). On a Bout with no method Question there is nothing for
+    // it to do, and the fighter who was awarded the win still won.
+    expect(parseEnding({ winner: "red", method: "disqualification" }, "cage_grappling")).toEqual({
+      problem: RESULT_MESSAGES.methodNotAsked("cage_grappling"),
+    });
+  });
+
+  it("still asks a Cage Grappling Bout who won", () => {
+    expect(parseEnding({ winner: null }, "cage_grappling")).toEqual({
+      problem: RESULT_MESSAGES.winnerNotChosen,
+    });
+  });
+
+  it("reads a No Result on a Bout with no method Question", () => {
+    // A Cage Grappling Bout is cancelled and withdrawn from like any other.
+    expect(parseEnding({ noResult: "withdrawal" }, "cage_grappling")).toEqual({
+      ending: { noResult: "withdrawal" },
+    });
+  });
+
+  it("refuses a Submission on a CageBox Bout, which cannot end in one", () => {
+    // A method the game knows and this Bout could never produce (ADR-0017), so
+    // no fan was offered it and a Result naming it is a fight somebody has
+    // mixed up with the one before it.
+    expect(parseEnding({ winner: "red", method: "submission" }, "cagebox")).toEqual({
+      problem: RESULT_MESSAGES.methodNotChosen("cagebox"),
+    });
+  });
+
+  it("reads the two endings a CageBox Bout has, and the disqualification behind them", () => {
+    expect(parseEnding({ winner: "red", method: "ko_tko" }, "cagebox")).toEqual({
+      ending: { result: { winner: "red", method: "ko_tko" } },
+    });
+    expect(parseEnding({ winner: "blue", method: "decision" }, "cagebox")).toEqual({
+      ending: { result: { winner: "blue", method: "decision" } },
+    });
+    expect(parseEnding({ winner: "blue", method: "disqualification" }, "cagebox")).toEqual({
+      ending: { result: { winner: "blue", method: "disqualification" } },
+    });
+  });
+
+  it("names only the endings this Bout has when it asks for one", () => {
+    // The refusal is the list an admin picks from, so it cannot name a
+    // Submission on a Bout that has none.
+    expect(RESULT_MESSAGES.methodNotChosen("cagebox")).toContain("KO/TKO");
+    expect(RESULT_MESSAGES.methodNotChosen("cagebox")).not.toContain("Submission");
+    expect(RESULT_MESSAGES.methodNotChosen("mma")).toContain("Submission");
   });
 });
 
@@ -361,7 +451,7 @@ describe("what a fan is told about an answer that stopped counting", () => {
 
   it("explains a disqualification to the fan whose method it neutralised", () => {
     expect(endingNote(byMethod("ko_tko"), dq)).toBe(
-      "Won by disqualification, which is not one of the three methods this Bout offered, so " +
+      "Won by disqualification, which is not one of the methods this Bout offered, so " +
         "there was nothing here to be right or wrong about. This Prediction counts as ×1.00 " +
         "and the rest of the Entry plays on.",
     );
@@ -391,6 +481,13 @@ describe("how a Bout went, as a sentence", () => {
     expect(resultLabel({ winner: "red", method: "disqualification" }, CORNERS)).toBe(
       "Giorgi Tsiklauri by Disqualification",
     );
+  });
+
+  it("names the winner alone where the Bout had no method to record", () => {
+    // A Cage Grappling Bout (ADR-0017). "by" with nothing after it would be a
+    // sentence missing its end, and the bare name reads as a caption rather
+    // than as a statement about a fight.
+    expect(resultLabel({ winner: "blue", method: null }, CORNERS)).toBe("Levan Beridze wins");
   });
 
   it("says a No Result and why, because otherwise it reads as arbitrary", () => {

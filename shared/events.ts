@@ -10,9 +10,43 @@
  * imported, and ADR-0001 makes what lands in Postgres the copy settlement
  * reads afterwards.
  */
+import { DISCIPLINES, type Discipline } from "./fightCard";
 
 /** Which corner of a Bout, as a fan and an editor both read it. */
 export type Corner = "red" | "blue";
+
+/**
+ * The uid of the `discipline` document each one is authored as.
+ *
+ * The uid rather than the name, because it is the identifier of the document
+ * and the name is display text an editor may reword — "CageBox" becoming "Cage
+ * Box" one afternoon should change what a fan reads and nothing about what the
+ * game asks. Written out rather than derived from the value beside it, so that
+ * an editor who creates the document under a uid of their own choosing is
+ * answered by a line somebody can change here rather than by a rule nobody
+ * wrote down.
+ *
+ * Named in {@link EVENT_MESSAGES.disciplineNotKnown}, so an admin refused an
+ * import is told which uids the game answers to.
+ */
+export const DISCIPLINE_UIDS = {
+  mma: "mma",
+  cagebox: "cagebox",
+  cage_grappling: "cage-grappling",
+} as const satisfies Record<Discipline, string>;
+
+/**
+ * Which discipline a `discipline` document is, or null for one the game does
+ * not run.
+ *
+ * The whole of the mapping from Prismic's vocabulary to this one, in the
+ * module the import refuses from — so a card pointing at a document nobody has
+ * taught the game about is refused while the fix is still an edit in a CMS
+ * (ADR-0001).
+ */
+export function disciplineFor(uid: string | null | undefined): Discipline | null {
+  return DISCIPLINES.find((discipline) => DISCIPLINE_UIDS[discipline] === uid) ?? null;
+}
 
 /**
  * How many rounds a Bout may be scheduled for.
@@ -95,6 +129,18 @@ export const EVENT_MESSAGES = {
   divisionMissing: (position: number) =>
     `The ${ordinal(position)} Bout has no division. It is the weight class a ` +
     "fan reads beside the two names.",
+  disciplineMissing: (position: number) =>
+    `The ${ordinal(position)} Bout has no discipline, or links one that is not ` +
+    "published. It is what the Bout is asked \u2014 an MMA Bout can end by " +
+    "Submission, a CageBox Bout cannot, and a Cage Grappling Bout is asked for " +
+    "a winner and nothing else \u2014 so there is no way to price a Bout without it.",
+  disciplineNotKnown: (position: number, uid: string) =>
+    `The ${ordinal(position)} Bout is fought in "${uid}", which is not a ` +
+    "discipline the game runs. It knows " +
+    DISCIPLINES.map((discipline) => `"${DISCIPLINE_UIDS[discipline]}"`).join(", ") +
+    ", by the UID of the discipline document. Point the Bout at one of those, " +
+    "or the discipline needs adding to the game before a card using it can be " +
+    "imported.",
   roundsUnreadable: (position: number) =>
     `The ${ordinal(position)} Bout is not scheduled for a whole number of ` +
     `rounds between ${SCHEDULED_ROUNDS.minimum} and ${SCHEDULED_ROUNDS.maximum}. ` +

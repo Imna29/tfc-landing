@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Corner } from "#shared/events";
+import { DISCIPLINE_LABELS } from "#shared/fightCard";
 import {
   answerLabel,
   CORNERS,
@@ -12,7 +13,7 @@ import {
   boutEndingLabel,
   NO_RESULT_LABELS,
   NO_RESULT_REASONS,
-  RECORDED_METHODS,
+  recordedMethods,
   RECORDED_METHOD_LABELS,
   RESULT_MESSAGES,
   type EnteredEnding,
@@ -29,10 +30,11 @@ import {
  * The screen ADR-0002 costs TFC. Multipliers are fixed by hand, so somebody
  * sits down with this before every card — which is why import seeds every
  * Outcome and this page is numbers to correct per Bout rather than a blank
- * form. Eight of them, since every answer names the fighter it is about
- * (ADR-0015), which is what {@link questionsOf} lays out a corner at a time:
- * six "Tsiklauri by Submission"-width labels down one column is a screen an
- * admin loses their place in. It is deliberately plain otherwise, like the rest
+ * form. Up to eight of them, since every answer names the fighter it is about
+ * (ADR-0015) and how many a Bout carries is what it is fought under (ADR-0017),
+ * which is what {@link questionsOf} lays out a corner at a time: six
+ * "Tsiklauri by Submission"-width labels down one column is a screen an admin
+ * loses their place in. It is deliberately plain otherwise, like the rest
  * of the admin area (ADR-0011).
  *
  * Every Outcome is offered, unfiltered, and that is not the card's decision:
@@ -145,11 +147,15 @@ const done = ref("");
  * `outcomeLabel` still names the whole answer to a screen reader, so the two
  * ways of reading the page say the same thing.
  *
- * Every Question and every answer to it, unfiltered: a Bout with one unpriced
- * Outcome cannot be opened, so an answer this screen did not offer would be a
- * Bout an admin could never open. The one thing dropped is a corner with no
- * answers under it, which would be an empty row — and on any Bout import
- * wrote, there is no such corner.
+ * Every answer this Bout is asked, unfiltered: a Bout with one unpriced Outcome
+ * cannot be opened, so an answer this screen did not offer would be a Bout an
+ * admin could never open.
+ *
+ * **What is dropped is anything with nothing under it** — a corner with no
+ * answers, and a Question with no corners. The second is a Cage Grappling Bout,
+ * which is asked no method Question at all (ADR-0017): left in, it would print
+ * a "Method of victory" heading over an empty space, which is the screen asking
+ * something the game does not.
  */
 function questionsOf(bout: (typeof bouts.value)[number]) {
   const named = cornersOf(bout);
@@ -164,7 +170,7 @@ function questionsOf(bout: (typeof bouts.value)[number]) {
         (outcome) => outcome.question === question && outcome.corner === corner,
       ),
     })).filter((side) => side.outcomes.length > 0),
-  }));
+  })).filter((asked) => asked.corners.length > 0);
 }
 
 /**
@@ -263,11 +269,31 @@ const noResultReasons = NO_RESULT_REASONS.map((reason) => ({
   label: NO_RESULT_LABELS[reason],
 }));
 
-/** The ways a Bout ends with a winner, disqualification included. */
-const recordedMethods = RECORDED_METHODS.map((method) => ({
-  method,
-  label: RECORDED_METHOD_LABELS[method],
-}));
+/**
+ * The ways this Bout ends with a winner, disqualification included — and none
+ * at all where its discipline asks no method Question (ADR-0017).
+ *
+ * Per Bout rather than once for the page, because one card carries three
+ * formats: the Bout above may be MMA and this one Cage Grappling, and the list
+ * an admin picks from has to be the endings the fight in front of them has.
+ */
+function methodsOf(bout: (typeof bouts.value)[number]) {
+  return recordedMethods(bout.discipline).map((method) => ({
+    method,
+    label: RECORDED_METHOD_LABELS[method],
+  }));
+}
+
+/**
+ * Whether this Bout is settled on its winner alone.
+ *
+ * The result form drops its method control entirely rather than offering an
+ * empty one: an admin at cageside reading a select with nothing in it is being
+ * asked a question the game does not ask.
+ */
+function settledOnTheWinnerAlone(bout: (typeof bouts.value)[number]): boolean {
+  return recordedMethods(bout.discipline).length === 0;
+}
 
 /** What was entered, as the admin reads it back on a settled Bout. */
 function settledAs(bout: (typeof bouts.value)[number]): string | null {
@@ -309,7 +335,11 @@ async function enterResult(bout: (typeof bouts.value)[number]) {
   const answered = entered.value[bout.id];
   const ending = {
     winner: answered?.winner ?? null,
-    method: answered?.method ?? null,
+    // Never sent on a Bout whose discipline asks no method (ADR-0017). The
+    // control is not rendered there, so anything sitting in it is left over
+    // from a Bout that had one — and `parseEnding` refuses a method on such a
+    // Bout rather than reading past it.
+    method: settledOnTheWinnerAlone(bout) ? null : (answered?.method ?? null),
   };
 
   if (correcting(bout)) return correct(bout, ending);
@@ -433,9 +463,11 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
     <div class="max-w-5xl mx-auto">
       <p class="text-on-surface/80 leading-relaxed">
         Every Outcome arrived with a Multiplier from a fixed table, which is a starting point and
-        not a price: nothing that wrote it knows which fighter is favoured. Adjust the eight numbers
-        on a Bout, save them, and the Bout can be opened. Every answer names the fighter it is about
-        and every Multiplier stands for that answer outright, so
+        not a price: nothing that wrote it knows which fighter is favoured. Adjust the numbers on a
+        Bout, save them, and the Bout can be opened. How many there are is what is being fought —
+        eight on an MMA Bout, six on a CageBox one, two on a Cage Grappling Bout, which is settled
+        on its winner alone. Every answer names the fighter it is about and every Multiplier stands
+        for that answer outright, so
         <em>Tsiklauri by Submission</em> is what that fighter winning that way pays — and it is a
         different number from the same finish by the other corner.
       </p>
@@ -465,7 +497,8 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
             {{ bout.cardOrder }}. {{ bout.redName }} vs {{ bout.blueName }}
           </h2>
           <p class="text-sm text-on-surface/70">
-            {{ bout.division }} · {{ bout.scheduledRounds }} rounds
+            {{ DISCIPLINE_LABELS[bout.discipline] }} · {{ bout.division }} ·
+            {{ bout.scheduledRounds }} rounds
             <template v-if="bout.mainEvent"> · Main event</template>
             <template v-if="bout.titleFight"> · Title fight</template>
           </p>
@@ -557,7 +590,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
               </select>
             </label>
 
-            <label class="flex items-center gap-2">
+            <label v-if="!settledOnTheWinnerAlone(bout)" class="flex items-center gap-2">
               <span>Method</span>
               <select
                 v-model="entered[bout.id]!.method"
@@ -565,11 +598,15 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 class="border border-outline-variant/40 bg-surface px-2 py-1"
               >
                 <option :value="null">Choose</option>
-                <option v-for="ended in recordedMethods" :key="ended.method" :value="ended.method">
+                <option v-for="ended in methodsOf(bout)" :key="ended.method" :value="ended.method">
                   {{ ended.label }}
                 </option>
               </select>
             </label>
+
+            <p v-else class="text-on-surface/70">
+              A {{ DISCIPLINE_LABELS[bout.discipline] }} Bout is settled on its winner alone.
+            </p>
 
             <button
               type="button"

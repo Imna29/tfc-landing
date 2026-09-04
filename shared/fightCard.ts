@@ -15,7 +15,51 @@
  * otherwise would be true only on the server. Formatting one, and counting
  * down to one, is `app/utils/moments.ts` — this module holds the card, not the
  * clock.
+ *
+ * It depends on nothing at all, which `test/unit/fight-card.test.ts` checks
+ * rather than trusts. That is why {@link Discipline} is here and not beside the
+ * import that reads it: what is being fought is part of what a fight *is*, the
+ * way its weight class is, and a card model reaching into the import to say so
+ * would be the card knowing where it came from.
  */
+
+/**
+ * What is being fought: TFC runs three formats, and they are not three names
+ * for one sport.
+ *
+ * A fact about the Bout, read off the `discipline` document it links to in
+ * Prismic — and the only such fact the game *asks a different question*
+ * because of. The weight class and how long a Bout is booked for are read on
+ * the card and nothing else; the discipline decides what a Bout is asked at
+ * all, because a Cage Grappling Bout has no method of victory to ask about and
+ * a CageBox Bout cannot end in a Submission. See ADR-0017, and
+ * `methodsAsked` in `shared/pricing.ts`, which is where that becomes the
+ * Outcomes a Bout carries.
+ *
+ * A closed set rather than whatever an editor has typed, unlike the division
+ * beside it. The game prices and grades against these values, so one it does
+ * not recognise is not a discipline it can run a Bout in — which is why
+ * `disciplineFor` in `shared/events.ts` refuses a card carrying one rather than
+ * importing a Bout nothing knows what to ask.
+ *
+ * Spelled out again in the `bouts_discipline_known` check constraint, for the
+ * reason given on `Role` in `server/db/schema.ts`.
+ */
+export type Discipline = "mma" | "cagebox" | "cage_grappling";
+
+/** The three formats, in the order they are listed wherever all three are. */
+export const DISCIPLINES = [
+  "mma",
+  "cagebox",
+  "cage_grappling",
+] as const satisfies readonly Discipline[];
+
+/** What each is called wherever one is shown, which is TFC's own spelling. */
+export const DISCIPLINE_LABELS = {
+  mma: "MMA",
+  cagebox: "CageBox",
+  cage_grappling: "Cage Grappling",
+} as const satisfies Record<Discipline, string>;
 
 /**
  * One side of a Bout: the name it is fought under, and — when that fighter has
@@ -42,6 +86,16 @@ export interface FightCardBout {
   cardOrder: number;
   red: FightCardCorner;
   blue: FightCardCorner;
+  /**
+   * What is being fought: MMA, CageBox or Cage Grappling.
+   *
+   * Here rather than only in the game half, because a card of three formats
+   * reads as three different fights and a fan has to be told which is which —
+   * on a marketing page as much as in TFC Predictions. That it also decides
+   * what the Bout is asked is ADR-0017, and `shared/pricing.ts` is where that
+   * happens; this module still knows nothing about the game.
+   */
+  discipline: Discipline;
   /** The weight class, as the `division` document names it. */
   division: string;
   scheduledRounds: number;

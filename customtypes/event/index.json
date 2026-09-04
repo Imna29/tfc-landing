@@ -75,6 +75,16 @@
               },
               "type": "Text"
             },
+            "discipline": {
+              "config": {
+                "customtypes": [
+                  "discipline"
+                ],
+                "label": "discipline",
+                "select": "document"
+              },
+              "type": "Link"
+            },
             "division": {
               "config": {
                 "customtypes": [

@@ -332,6 +332,16 @@ export interface EventDocumentDataBoutsItem {
 	blue_corner_name: prismic.KeyTextField;
 	
 	/**
+	 * discipline field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].discipline
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	discipline: prismic.ContentRelationshipField<"discipline">;
+	
+	/**
 	 * division field in *Event → bouts*
 	 *
 	 * - **Field Type**: Content Relationship

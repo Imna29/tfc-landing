@@ -2,12 +2,16 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { STARTING_BALANCE } from "../../shared/coins";
 import { COMBINED_MULTIPLIER_CAP } from "../../shared/entries";
+import { DISCIPLINES } from "../../shared/fightCard";
+import { METHODS } from "../../shared/pricing";
 import {
   endingNote,
   gradePrediction,
   NO_RESULT_REASONS,
+  recordedMethods,
   RESULT_MESSAGES,
   type NoResultReason,
+  type RecordedMethod,
 } from "../../shared/results";
 import {
   balanceCache,
@@ -27,8 +31,10 @@ import {
   WON_ENTRIES_ARE_REWARDED_ONCE,
 } from "../../server/utils/results";
 import {
+  adminWithASeason,
   cardInTheGame,
   cardToPrice,
+  correctResult,
   enterResult,
   lockBout,
   openedSeasonId,
@@ -72,6 +78,15 @@ import { setupTestServer } from "../helpers/server";
  * the suite, so a read reaching for a second connection while settlement holds
  * a transaction deadlocks here rather than in production (ADR-0010).
  */
+/**
+ * Thrown to undo a write a test only wanted to know the answer to.
+ *
+ * A class rather than a flag, so that "the transaction rolled back because we
+ * asked it to" is told apart from "Postgres refused the statement" by which
+ * error came back rather than by reading its message.
+ */
+class Rolled extends Error {}
+
 /** A promise something else decides the moment of, and the switch that does. */
 function resolvable() {
   let resolve = () => {};
@@ -1146,6 +1161,260 @@ describe("entering a result", async () => {
       });
       expect(await statusOf(entry.id)).toBe("refunded");
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE });
+    });
+  });
+
+  describe("a Bout settled on its winner alone", () => {
+    it("settles a Cage Grappling Bout with no method recorded", async () => {
+      // ADR-0017. The discipline asks one Question, so a Result answers one —
+      // and the Bout is settled, the Entry graded and the Reward paid by
+      // exactly the same path as every other Bout on the card.
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "blue")]);
+
+      const { settlement } = await settle(card, 0, { winner: "blue", method: null });
+
+      expect(settlement).toMatchObject({ graded: 1, won: 1, lost: 0, refunded: 0, paid: 20 });
+      expect(await statusOf(entry.id)).toBe("won");
+
+      const settled = await cardToPrice(card.eventId, card.admin.cookie);
+
+      expect(settled.bouts[0]?.ending).toEqual({ result: { winner: "blue", method: null } });
+    });
+
+    it("is a loss for the fan who picked the other fighter", async () => {
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+
+      const { settlement } = await settle(card, 0, { winner: "blue", method: null });
+
+      expect(settlement).toMatchObject({ lost: 1, won: 0, paid: 0 });
+      expect(await statusOf(entry.id)).toBe("lost");
+    });
+
+    it("refuses a method on a Bout nobody was offered one on", async () => {
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "submission" },
+        card.admin.cookie,
+      );
+
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toMatchObject({
+        message: RESULT_MESSAGES.methodNotAsked("cage_grappling"),
+      });
+    });
+
+    it("still asks a Cage Grappling Bout who won", async () => {
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(card.bouts[0]!.id, {}, card.admin.cookie);
+
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toMatchObject({
+        message: RESULT_MESSAGES.winnerNotChosen,
+      });
+    });
+
+    it("records a No Result on one the way it does on any other Bout", async () => {
+      // A Cage Grappling Bout is cancelled and withdrawn from like any other,
+      // and ADR-0005 is untouched by ADR-0017.
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 15, [winnerOn(card.bouts[0]!.id, "red")]);
+
+      await settleAsNoResult(card, 0, "withdrawal");
+
+      expect(await statusOf(entry.id)).toBe("refunded");
+    });
+
+    it("corrects one to the other fighter, and back off the Coins it paid", async () => {
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(fan, 10, [winnerOn(card.bouts[0]!.id, "red")]);
+
+      await settle(card, 0, { winner: "red", method: null });
+      expect(await statusOf(entry.id)).toBe("won");
+
+      const corrected = await correctResult(
+        card.bouts[0]!.id,
+        { winner: "blue" },
+        card.admin.cookie,
+      );
+
+      expect(corrected.ok).toBe(true);
+      expect(await statusOf(entry.id)).toBe("lost");
+
+      // What it used to be recorded as is kept, method and all — which is to
+      // say without one.
+      const settled = await cardToPrice(card.eventId, card.admin.cookie);
+
+      expect(settled.bouts[0]?.corrections.at(0)?.ending).toEqual({
+        result: { winner: "red", method: null },
+      });
+    });
+  });
+
+  describe("a method a Bout could never have produced", () => {
+    it("refuses a Submission on a CageBox Bout", async () => {
+      // A method the game knows and this Bout has no way of reaching
+      // (ADR-0017): no fan on it was offered a Submission, so a Result naming
+      // one is a fight somebody has mixed up with the one before it.
+      const card = await upcomingCard(1, { discipline: "cagebox" });
+
+      await lockBout(card.bouts[0]!.id, card.admin.cookie);
+
+      const refused = await enterResult(
+        card.bouts[0]!.id,
+        { winner: "red", method: "submission" },
+        card.admin.cookie,
+      );
+
+      expect(refused.status).toBe(422);
+      expect(await refused.json()).toMatchObject({
+        message: RESULT_MESSAGES.methodNotChosen("cagebox"),
+      });
+    });
+
+    it("settles the two endings a CageBox Bout does have", async () => {
+      const card = await upcomingCard(2, { discipline: "cagebox" });
+
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
+      await settle(card, 1, { winner: "blue", method: "decision" });
+
+      const settled = await cardToPrice(card.eventId, card.admin.cookie);
+
+      expect(settled.bouts.map((bout) => bout.ending)).toEqual([
+        { result: { winner: "red", method: "ko_tko" } },
+        { result: { winner: "blue", method: "decision" } },
+      ]);
+    });
+
+    it("is refused by Postgres too, whatever a route believed", async () => {
+      // `a_result_records_the_method_its_discipline_asks`. The route refuses it
+      // first so an admin is told which answer is wrong; this is the copy that
+      // survives a refactor, and it fires on the update a correction makes as
+      // well as on the insert.
+      const card = await upcomingCard(1, { discipline: "cagebox" });
+
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
+
+      const rewritten = await testDatabase()
+        .execute(
+          sql`update bout_results set method = 'submission'
+              where bout_id = ${card.bouts[0]!.id}::uuid`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(rewritten).toMatch(/a_result_records_the_method_its_discipline_asks/);
+    });
+
+    it("refuses a method written onto a Bout that was asked for none", async () => {
+      const card = await upcomingCard(1, { discipline: "cage_grappling" });
+
+      await settle(card, 0, { winner: "red", method: null });
+
+      const rewritten = await testDatabase()
+        .execute(
+          sql`update bout_results set method = 'decision'
+              where bout_id = ${card.bouts[0]!.id}::uuid`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(rewritten).toMatch(/a_result_records_the_method_its_discipline_asks/);
+    });
+
+    it("holds the trigger's own list of endings to the one the game asks", async () => {
+      // `a_result_records_the_method_its_discipline_asks` spells its methods
+      // out in a SQL `CASE` rather than deriving them, for the reason every
+      // check in this schema does — a constraint built from a lookup is only as
+      // true as whatever last wrote the lookup. The cost of spelling it out is
+      // that it can drift from `recordedMethods`, and this is what stops it:
+      // every discipline against every ending the game knows, both ways round.
+      const admin = await adminWithASeason();
+      const endings: (RecordedMethod | null)[] = [...METHODS, "disqualification", null];
+
+      for (const discipline of DISCIPLINES) {
+        const card = await upcomingCard(1, {
+          admin,
+          discipline,
+          card: { prismicId: `event-${discipline}` },
+        });
+        const asked = recordedMethods(discipline);
+
+        await settle(card, 0, { winner: "red", method: asked.at(0) ?? null });
+
+        for (const ending of endings) {
+          // Rolled back whichever way it goes, which is what makes asking this
+          // possible at all: `corrected_results_are_recorded` is deferred, so a
+          // Result rewritten outside a correction is refused at commit however
+          // ordinary the method is. Rolling back never reaches that, and the
+          // trigger being asked about is a `BEFORE` one that has already fired.
+          const written = await testDatabase()
+            .transaction(async (tx) => {
+              await tx.execute(
+                sql`update bout_results set method = ${ending}
+                    where bout_id = ${card.bouts[0]!.id}::uuid`,
+              );
+
+              throw new Rolled();
+            })
+            .then(
+              () => true,
+              (refusal: unknown) => refusal instanceof Rolled,
+            );
+
+          // A method is writeable exactly where the discipline asks for it, and
+          // no method is writeable exactly where it asks for none.
+          const allowed = ending === null ? asked.length === 0 : asked.includes(ending);
+
+          expect({ discipline, ending, written }).toEqual({
+            discipline,
+            ending,
+            written: allowed,
+          });
+        }
+      }
+    });
+
+    it("refuses a method taken off an MMA Bout that was asked for one", async () => {
+      // The other direction, and the one nothing else would have caught: the
+      // check constraint stopped requiring a method when a Cage Grappling
+      // Result stopped having one, so this is what still holds an MMA Result to
+      // answering both Questions.
+      const card = await upcomingCard(1);
+
+      await settle(card, 0, { winner: "red", method: "decision" });
+
+      const emptied = await testDatabase()
+        .execute(
+          sql`update bout_results set method = null
+              where bout_id = ${card.bouts[0]!.id}::uuid`,
+        )
+        .then(
+          () => "wrote it",
+          (refusal: Error) => `${refusal.message} ${refusal.cause}`,
+        );
+
+      expect(emptied).toMatch(/a_result_records_the_method_its_discipline_asks/);
     });
   });
 
