@@ -191,18 +191,22 @@ describe("Seasons and the Coin ledger", async () => {
       const admin = await signUpAdmin();
       await openSeason(admin.cookie, "Season 1");
 
-      // The header carrying this Balance is on every marketing page, and those
-      // are stored at the edge with a key that ignores cookies (ADR-0008). So
-      // the HTML has to be the same for everyone and the browser has to fill
-      // the Balance in — which is what `app/components/FanBalance.vue` does,
-      // and what this holds it to.
-      const page = await $fetch("/contest-rules", { headers: { cookie: admin.cookie } });
+      // Both headers carry a Balance, and pages under both of them are stored
+      // at the edge with a key that ignores cookies (ADR-0008): `/contact` is
+      // the marketing site, where the PlayTFC button holds it, and
+      // `/contest-rules` is inside the game, where `FanBalance` does. So the
+      // HTML has to be the same for everyone and the browser has to fill the
+      // Balance in, on both.
+      for (const path of ["/contact", "/contest-rules"]) {
+        const page = await $fetch<string>(path, { headers: { cookie: admin.cookie } });
 
-      // The header has somewhere for a Balance to go, and no Balance in it.
-      // Without the first of those the second would pass on a site that had
-      // never heard of Coins.
-      expect(page).toContain("data-fan-balance");
-      expect(page).not.toContain(`${STARTING_BALANCE} Coins`);
+        // The header has somewhere for a Balance to go, and no Balance in it.
+        // Without the first of those the second would pass on a site that had
+        // never heard of Coins.
+        expect(page).toContain("data-fan-balance");
+        expect(page).not.toContain(`${STARTING_BALANCE} Coins`);
+      }
+
       expect(await balance(admin.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });
   });

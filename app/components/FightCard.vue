@@ -20,6 +20,16 @@ const props = defineProps<{
   predictions?: CardPredictions | null;
   /** The one answer the fan has given on each Bout, by the Bout it answers. */
   picks?: Record<string, OutcomeAnswer>;
+  /**
+   * The clock every Lock on this card is read against, when the page already
+   * holds one.
+   *
+   * The page does when it counts something down of its own — the strip above
+   * the card counts to the first Lock — and handing that clock down is what
+   * keeps the two of them the same clock. Left off, this starts one, which is
+   * the card shown anywhere that is not counting anything.
+   */
+  now?: number;
 }>();
 
 const emit = defineEmits<{ pick: [boutId: string, pick: OutcomeAnswer | null] }>();
@@ -28,8 +38,11 @@ const emit = defineEmits<{ pick: [boutId: string, pick: OutcomeAnswer | null] }>
  * One clock for the card rather than one per Bout: ten Bouts counting down
  * separately would be ten timers disagreeing with each other by a fraction of
  * a second, and a card whose Locks passed in a different order each time.
+ *
+ * The page's own, where it has one, for the same reason at the next size up.
  */
-const now = useNow(props.predictions?.answeredAt);
+const started = useNow(props.predictions?.answeredAt);
+const now = computed(() => props.now ?? started.value);
 
 /**
  * Every Bout in card order, beside what the game holds against it.
@@ -48,7 +61,7 @@ const shown = computed(() =>
 </script>
 
 <template>
-  <ol class="flex flex-col gap-6">
+  <ol class="flex flex-col gap-3">
     <li v-for="{ bout, predictions: held, boutId } in shown" :key="bout.cardOrder">
       <FightCardBout
         :bout="bout"

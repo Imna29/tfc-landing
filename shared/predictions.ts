@@ -134,6 +134,8 @@ export const PREDICTION_MESSAGES = {
     "What each answer pays is set before a Bout opens, so there is nothing to " +
     "weigh up on this one yet.",
   locksWhenReached: "This Bout locks when the card reaches it.",
+  cardUnderway: "This card is being fought. Its Bouts lock one at a time as it reaches them.",
+  noneOpenYet: "No Bout on this card is open yet",
   locked: "This Bout has locked. Nothing further can be predicted on it.",
   settled:
     "This Bout has been settled. Every Entry holding a Prediction on it has " +

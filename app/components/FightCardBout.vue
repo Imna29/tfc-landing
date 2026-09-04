@@ -3,6 +3,7 @@ import { isAnswered, pickAnswered } from "#shared/entries";
 import {
   boutHeadline,
   DISCIPLINE_LABELS,
+  fighterProfile,
   roundsLabel,
   type FightCardBout,
 } from "#shared/fightCard";
@@ -12,23 +13,32 @@ import {
   multiplierLabel,
   PREDICTION_MESSAGES,
   type BoutPredictions,
+  type OfferedOutcome,
 } from "#shared/predictions";
-import { outcomeLabel, QUESTIONS, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { CORNERS, outcomeLabel, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { CORNER_COLOURS } from "~/utils/corners";
 
 /**
- * One Bout on a card: the two fighters, what is being fought, the weight class,
- * how many rounds — and, only when it is given any, what the game holds against
- * it.
+ * One Bout on a card: the two fighters facing each other, and — only when it
+ * is given any — what the game holds against them.
+ *
+ * Laid out as the fight is announced: red on the left, blue on the right,
+ * each fighter facing in from their own edge with what they pay to win beside
+ * them. A fan reads a card by scanning the two names, so the winner answer is
+ * the fighter rather than a row underneath one, and the method answers sit
+ * below each of them in that fighter's own column. Every answer still names
+ * the fighter it is about (ADR-0015) — the layout is what makes that legible,
+ * not a substitute for it.
  *
  * `predictions` is the whole of TFC Predictions as far as this component is
- * concerned, and it is optional. Left off, this renders a fight: two names, two
- * records, a discipline, a division and a number of rounds, which is what a
- * Bout is anywhere it is shown. See `shared/fightCard.ts`.
+ * concerned, and it is optional. Left off, this renders a fight: two names,
+ * two records, a discipline, a division and a number of rounds, which is what
+ * a Bout is anywhere it is shown. See `shared/fightCard.ts`.
  *
  * `picking` is the layer above that, and optional in the same way: with it,
  * every answer on an open Bout is a button and the Prediction the fan is
  * building comes back through `update:pick`. Without it, the answers are
- * numbers to read.
+ * numbers to read and each fighter is a way through to their own page.
  */
 const props = defineProps<{
   bout: FightCardBout;
@@ -110,134 +120,289 @@ const answering = computed(() => props.picking === true && state.value === "open
 const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blue.name }));
 
 /**
- * The Questions this Bout is asking, each with the answers to it and what
- * they pay.
+ * The two sides of the Bout, each with everything its column renders.
  *
- * In the order `QUESTIONS` asks them, each answered on its own terms (ADR-0014)
- * and each answer naming the fighter it is about (ADR-0015).
+ * Built as one list in corner order rather than as two blocks of markup, so
+ * red comes before blue everywhere at once: in the face-off, in the method
+ * answers below it, and in the HTML a screen reader walks. That is the order
+ * every Outcome is seeded, priced and offered in (`defaultOutcomes`), and a
+ * card that read blue-first in one place and red-first in another would be a
+ * fan comparing two numbers that are not where they think they are.
  *
- * **A Question with no Outcomes on it is dropped**, and that one line now does
- * two jobs. It is every Question on a Bout nobody has opened, where nothing is
- * priced yet — and it is the method Question on a Cage Grappling Bout, which
- * has no method Outcomes because its discipline is not asked that Question
- * (ADR-0017). Nothing here has to know which of the two it is looking at: the
- * Outcomes on the Bout are what say what it offers, and they are the same rows
- * an Entry is priced against.
+ * **What each side offers is read off the Outcomes, never assumed.** A Bout
+ * nobody has opened carries none, and a Cage Grappling Bout carries no method
+ * answers because its discipline is not asked that Question (ADR-0017) —
+ * neither needs a case here, because both are the same empty list.
  *
- * Which Questions may be *committed* is not decided here or anywhere in the
- * app: the server prices whatever answer the Bout is offering, and the Outcome
- * rows are what say that.
+ * The two Questions are named here rather than walked over, because this
+ * component draws them differently on purpose: the winner answers are the two
+ * fighters facing each other, and the method answers are chips underneath
+ * each. A third Question would want its own place on the Bout, not a column
+ * this loop happened to produce.
  */
-const questions = computed(() => {
-  const offered = props.predictions?.outcomes ?? [];
+const sides = computed(() =>
+  CORNERS.map((corner) => {
+    const offered = props.predictions?.outcomes ?? [];
+    const fighter = props.bout[corner];
+    const profile = fighterProfile(fighter);
+    const winner = offered.find(
+      (outcome) => outcome.question === "winner" && outcome.corner === corner,
+    );
 
-  return QUESTIONS.map((question) => ({
-    question,
-    label: QUESTION_LABELS[question],
-    outcomes: offered.filter((outcome) => outcome.question === question),
-  })).filter((asked) => asked.outcomes.length > 0);
-});
+    /** Whether this fighter is a winner answer to press rather than a name. */
+    const pressable = answering.value && winner !== undefined;
+
+    return {
+      corner,
+      fighter,
+      profile,
+      winner,
+      methods: offered.filter(
+        (outcome) => outcome.question === "method" && outcome.corner === corner,
+      ),
+      pressable,
+      wrapper: wrapperFor(pressable, winner, profile),
+    };
+  }),
+);
+
+/** Whether this Bout is asking the method Question of anybody. */
+const asksMethod = computed(() => sides.value.some((side) => side.methods.length > 0));
+
+/** Whether the game has anything at all to offer on this Bout yet. */
+const asksAnything = computed(() => (props.predictions?.outcomes.length ?? 0) > 0);
+
+/**
+ * `NuxtLink`, resolved once here rather than inside the render.
+ *
+ * A component the template does not name has to be looked up by name, and the
+ * lookup belongs in setup — which is also the only place a computed can safely
+ * reach it from.
+ */
+const nuxtLink = resolveComponent("NuxtLink");
+
+/** Whether an answer is the one this fan has given on this Bout. */
+function chosen(outcome: OutcomeAnswer): boolean {
+  return isAnswered(props.pick ?? null, outcome);
+}
+
+/**
+ * What wraps a fighter: the winner answer, their profile, or nothing.
+ *
+ * One element with three jobs rather than three copies of the same fighter.
+ * On a card being played it is the button that answers the winner Question; on
+ * a lineup, or on a Bout that has locked, it is the way through to what that
+ * fighter has done; and on a late replacement with no document behind them it
+ * is neither (ADR-0001).
+ *
+ * The button carries `aria-pressed` and the other two carry nothing, which is
+ * how a Bout nobody has opened, and a Bout that has locked, are a card with
+ * nothing on it to press.
+ */
+function wrapperFor(
+  pressable: boolean,
+  winner: OfferedOutcome | undefined,
+  profile: string | null,
+) {
+  if (pressable && winner) {
+    return {
+      is: "button",
+      attrs: {
+        type: "button",
+        "aria-pressed": chosen(winner),
+        onClick: () => answer(winner),
+      },
+    };
+  }
+
+  if (profile) return { is: nuxtLink, attrs: { to: profile } };
+
+  return { is: "div", attrs: {} };
+}
 </script>
 
 <template>
   <article
-    class="border border-outline-variant/20 bg-surface-container-low p-6 md:p-8"
-    :class="{ 'opacity-70': state === 'locked' }"
+    class="border bg-surface-container-low"
+    :class="[
+      // Answered Bouts stand out of a long card, so a fan scrolling back knows
+      // which of them they have already had a view on.
+      pick ? 'border-outline-variant/50' : 'border-outline-variant/20',
+      state === 'locked' ? 'opacity-70' : '',
+    ]"
   >
-    <header class="flex flex-wrap items-baseline justify-between gap-3">
-      <p class="font-headline text-xs font-black uppercase tracking-widest text-primary">
-        Bout {{ bout.cardOrder }}
-        <template v-if="bout.mainEvent"> · Main event</template>
-        <template v-if="bout.titleFight"> · Title fight</template>
-      </p>
-      <p class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
-        {{ DISCIPLINE_LABELS[bout.discipline] }} · {{ bout.division }} ·
+    <header
+      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-outline-variant/15 px-4 py-3 text-xs"
+    >
+      <span class="font-headline text-sm font-black tabular-nums text-on-surface/40">
+        <span class="sr-only">Bout </span>{{ String(bout.cardOrder).padStart(2, "0") }}
+      </span>
+
+      <span
+        v-if="bout.mainEvent"
+        class="border border-primary-container px-2 py-0.5 font-bold uppercase tracking-widest text-primary"
+      >
+        Main event
+      </span>
+      <span
+        v-if="bout.titleFight"
+        class="border border-outline-variant/40 px-2 py-0.5 font-bold uppercase tracking-widest"
+      >
+        Title fight
+      </span>
+
+      <span
+        class="border border-outline-variant/40 px-2 py-0.5 font-bold uppercase tracking-widest"
+      >
+        {{ DISCIPLINE_LABELS[bout.discipline] }}
+      </span>
+
+      <span class="font-bold uppercase tracking-widest text-on-surface/70">
+        {{ bout.division }}
+      </span>
+      <span class="uppercase tracking-widest text-on-surface/50">
         {{ roundsLabel(bout.scheduledRounds) }}
-      </p>
+      </span>
+
+      <!--
+        Everything from here down is the game. A card shown anywhere else is
+        given no `predictions` and stops at the fight.
+      -->
+      <span v-if="predictions && state" class="ml-auto flex items-center gap-3">
+        <span v-if="countdown" class="font-bold tabular-nums">
+          Locks in
+          <time :datetime="predictions.locksAt ?? undefined">{{ countdown }}</time>
+        </span>
+        <span
+          class="font-headline font-black uppercase tracking-widest"
+          :class="state === 'open' ? 'text-primary' : 'text-on-surface/50'"
+        >
+          {{ BOUT_STATE_LABELS[state] }}
+        </span>
+      </span>
     </header>
 
     <h3 class="sr-only">{{ boutHeadline(bout) }}</h3>
 
-    <div class="mt-6 grid grid-cols-[1fr_auto_1fr] items-start gap-4">
-      <FightCardCorner :corner="bout.red" side="red" />
-      <p class="font-headline text-2xl font-black italic uppercase text-on-surface/40 self-center">
+    <div class="relative grid grid-cols-1 md:grid-cols-2">
+      <span
+        class="pointer-events-none absolute left-1/2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 border border-outline-variant/30 bg-surface-container-low px-2 py-1 font-headline text-xs font-black italic uppercase text-on-surface/50 md:block"
+        aria-hidden="true"
+      >
         vs
-      </p>
-      <FightCardCorner :corner="bout.blue" side="blue" />
+      </span>
+
+      <div
+        v-for="side in sides"
+        :key="side.corner"
+        class="min-w-0"
+        :class="
+          side.corner === 'blue'
+            ? 'border-t border-outline-variant/15 md:border-t-0 md:border-l'
+            : ''
+        "
+      >
+        <component
+          :is="side.wrapper.is"
+          v-bind="side.wrapper.attrs"
+          class="flex w-full min-w-0 items-center gap-3 p-4 text-left transition-colors md:p-5"
+          :class="[
+            // The corner's rule is drawn on the outside edge of its own half.
+            side.corner === 'red' ? 'border-l-4' : 'border-r-4 flex-row-reverse',
+            CORNER_COLOURS[side.corner].border,
+            side.winner && chosen(side.winner)
+              ? CORNER_COLOURS[side.corner].tint
+              : 'hover:bg-surface-container',
+          ]"
+        >
+          <FightCardCorner
+            :corner="side.fighter"
+            :side="side.corner"
+            :mirrored="side.corner === 'blue'"
+          />
+
+          <span
+            v-if="side.winner"
+            class="shrink-0 font-headline text-xl font-black tabular-nums md:text-2xl"
+            :class="chosen(side.winner) ? 'text-coin' : 'text-on-surface/80'"
+          >
+            <span class="sr-only">{{ QUESTION_LABELS.winner }},</span>
+            {{ multiplierLabel(side.winner.multiplier) }}
+          </span>
+        </component>
+
+        <p
+          v-if="side.pressable && side.profile"
+          class="px-4 pb-4 md:px-5"
+          :class="side.corner === 'blue' ? 'text-right' : ''"
+        >
+          <NuxtLink
+            :to="side.profile"
+            class="text-xs font-bold uppercase tracking-widest text-on-surface/50 hover:text-primary transition-colors"
+          >
+            {{ side.fighter.name }}'s profile
+          </NuxtLink>
+        </p>
+      </div>
     </div>
 
-    <!--
-      Everything below here is the game. A card shown anywhere else is given no
-      `predictions` and stops at the fight above.
-    -->
-    <div v-if="predictions && state" class="mt-8 border-t border-outline-variant/15 pt-6">
-      <div class="flex flex-wrap items-baseline justify-between gap-3">
-        <p
-          class="font-headline text-xs font-black uppercase tracking-widest"
-          :class="state === 'open' ? 'text-primary' : 'text-on-surface/50'"
+    <div v-if="asksMethod" class="border-t border-outline-variant/15 bg-surface-container-lowest">
+      <p class="px-4 pt-3 text-xs font-bold uppercase tracking-widest text-on-surface/50">
+        {{ QUESTION_LABELS.method }} — answered on its own terms, at its own Multiplier
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-2">
+        <div
+          v-for="side in sides"
+          :key="side.corner"
+          class="flex flex-wrap gap-2 p-4"
+          :class="
+            side.corner === 'blue' ? 'md:justify-end md:border-l md:border-outline-variant/15' : ''
+          "
         >
-          {{ BOUT_STATE_LABELS[state] }}
-        </p>
-
-        <p v-if="countdown" class="text-sm font-bold tabular-nums">
-          Locks in
-          <time :datetime="predictions.locksAt ?? undefined">{{ countdown }}</time>
-        </p>
-        <p v-else-if="lockNote" class="text-xs text-on-surface/60">{{ lockNote }}</p>
-      </div>
-
-      <!--
-        As many columns as there are Questions on this Bout: two on an open MMA
-        or CageBox Bout, one on an open Cage Grappling Bout (ADR-0017), and none
-        on a Bout nobody has opened. Laid out from what is actually asked rather
-        than from a number written here.
-      -->
-      <div
-        v-if="questions.length > 0"
-        class="mt-6 grid gap-6 md:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]"
-      >
-        <div v-for="asked in questions" :key="asked.question">
-          <h4 class="font-headline text-xs font-black uppercase tracking-widest text-on-surface/60">
-            {{ asked.label }}
-          </h4>
-
-          <ul class="mt-3 flex flex-col gap-2">
-            <li v-for="outcome in asked.outcomes" :key="outcome.id">
-              <button
-                v-if="answering"
-                type="button"
-                :aria-pressed="isAnswered(pick ?? null, outcome)"
-                class="flex w-full items-baseline justify-between gap-3 border px-3 py-2 text-left text-sm transition-colors"
-                :class="
-                  isAnswered(pick ?? null, outcome)
-                    ? 'border-primary bg-primary-container/20'
-                    : 'border-outline-variant/20 hover:border-primary/60'
-                "
-                @click="answer(outcome)"
-              >
-                <span>{{ outcomeLabel(outcome, corners) }}</span>
-                <span class="font-bold tabular-nums">{{
-                  multiplierLabel(outcome.multiplier)
-                }}</span>
-              </button>
-
-              <span
-                v-else
-                class="flex items-baseline justify-between gap-3 border-b border-outline-variant/10 pb-2 text-sm"
-              >
-                <span>{{ outcomeLabel(outcome, corners) }}</span>
-                <span class="font-bold tabular-nums">{{
-                  multiplierLabel(outcome.multiplier)
-                }}</span>
+          <template v-for="outcome in side.methods" :key="outcome.id">
+            <button
+              v-if="answering"
+              type="button"
+              :aria-pressed="chosen(outcome)"
+              class="flex items-baseline gap-2 border px-3 py-2 text-left text-sm transition-colors"
+              :class="
+                chosen(outcome)
+                  ? 'border-coin bg-coin/10'
+                  : 'border-outline-variant/25 hover:border-primary/60'
+              "
+              @click="answer(outcome)"
+            >
+              <span>{{ outcomeLabel(outcome, corners) }}</span>
+              <span class="font-bold tabular-nums" :class="chosen(outcome) ? 'text-coin' : ''">
+                {{ multiplierLabel(outcome.multiplier) }}
               </span>
-            </li>
-          </ul>
+            </button>
+
+            <span
+              v-else
+              class="flex items-baseline gap-2 border border-outline-variant/15 px-3 py-2 text-sm"
+            >
+              <span>{{ outcomeLabel(outcome, corners) }}</span>
+              <span class="font-bold tabular-nums">{{ multiplierLabel(outcome.multiplier) }}</span>
+            </span>
+          </template>
         </div>
       </div>
-
-      <p v-if="questions.length === 0" class="mt-4 text-sm text-on-surface/60">
-        {{ PREDICTION_MESSAGES.notOpenYet }}
-      </p>
     </div>
+
+    <p
+      v-if="predictions && state && !asksAnything"
+      class="border-t border-outline-variant/15 px-4 py-3 text-sm text-on-surface/60"
+    >
+      {{ PREDICTION_MESSAGES.notOpenYet }}
+    </p>
+
+    <p
+      v-else-if="lockNote"
+      class="border-t border-outline-variant/15 px-4 py-3 text-sm text-on-surface/60"
+    >
+      {{ lockNote }}
+    </p>
   </article>
 </template>

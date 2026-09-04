@@ -49,6 +49,10 @@
   --color-on-tertiary: #003350;
   --color-on-surface: #e5e2e1;
 
+  /* TFC Coins: the gold of the coin in `redesign/tfc-coin-faces.svg`, so a
+     Multiplier and the mark beside a Balance are struck from the same metal. */
+  --color-coin: #f8ca15;
+
   --font-family-headline: "Space Grotesk", sans-serif;
   --font-family-body: "Inter", sans-serif;
   --font-family-label: "Inter", sans-serif;

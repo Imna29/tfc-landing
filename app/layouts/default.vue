@@ -2,20 +2,24 @@
 import { isFilled } from "@prismicio/client";
 import { PrismicLink } from "@prismicio/vue";
 
+import { MARKETING_NAV } from "~/utils/navigation";
+
+/**
+ * The marketing site: what TFC is, for anybody who has arrived to read about
+ * it.
+ *
+ * The game is not in this header. It is reached through `PlayTfcButton` and
+ * nowhere else, and everything the game needs beside it — the card, the
+ * board, the Balance, the account — lives in the game's own chrome
+ * (`app/layouts/play.vue`). `app/utils/navigation.ts` is where that line is
+ * drawn and why.
+ */
 const { client } = usePrismic();
 const isMobileMenuOpen = ref(false);
 
-// One list, both navigations. A section added here appears in each of them,
+// One list, both navigations. A section added there appears in each of them,
 // rather than in whichever one whoever added it remembered.
-const navLinks = [
-  { to: "/events", label: "Events" },
-  { to: "/fighters", label: "Fighters" },
-  { to: "/predictions", label: "Predictions" },
-  { to: "/leaderboard", label: "Leaderboard" },
-  { to: "/media", label: "Media" },
-  { to: "/prizes", label: "Prizes" },
-  { to: "/about", label: "About Us" },
-];
+const navLinks = MARKETING_NAV;
 
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;
@@ -51,24 +55,42 @@ const footer = computed(() => {
     class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-white"
   >
     <header
-      class="sticky top-0 z-50 bg-surface-container-high/70 backdrop-blur-xl border-b border-outline-variant/15 px-6 md:px-20 py-4"
+      class="sticky top-0 z-50 bg-surface-container-high/70 backdrop-blur-xl border-b border-outline-variant/15 px-4 md:px-20 py-4"
     >
       <div class="max-w-[1440px] mx-auto">
-        <div class="flex items-center justify-between">
-          <NuxtLink to="/" class="flex items-center">
-            <img
-              src="/tfc_logo.png"
-              alt="TFC Logo"
-              width="96"
-              height="48"
-              loading="eager"
-              decoding="async"
-              fetchpriority="high"
-              class="w-24 h-12 object-contain"
-            />
-          </NuxtLink>
+        <div class="flex items-center justify-between gap-4 md:gap-6">
+          <!--
+            The logo and the way into the game, kept together and in that
+            order. The coin hangs 18px outside the button's own box, so the
+            gap here is what stands between the two marks — see
+            `PlayTfcButton`, which pays for the overhang itself.
+          -->
+          <div class="flex min-w-0 items-center gap-4 md:gap-6">
+            <NuxtLink to="/" class="flex shrink-0 items-center">
+              <img
+                src="/tfc_logo.png"
+                alt="TFC Logo"
+                width="96"
+                height="48"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+                class="w-16 h-8 sm:w-20 sm:h-10 md:w-24 md:h-12 object-contain"
+              />
+            </NuxtLink>
 
-          <nav class="hidden md:flex items-center gap-10">
+            <!--
+              The one thing in this header that knows who is asking, and the
+              only way it can be: the Balance inside it is fetched by the
+              browser and is not in the HTML the server sends, so what this
+              header ships is the same for everybody and stays safe to
+              edge-cache (ADR-0008). Every other link here is the same link
+              for everyone.
+            -->
+            <PlayTfcButton />
+          </div>
+
+          <nav class="hidden md:flex items-center gap-8 lg:gap-10">
             <NuxtLink
               v-for="link in navLinks"
               :key="link.to"
@@ -79,22 +101,7 @@ const footer = computed(() => {
             </NuxtLink>
           </nav>
 
-          <div class="flex items-center gap-6">
-            <!--
-              The one thing here that knows who is asking, and the only way it
-              can be: FanBalance fetches in the browser and renders nothing on
-              the server, so the HTML this header ships in is the same for
-              everybody and stays safe to edge-cache (ADR-0008). Every other
-              link is the same link for everyone, signed in or out.
-            -->
-            <FanBalance class="hidden md:inline-flex" />
-
-            <NuxtLink
-              to="/profile"
-              class="hidden md:inline-flex text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
-            >
-              Account
-            </NuxtLink>
+          <div class="flex items-center gap-4 md:gap-6 shrink-0">
             <NuxtLink
               to="/contact"
               class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
@@ -127,17 +134,6 @@ const footer = computed(() => {
             @click="closeMobileMenu"
           >
             {{ link.label }}
-          </NuxtLink>
-          <FanBalance
-            class="block px-4 py-3 border-b border-outline-variant/15"
-            @click="closeMobileMenu"
-          />
-          <NuxtLink
-            to="/profile"
-            class="block px-4 py-3 text-sm font-bold uppercase tracking-widest border-b border-outline-variant/15 hover:text-primary transition-colors"
-            @click="closeMobileMenu"
-          >
-            Account
           </NuxtLink>
           <NuxtLink
             to="/contact"

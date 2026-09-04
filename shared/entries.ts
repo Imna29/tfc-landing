@@ -17,7 +17,7 @@
  */
 import { coinsLabel } from "./coins";
 import type { BoutStatus, Corner } from "./events";
-import { boutState } from "./predictions";
+import { boutState, PREDICTION_MESSAGES } from "./predictions";
 // Type-only, and so erased before anything runs: `shared/results.ts` reads the
 // Prediction types from here, and this reads the one type it adds.
 import type { BoutEnding } from "./results";
@@ -337,6 +337,51 @@ export function potentialReward(
     : Number(combined.toFixed(MULTIPLIER.decimals));
 
   return { multiplier, capped, reward: Math.round(amount * multiplier) };
+}
+
+/** How far through the open Bouts of a card an Entry has been built. */
+export interface EntryProgress {
+  /** Bouts this Entry answers. */
+  answered: number;
+  /** Bouts the card is offering answers on at all. */
+  offered: number;
+  /** The proportion of them answered, as a percentage, for a bar to fill to. */
+  percent: number;
+  /** The same thing in words, for everybody the bar does not reach. */
+  label: string;
+}
+
+/**
+ * How far through the card a fan is.
+ *
+ * The card's header states it, because two fans on the same page — one two
+ * Bouts in, one eight — are otherwise looking at the same thing. It counts
+ * against the Bouts that are *open* rather than every Bout on the card: a fan
+ * cannot answer a Bout nobody has opened, and a progress bar that can never
+ * fill is a bar that is lying about what is left to do.
+ *
+ * Which is also why the bar stops at full. Both numbers move while a card is
+ * fought, and they move in opposite directions as Bouts lock.
+ *
+ * A card with nothing open says so instead of dividing by it. That is the
+ * state between an import and the pricing that opens a Bout (ADR-0002), and
+ * "0 of 0" with an empty bar reads as a fan who has fallen behind on a card
+ * nobody can play yet.
+ */
+export function entryProgress(answered: number, offered: number): EntryProgress {
+  if (offered <= 0) {
+    return { answered: 0, offered: 0, percent: 0, label: PREDICTION_MESSAGES.noneOpenYet };
+  }
+
+  return {
+    answered,
+    offered,
+    // A card is fought while a fan reads it: an Entry can hold answers on Bouts
+    // that have since locked and left the count of what is open, and a bar
+    // drawn past the end of its own track is how that would show.
+    percent: Math.min(100, Math.round((answered / offered) * 100)),
+    label: `${answered} of ${offered} ${offered === 1 ? "Bout" : "Bouts"} answered`,
+  };
 }
 
 /**

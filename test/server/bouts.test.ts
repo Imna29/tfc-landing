@@ -1,6 +1,7 @@
 import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
+import { MARKETING_NAV, PLAY_NAV, PLAY_TFC } from "../../app/utils/navigation";
 import { CONSOLE_MESSAGES, nextToLock, type LockConsole } from "../../shared/console";
 import type { FightCard } from "../../shared/fightCard";
 import { LOCK_KIND_LABELS, LOCK_MESSAGES, SWEEP_AFTER } from "../../shared/locks";
@@ -1437,6 +1438,28 @@ describe("a fight card in the game", async () => {
       expect(page).toContain("Giorgi Tsiklauri");
       expect(page).toContain("Levan Beridze");
       expect(page).toContain("×1.90");
+    });
+
+    it("is served inside PlayTFC, with the game's navigation and not the site's", async () => {
+      // The card is not a marketing page with a game on it. It is the game,
+      // and it carries the game's own chrome: the board, what a Season is
+      // played for, and who may play it. Events, Fighters and Media are a
+      // different site with a different header, reached from the mark in the
+      // corner — `app/utils/navigation.ts` is where that line is drawn, and
+      // this is it holding on a running server.
+      await upcomingIn(120, [cardBout()]);
+
+      const page = await publicPage();
+
+      expect(page).toContain(PLAY_TFC.label);
+
+      for (const link of PLAY_NAV) {
+        expect(page).toContain(`href="${link.to}"`);
+      }
+
+      for (const link of MARKETING_NAV) {
+        expect(page).not.toContain(`href="${link.to}"`);
+      }
     });
   });
 

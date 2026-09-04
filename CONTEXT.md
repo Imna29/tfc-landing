@@ -28,6 +28,23 @@ The feature is called **TFC Predictions** in public-facing copy. Not "prediction
 "market" is finance and sportsbook vocabulary, and the naming rule above applies to the
 product name too.
 
+### PlayTFC
+
+The part of the site TFC Predictions is played in, and the name on the one button that
+leads there from the marketing site. A section rather than a page: the card, the
+[[leaderboard]], what a [[season]] is played for and the account behind them, under a
+navigation of their own.
+
+The game is still **TFC Predictions** wherever it is described — this is what a fan
+presses and where they end up, not a second name for the feature. Written as one word,
+capitalised this way, because it is a mark rather than a sentence.
+
+The line between the two sites is drawn in `app/utils/navigation.ts` and applied by
+`app/middleware/play-section.global.ts`, so which chrome a page gets is decided in one
+place rather than page by page. It is deliberately not the same list as the edge-cache
+exemptions in `route-rules.ts`: that one is about what may be stored, this one about what
+a page looks like, and `/prizes` and `/contest-rules` are in the game and cached.
+
 ### Event
 
 One TFC fight card: a set of Bouts on a single date at a single venue. Authored in Prismic

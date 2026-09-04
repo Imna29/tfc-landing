@@ -45,9 +45,10 @@ export function useBalance() {
   /**
    * Asks, unless something already has on this page.
    *
-   * The header renders the Balance twice — once for a wide window and once
-   * inside the menu a narrow one opens — and the second of those appearing is
-   * not news about the fan's Coins.
+   * More than one thing on a page wants the answer — the PlayTFC button in the
+   * marketing header, the Balance in the game's own header, the panel an Entry
+   * is committed from — and the second of them appearing is not news about the
+   * fan's Coins.
    */
   async function load() {
     if (!asked.value) await refresh();

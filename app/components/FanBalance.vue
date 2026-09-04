@@ -2,7 +2,7 @@
 import { coinsLabel } from "#shared/coins";
 
 /**
- * What the signed-in fan has to work with, in the site header.
+ * What the signed-in fan has to work with, in the game's header.
  *
  * Renders nothing until the browser has an answer — see {@link useBalance} for
  * why it is never rendered on the server. The server and the first client
@@ -13,11 +13,13 @@ import { coinsLabel } from "#shared/coins";
  * which is a different thing from holding no Coins, and "0 Coins" would read
  * as having run out.
  *
- * There is a root element either way, so the classes and the click handler the
- * header hands down have somewhere to land whether or not there is a Balance
+ * The coin beside the number is the mark from `TfcCoin`, so a Balance reads as
+ * Coins at a glance rather than as one more number in a header.
+ *
+ * There is a root element either way, so whatever the header hands down — a
+ * class, a handler — has somewhere to land whether or not there is a Balance
  * to show. `display` is set inline on the empty one rather than through a
- * class, because the class coming down from the header sets it too and this
- * has to win.
+ * class, so that a `display` arriving from the header cannot bring it back.
  *
  * `data-fan-balance` is on both, and is how `test/server/coins.test.ts` tells
  * "the header carries a Balance the browser fills in" from "nobody ever added
@@ -34,9 +36,12 @@ onMounted(load);
     v-if="balance !== null"
     to="/profile"
     data-fan-balance
-    class="font-headline text-sm font-black uppercase tracking-widest text-primary hover:text-primary-container transition-colors"
+    class="inline-flex items-center gap-2 border border-outline-variant/30 px-3 py-1.5 hover:border-primary transition-colors"
   >
-    {{ coinsLabel(balance) }}
+    <TfcCoin class="w-[18px] h-[18px] shrink-0" />
+    <span class="font-headline text-sm font-black uppercase tracking-widest tabular-nums">
+      {{ coinsLabel(balance) }}
+    </span>
   </NuxtLink>
   <span v-else data-fan-balance style="display: none" aria-hidden="true" />
 </template>
