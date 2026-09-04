@@ -4,6 +4,12 @@ status: accepted
 
 # Every answer names the corner it is about
 
+**Narrowed by [[adr-0016]], which retires the round of victory Question.** The rule in the
+title still holds and this record is still the one that decided it — but the game asks two
+Questions now, a Bout carries eight Outcomes rather than fourteen to eighteen, and every
+sentence below about a round describes a Question that no longer exists. ADR-0016 lists
+exactly which claims here stopped being true.
+
 The winner Question names a fighter. The method and round Questions do not: under
 [[adr-0014]] "KO/TKO" means the Bout ends that way whoever wins it, and "Round 2" means it
 ends in round 2 whoever wins it. Both are answers about the Bout, and nothing a fan reads

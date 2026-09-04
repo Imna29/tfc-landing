@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
   // that happens after the card is over.
   if (bout.status !== "settled") throw refuse(409, RESULT_MESSAGES.notSettled);
 
-  const { ending, problem } = parseEnding(await readBody(event), bout);
+  const { ending, problem } = parseEnding(await readBody(event));
 
   if (problem !== undefined) throw refuse(422, problem);
 

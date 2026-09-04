@@ -138,7 +138,6 @@ export async function correctResult(
       .select({
         resultWinner: boutResults.winner,
         resultMethod: boutResults.method,
-        resultRound: boutResults.round,
         resultNoResult: boutResults.noResult,
       })
       .from(boutResults)
@@ -151,7 +150,7 @@ export async function correctResult(
     // the read that holds the row.
     if (!standing) return refuse(409, RESULT_MESSAGES.notSettled);
 
-    // The four columns as the union everything grades against, which is what
+    // The three columns as the union everything grades against, which is what
     // `isTheSameEnding` compares.
     const wasEnding = endingFrom(standing);
 
@@ -179,8 +178,8 @@ export async function correctResult(
     // wrong about the row it is copying.
     await tx.execute(sql`
       insert into ${boutResultCorrections}
-        (bout_id, winner, method, round, no_result, entered_at, entered_by, corrected_by)
-      select bout_id, winner, method, round, no_result, entered_at, entered_by, ${by}::uuid
+        (bout_id, winner, method, no_result, entered_at, entered_by, corrected_by)
+      select bout_id, winner, method, no_result, entered_at, entered_by, ${by}::uuid
       from ${boutResults}
       where bout_id = ${bout.id}::uuid
     `);
@@ -190,7 +189,6 @@ export async function correctResult(
       .set({
         winner: ending.result?.winner ?? null,
         method: ending.result?.method ?? null,
-        round: ending.result?.round ?? null,
         noResult: ending.noResult ?? null,
         // Who says this is what happened, and when they said it. The admin who
         // entered the Result being replaced is not overwritten: they are on the
@@ -233,8 +231,8 @@ async function regrade(tx: DatabaseTransaction, riding: readonly string[]): Prom
 
     // A Reward is re-priced as well as re-graded. A correction that turns a
     // disqualification into a KO/TKO leaves an Entry Won either way and pays a
-    // different number, because a DQ neutralises the method and round the fan
-    // named (ADR-0005) and a KO/TKO grades them. So what is compared is the
+    // different number, because a DQ neutralises the method the fan named
+    // (ADR-0005) and a KO/TKO grades it. So what is compared is the
     // Reward this Entry would be paid now against the one standing beside it,
     // rather than the status alone.
     const reward =
@@ -410,7 +408,6 @@ export async function correctionsOn(
       boutId: boutResultCorrections.boutId,
       resultWinner: boutResultCorrections.winner,
       resultMethod: boutResultCorrections.method,
-      resultRound: boutResultCorrections.round,
       resultNoResult: boutResultCorrections.noResult,
       correctedAt: boutResultCorrections.correctedAt,
       by: users.username,

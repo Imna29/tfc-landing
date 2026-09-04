@@ -123,7 +123,6 @@ export async function committedEntries(
       question: predictions.question,
       corner: predictions.corner,
       method: predictions.method,
-      round: predictions.round,
       multiplier: predictions.multiplier,
       cardOrder: bouts.cardOrder,
       boutStatus: bouts.status,
@@ -135,7 +134,6 @@ export async function committedEntries(
       // and it is what reprices the answer to the ×1.0 it now contributes.
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
-      resultRound: boutResults.round,
       resultNoResult: boutResults.noResult,
       // The Bout fought first on this card, which is the one that locks with
       // the card itself (ADR-0006).
@@ -169,7 +167,6 @@ export async function committedEntries(
       question: row.question,
       corner: row.corner,
       method: row.method,
-      round: row.round,
       multiplier: row.multiplier,
       cardOrder: row.cardOrder,
       corners: { red: row.redName, blue: row.blueName },

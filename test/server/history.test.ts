@@ -11,7 +11,6 @@ import {
   fanWithCoins,
   historyFor,
   methodOn,
-  roundOn,
   settle,
   settleAsNoResult,
   standingFor,
@@ -158,7 +157,6 @@ describe("a fan's own profile", async () => {
           question: "winner",
           corner: "red",
           method: null,
-          round: null,
           // ADR-0002: what that answer paid on the day, frozen onto it.
           multiplier: 2,
           ending: null,
@@ -166,7 +164,7 @@ describe("a fan's own profile", async () => {
       ]);
     });
 
-    it("carries a method the same way, naming the fighter it is about", async () => {
+    it("carries a method naming the fighter it is about", async () => {
       // #33 stood the Question up and ADR-0015 gave its answers a fighter: the
       // Prediction reads back as "Beridze by Submission", corner and all, and
       // is graded against a Bout Beridze submitted.
@@ -174,7 +172,7 @@ describe("a fan's own profile", async () => {
       const fan = await fanWithCoins();
 
       await submit(fan, 10, [methodOn(card.bouts[0]!.id, "blue", "submission")]);
-      await settle(card, 0, { winner: "blue", method: "submission", round: 2 });
+      await settle(card, 0, { winner: "blue", method: "submission" });
 
       const [entry] = (await historyFor(fan.cookie)).entries;
 
@@ -183,38 +181,11 @@ describe("a fan's own profile", async () => {
           question: "method",
           corner: "blue",
           method: "submission",
-          round: null,
           multiplier: 2.5,
           // The two names the Bout was fought under, which is what turns the
           // answer back into the words the fan picked.
           corners: { red: "Giorgi Tsiklauri", blue: "Levan Beridze" },
-          ending: { result: { winner: "blue", method: "submission", round: 2 } },
-        }),
-      ]);
-      expect(entry?.status).toBe("won");
-    });
-
-    it("carries a round the same way, naming the fighter it is about", async () => {
-      // #34 stood the Question up and ADR-0015 gave its answers a fighter:
-      // "Beridze in round 2", with no method on it because none was ever
-      // named.
-      const card = await upcomingCard(1);
-      const fan = await fanWithCoins();
-
-      await submit(fan, 10, [roundOn(card.bouts[0]!.id, "blue", 2)]);
-      await settle(card, 0, { winner: "blue", method: "ko_tko", round: 2 });
-
-      const [entry] = (await historyFor(fan.cookie)).entries;
-
-      expect(entry?.predictions).toEqual([
-        expect.objectContaining({
-          question: "round",
-          corner: "blue",
-          method: null,
-          round: 2,
-          multiplier: 3,
-          corners: { red: "Giorgi Tsiklauri", blue: "Levan Beridze" },
-          ending: { result: { winner: "blue", method: "ko_tko", round: 2 } },
+          ending: { result: { winner: "blue", method: "submission" } },
         }),
       ]);
       expect(entry?.status).toBe("won");
@@ -236,7 +207,7 @@ describe("a fan's own profile", async () => {
       const [entry] = (await historyFor(fan.cookie)).entries;
 
       expect(entry?.predictions.map((one) => one.ending)).toEqual([
-        { result: { winner: "red", method: "decision", round: null } },
+        { result: { winner: "red", method: "decision" } },
         { noResult: "withdrawal" },
         null,
       ]);
@@ -421,15 +392,15 @@ describe("a fan's own profile", async () => {
 
       await submit(fan, 20, [
         methodOn(card.bouts[0]!.id, "blue", "ko_tko"),
-        roundOn(card.bouts[1]!.id, "red", 2),
+        methodOn(card.bouts[1]!.id, "red", "submission"),
       ]);
 
-      await settle(card, 0, { winner: "blue", method: "ko_tko", round: 1 });
+      await settle(card, 0, { winner: "blue", method: "ko_tko" });
 
       const page = await $fetch<string>("/profile", { headers: { cookie: fan.cookie } });
 
       expect(page).toContain("Levan Beridze by KO/TKO");
-      expect(page).toContain("Giorgi Tsiklauri in round 2");
+      expect(page).toContain("Giorgi Tsiklauri by Submission");
     });
 
     it("shows each Prediction of a dead chain in its own state", async () => {

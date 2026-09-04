@@ -17,7 +17,7 @@ import {
  */
 useSeoMeta({
   title: "Create an account",
-  description: "Join TFC Predictions and answer three Questions about every Bout on the card.",
+  description: "Join TFC Predictions and answer two Questions about every Bout on the card.",
   robots: "noindex",
 });
 

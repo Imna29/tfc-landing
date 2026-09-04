@@ -107,10 +107,9 @@ const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blu
  * The Questions this Bout is asking, each with the answers to it and what
  * they pay.
  *
- * All three of them, in the order `QUESTIONS` asks them, each answered on its
- * own terms (ADR-0014) and each answer naming the fighter it is about
- * (ADR-0015) — two winner answers, six method answers, and two for each round
- * the Bout is scheduled for.
+ * Both of them, in the order `QUESTIONS` asks them, each answered on its own
+ * terms (ADR-0014) and each answer naming the fighter it is about (ADR-0015) —
+ * two winner answers and six method answers, eight on every Bout.
  *
  * The one thing dropped is a Question with no Outcomes on it, which is every
  * Question on a Bout nobody has opened: nothing on it is priced yet. There is

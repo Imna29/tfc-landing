@@ -94,7 +94,6 @@ export async function entryHistory(fanId: string, filter: HistoryFilter): Promis
       question: predictions.question,
       corner: predictions.corner,
       method: predictions.method,
-      round: predictions.round,
       multiplier: predictions.multiplier,
       cardOrder: bouts.cardOrder,
       redName: bouts.redName,
@@ -106,7 +105,6 @@ export async function entryHistory(fanId: string, filter: HistoryFilter): Promis
       // the Prediction.
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
-      resultRound: boutResults.round,
       resultNoResult: boutResults.noResult,
     })
     .from(entries)
@@ -148,7 +146,6 @@ export async function entryHistory(fanId: string, filter: HistoryFilter): Promis
       question: row.question,
       corner: row.corner,
       method: row.method,
-      round: row.round,
       multiplier: row.multiplier,
       cardOrder: row.cardOrder,
       corners: { red: row.redName, blue: row.blueName },

@@ -428,17 +428,16 @@ decision.
 ### Pricing a card, and opening its Bouts
 
 Every Bout arrives with its whole set of Outcomes already written, and every one
-of them names the fighter it is about (ADR-0015): two winner Outcomes, six
-method Outcomes, and **two for each round it is scheduled for**, so a
-three-round Bout carries fourteen and has no round 4 to offer either fighter.
-`shared/pricing.ts` is the one place that says what a Bout is asked and what
-each answer is seeded to pay; `server/utils/pricing.ts` writes them, inside the
-import's own transaction.
+of them names the fighter it is about (ADR-0015): two winner Outcomes and six
+method Outcomes, **eight on every Bout** whatever format it is booked in
+(ADR-0016). `shared/pricing.ts` is the one place that says what a Bout is asked
+and what each answer is seeded to pay; `server/utils/pricing.ts` writes them,
+inside the import's own transaction.
 
 Seeding is what makes ADR-0002 payable. Multipliers are fixed by hand, so
 somebody at TFC prices every card before it opens — forever, not once — and the
-difference between twenty minutes and an hour is whether they are adjusting
-fourteen to eighteen numbers per Bout or authoring them from blank.
+difference is whether they are adjusting eight numbers per Bout or authoring
+them from blank.
 
 **A seeded Multiplier is not a price.** `outcomes.priced_at` is null until an
 admin saves that Bout at `/admin/events/[id]`, and a Bout with an unpriced
@@ -453,23 +452,19 @@ Every number in that table stands for its own answer outright (ADR-0014), and
 **is what one corner pays** (ADR-0015): "Submission ×8.10" means ×8.10 if that
 fighter wins the Bout that way. Nothing seeding a Bout knows which fighter is
 favoured, so a chance about the Bout splits evenly between the two and half a
-chance is twice the Multiplier — which is why the method and round numbers are
-twice what a Bout-level table would carry, and why the winner row is unmoved at
-×1.90, having always named a fighter. Every implied total the seeded table was
-chosen for is preserved exactly; what changed is the number of answers it is
-spread across. What each number is worth, why the
-winner Question carries a thinner margin than the other two, and which two cells
-read like typos — Decision at ×5.30 and round 5 of a five-rounder at ×28.50,
-both of them numbers an admin is likely to "correct" back — are argued where
-they can be read beside the numbers, in the docblock over `DEFAULT_MULTIPLIERS`.
+chance is twice the Multiplier — which is why the method numbers are twice what
+a Bout-level table would carry, and why the winner row is unmoved at ×1.90,
+having always named a fighter. Every implied total the seeded table was chosen
+for is preserved exactly; what changed is the number of answers it is spread
+across. What each number is worth, why the winner Question carries a thinner
+margin than the method one, and which cell reads like a typo — Decision at
+×5.30, a number an admin is likely to "correct" back — are argued where they can
+be read beside the numbers, in the docblock over `DEFAULT_MULTIPLIERS`.
 
-What is worth knowing here is that the round Multipliers come from **two rows
-keyed by the rounds the Bout is scheduled for** — three and five, the two
-formats TFC books. Round 3 ends a three-round Bout and catches everything still
-standing; on a five-rounder it is a middle round with two more behind it. Not
-the same question, so not the same number: ×11.40 against ×17.80. A Bout booked
-over any other number of rounds seeds from the five-round row, and a round past
-its fifth repeats its deepest number rather than the table inventing one.
+Nothing in that table depends on the format any more. It used to carry a row of
+round Multipliers per format — three and five, the two TFC books — because round
+3 ends a three-round Bout and is a middle round of a five-rounder. ADR-0016
+retired the round Question and took the only format-dependent row with it.
 
 A Multiplier is above 1 and no higher than 100, to two decimal places
 (`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
@@ -686,34 +681,27 @@ in it, the combined Multiplier, whether the ×100 cap has decided it, the Amount
 and the Coins it returns if it lands. `POST /api/predictions/entries` commits
 it.
 
-**A Prediction is one answer to one Question on one Bout** (ADR-0014): a
-winner, a method or a round, carrying the Multiplier that answer pays. Each
-Multiplier stands for its answer outright and they never multiply together
-within a Bout; chaining is across *different* Bouts, which are independent of
-each other, so nothing correlated is ever multiplied. An Entry holds **at most
-one Prediction per Bout** — answering a second Question on a Bout replaces the
-first, and a fan holding two views on one Bout commits two Entries, separately
-funded and separately graded.
+**A Prediction is one answer to one Question on one Bout** (ADR-0014): a winner
+or a method, carrying the Multiplier that answer pays. Each Multiplier stands
+for its answer outright and they never multiply together within a Bout; chaining
+is across *different* Bouts, which are independent of each other, so nothing
+correlated is ever multiplied. An Entry holds **at most one Prediction per Bout**
+— answering the other Question on a Bout replaces the first, and a fan holding
+two views on one Bout commits two Entries, separately funded and separately
+graded.
 
-All three are asked side by side rather than one deepening another, and every
+Both are asked side by side rather than one deepening the other, and every
 answer names the fighter it is about (ADR-0015): a fan confident Tsiklauri
-submits Beridze answers that alone, and so does one who thinks Beridze wins it
-in round 2. Each carries only the risk it means. The round Multipliers are
-seeded for exactly this, a standalone answer with nothing multiplying onto it,
-so a five-round Bout's round 5 is seeded far above a three-round Bout's round 3.
+submits Beridze answers that alone, and carries only the risk it means.
 
 `app/components/FightCardBout.vue` renders `QUESTIONS`, filtered only to the
 ones the Bout has Outcomes for — which is none until an admin has priced it, and
-all three afterwards. So an open Bout offers every one of its fourteen to
-eighteen answers: two winner answers, six method answers, and two for each round
-it is scheduled for, red before blue. The admin pricing screen renders the same
-list, which is what makes "an answer a fan is offered is an answer somebody
-priced" true by construction. A separate `OFFERED_QUESTIONS` held less than that
-while ADR-0015's answers arrived one Question at a time, each with the settlement
-cases that prove a corner-scoped answer settles; it named all three by the end
-and went with the last of them. None of it is a rule about what may be
-*committed*: the server prices whatever answer the Bout is offering, and the
-Outcome rows are what say that.
+both afterwards. So an open Bout offers every one of its eight answers: two
+winner answers and six method answers, red before blue. The admin pricing screen
+renders the same list, which is what makes "an answer a fan is offered is an
+answer somebody priced" true by construction. None of it is a rule about what
+may be *committed*: the server prices whatever answer the Bout is offering, and
+the Outcome rows are what say that.
 
 Three layers of the same rules, on purpose:
 
@@ -725,7 +713,7 @@ Three layers of the same rules, on purpose:
   price an answer with, so the Reward on the panel and the Reward in the
   database cannot come to disagree.
 - **`server/utils/entries.ts`** adds everything only the database knows: is that
-  Bout open, is that round one it offers, and — under a row lock — does the fan
+  Bout open, is that answer one it offers, and — under a row lock — does the fan
   still hold the Coins.
 - **`20260831144028_entries_and_predictions`** holds the ones worth holding, because a
   rule that lives only in a route handler is one refactor away from
@@ -734,30 +722,29 @@ Three layers of the same rules, on purpose:
 | Rule | Held by |
 | --- | --- |
 | One Prediction per Bout in an Entry (ADR-0014) | `predictions_one_per_bout_in_an_entry` |
-| Exactly one answer, and the one its Question names | `predictions_answers_its_question` |
+| A corner always, and a method exactly where its Question names one | `predictions_answers_its_question` |
 | Between one and ten Predictions | `entries_hold_one_to_ten_predictions`, a deferred constraint trigger on both tables |
-| The answer was one that Bout offered, for the fighter it names | `predictions_method_is_offered`, `predictions_round_is_offered` |
+| The answer was one that Bout offered, for the fighter it names | `predictions_method_is_offered` |
 | The Bout is open | `predictions_are_made_on_open_bouts` |
 | An Amount of at least 1 Coin | `entries_amount_is_committed` |
 | No Coins a fan does not hold | `entry_commitments_are_within_the_balance` |
 | One commitment per Entry | `coin_transactions_one_commitment_per_entry` |
 
-The `…_is_offered` keys are the interesting ones. A Prediction stores the answer
-it gives — `red`, `red`+`ko_tko`, `red`+round 2 — rather than a reference to the
+`predictions_method_is_offered` is the interesting one. A Prediction stores the
+answer it gives — `red`, or `red`+`ko_tko` — rather than a reference to the
 Outcome row, because a Prediction is a *copy* of the Outcome it was picked from
 (ADR-0002) and settlement grades the answer rather than the row. It still points
 at the Outcome that priced it, through a composite key on `(bout_id, corner,
-method)` and `(bout_id, corner, round)`. So "round 4 of a three-round Bout" is
-refused by Postgres, and so is a method answer about a fighter this Bout does
-not offer it for; the stored answer and the Outcome behind it can never drift
-apart. Postgres does not check a key whose columns include a null, which is
-exactly right here: one of the two is null on every row, and the one that is
-not is the one being held to the card.
+method)`. So a method answer about a fighter this Bout does not offer it for is
+refused by Postgres, and the stored answer and the Outcome behind it can never
+drift apart. Postgres does not check a key whose columns include a null, which
+is exactly right here: `method` is null on every winner row, and non-null on
+every row the key is meant to hold.
 
-**There is no third key for the winner Question, and that is a consequence of
+**There is no second key for the winner Question, and that is a consequence of
 the corner rather than an omission.** It was `(bout_id, corner)`, which Postgres
-could check because a null corner on every method and round row left that pair
-unique across `outcomes`. With a corner on every row it is unique only among
+could check because a null corner on every method row left that pair unique
+across `outcomes`. With a corner on every row it is unique only among
 winner rows, a foreign key cannot reference a partial unique index, and no other
 column set is both unique there and non-null on a winner Prediction. What holds
 that answer to the card instead: `predictions_bout_id_bouts_id_fk` says the Bout
@@ -771,15 +758,18 @@ committed Predictions point at. Deleting one is not something the application
 does, and cascading a Bout away is refused by the Bout key and by the import
 trigger while Predictions exist.
 
-**A round stands on its own.** `predictions_a_round_needs_a_finish` went with
-the compound shape: "Tsiklauri in round 2" is a whole Prediction now, with no
-finish named beside it, and on a Bout that went the distance it is graded
-**wrong** rather than refused when it was made — a Decision ends in no round at
-all, which is precisely not ending in the one the fan named. Naming the wrong
-fighter loses it just as surely (ADR-0015): a Bout that did end in round 2 ended
-with somebody winning it. A disqualification records no round either and reads
-almost the same, and settles the other way: it was never one of the answers the
-game offered, so a round Prediction on it is a No Result (ADR-0005).
+**A method stands on its own.** "Tsiklauri by Submission" is a whole Prediction,
+given without answering the winner Question first — and it is graded on the
+winner as well as the method, because it names one (ADR-0015): a Bout Beridze
+submitted is a Bout the fan who named Tsiklauri got wrong. The one ending it is
+not graded against is the one the game never offered: a disqualification settles
+the winner Question and leaves the method Question a No Result (ADR-0005).
+
+The round of victory used to be a third Question here, standing on its own the
+same way. ADR-0016 retired it, and with it the one grading in the game that read
+like a contradiction — a round Prediction was **wrong** on a Bout that went the
+distance and a **No Result** on a disqualification, two Bouts that both recorded
+no round, settling opposite ways.
 
 **What is frozen, and what is worked out.** Each Prediction stores what its one
 answer paid at submission (ADR-0002) — one number for one answer. The Entry

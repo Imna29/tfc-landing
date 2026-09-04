@@ -54,8 +54,7 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
   if (!event) return null;
 
   // One query with a join rather than a query per Bout: a card is up to a
-  // dozen Bouts of fourteen to eighteen Outcomes each, and this is asked on
-  // every page load.
+  // dozen Bouts of eight Outcomes each, and this is asked on every page load.
   const rows = await useDatabase()
     .select({
       id: bouts.id,
@@ -78,7 +77,6 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
         question: outcomes.question,
         corner: outcomes.corner,
         method: outcomes.method,
-        round: outcomes.round,
         multiplier: outcomes.multiplier,
       },
     })
@@ -141,7 +139,7 @@ export async function upcomingCard(now: Date = new Date()): Promise<UpcomingCard
   // hand.
   for (const { bout, predictions } of shown) {
     predictions.locksAt = locksAt(bout, card);
-    predictions.outcomes = inAskedOrder(predictions.outcomes, bout.scheduledRounds);
+    predictions.outcomes = inAskedOrder(predictions.outcomes);
   }
 
   return {

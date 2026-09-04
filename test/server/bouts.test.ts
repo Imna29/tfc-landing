@@ -116,17 +116,21 @@ describe("a fight card in the game", async () => {
   }
 
   /**
-   * What one fighter's rounds were seeded at, in the order they are fought.
+   * What one fighter's methods of victory were seeded at, by method.
    *
-   * One corner, because both are seeded from the same row (ADR-0015) and the
-   * case below reads them back as a pair rather than as one list of six.
+   * One corner, because both are seeded from the same numbers (ADR-0015) and
+   * the case below reads them back as a pair rather than as one list of six.
+   * Keyed rather than listed because `boutOutcomes` orders by the column, which
+   * is alphabetical and not the order an admin prices them in.
    */
-  async function seededRounds(boutId: string, corner: Corner = "red") {
+  async function seededMethods(boutId: string, corner: Corner = "red") {
     const stored = await boutOutcomes(boutId);
 
-    return stored
-      .filter((outcome) => outcome.question === "round" && outcome.corner === corner)
-      .map((outcome) => outcome.multiplier);
+    return Object.fromEntries(
+      stored
+        .filter((outcome) => outcome.question === "method" && outcome.corner === corner)
+        .map((outcome) => [outcome.method, outcome.multiplier]),
+    );
   }
 
   /** Opens a Bout for predictions, as the button does. */
@@ -163,24 +167,20 @@ describe("a fight card in the game", async () => {
     it("seeds a Multiplier on every Outcome of every Bout, priced by nobody", async () => {
       const { threeRounder, fiveRounder } = await importedFormats();
 
-      // Every Question asked of both fighters (ADR-0015): two winners, six
-      // methods, and two for each round scheduled.
+      // Every Question asked of both fighters (ADR-0015): two winners and six
+      // methods, and the same eight whatever format the Bout is booked in —
+      // nothing a Bout offers depends on how long it is scheduled for now that
+      // the round Question is gone (ADR-0016).
       const opener = await boutOutcomes(threeRounder.id);
       const headliner = await boutOutcomes(fiveRounder.id);
 
-      expect(opener.length).toBe(14);
-      expect(headliner.length).toBe(18);
+      expect(opener.length).toBe(8);
+      expect(headliner.length).toBe(8);
 
-      // Every one of them names the fighter it is about.
+      // Every one of them names the fighter it is about, and none of them
+      // names a round.
       expect(opener.every((outcome) => outcome.corner !== null)).toBe(true);
-
-      // Nothing offers a round the Bout is not scheduled for, to either corner.
-      expect(await seededRounds(threeRounder.id, "red")).toHaveLength(3);
-      expect(
-        opener
-          .filter((outcome) => outcome.question === "round" && outcome.corner === "blue")
-          .map((outcome) => outcome.round),
-      ).toEqual([1, 2, 3]);
+      expect(opener.map((outcome) => outcome.question as string)).not.toContain("round");
 
       // Seeded, and every one of them still waiting for an admin.
       expect(opener.every((outcome) => outcome.multiplier > 1)).toBe(true);
@@ -189,7 +189,7 @@ describe("a fight card in the game", async () => {
     });
 
     it("refuses a Bout asked the same thing twice, whichever fighter it is about", async () => {
-      // The three `outcomes_one_per_*` indexes, corner-inclusive since every
+      // The two `outcomes_one_per_*` indexes, corner-inclusive since every
       // answer names a fighter (ADR-0015). Two Outcomes for one answer would
       // be two Multipliers with no saying which a fan was shown.
       const { threeRounder } = await importedFormats();
@@ -213,8 +213,12 @@ describe("a fight card in the game", async () => {
       expect(await again("question, corner, method", "'method', 'red', 'ko_tko'")).toMatch(
         /outcomes_one_per_method/,
       );
-      expect(await again("question, corner, round", "'round', 'blue', 2")).toMatch(
-        /outcomes_one_per_round/,
+
+      // And a round answer is not one this Bout could ever be asked twice,
+      // because it is not one the game asks at all (ADR-0016). Refused by
+      // whichever of the two rules about a Question Postgres reaches first.
+      expect(await again("question, corner", "'round', 'blue'")).toMatch(
+        /outcomes_(question_known|answers_its_question)/,
       );
 
       // And the same answer about the *other* fighter is a different answer,
@@ -227,23 +231,25 @@ describe("a fight card in the game", async () => {
       ).toHaveLength(2);
     });
 
-    it("seeds a three-round Bout's rounds from a different row than a five-round Bout's", async () => {
+    it("seeds both formats the same, because nothing left is about the format", async () => {
       const { threeRounder, fiveRounder } = await importedFormats();
 
-      // Round 3 is the last round of the opener and a middle round of the
-      // headliner, so it is not the same question and is not seeded the same.
-      expect(await seededRounds(threeRounder.id)).toEqual([6.3, 9.5, 11.4]);
-      expect(await seededRounds(fiveRounder.id)).toEqual([7.5, 11.9, 17.8, 23.7, 28.5]);
+      // The one row of the table that used to depend on how long a Bout was
+      // booked for went with the round Question (ADR-0016).
+      const seeded = { ko_tko: 4.4, submission: 8.1, decision: 5.3 };
 
-      // And each corner is seeded from that row, because nothing that writes
-      // it knows which fighter is favoured.
-      expect(await seededRounds(threeRounder.id, "blue")).toEqual([6.3, 9.5, 11.4]);
-      expect(await seededRounds(fiveRounder.id, "blue")).toEqual([7.5, 11.9, 17.8, 23.7, 28.5]);
+      expect(await seededMethods(threeRounder.id)).toEqual(seeded);
+      expect(await seededMethods(fiveRounder.id)).toEqual(seeded);
+
+      // And each corner is seeded from the same numbers, because nothing that
+      // writes them knows which fighter is favoured.
+      expect(await seededMethods(threeRounder.id, "blue")).toEqual(seeded);
+      expect(await seededMethods(fiveRounder.id, "blue")).toEqual(seeded);
     });
   });
 
   describe("what an admin is shown to price", () => {
-    it("asks each Bout its three Questions, in the order they are answered", async () => {
+    it("asks each Bout its two Questions, in the order they are answered", async () => {
       const { card, bout } = await importedCard();
 
       expect(card).toMatchObject({ title: "TFC 12", seasonName: "Season 1" });
@@ -257,13 +263,13 @@ describe("a fight card in the game", async () => {
         priced: false,
       });
 
-      // Fourteen answers, in the order they are asked: winner, then method,
-      // then round, and red before blue within each (ADR-0015).
+      // Eight answers, in the order they are asked: winner then method, and
+      // red before blue within each (ADR-0015).
       expect(
         bout.outcomes.map((outcome) => [
           outcome.question,
           outcome.corner,
-          outcome.method ?? outcome.round,
+          outcome.method,
           outcome.priced,
         ]),
       ).toEqual([
@@ -275,12 +281,6 @@ describe("a fight card in the game", async () => {
         ["method", "blue", "ko_tko", false],
         ["method", "blue", "submission", false],
         ["method", "blue", "decision", false],
-        ["round", "red", 1, false],
-        ["round", "red", 2, false],
-        ["round", "red", 3, false],
-        ["round", "blue", 1, false],
-        ["round", "blue", 2, false],
-        ["round", "blue", 3, false],
       ]);
     });
 
@@ -291,7 +291,7 @@ describe("a fight card in the game", async () => {
 
       expect(page).toContain("Giorgi Tsiklauri");
       expect(page).toMatch(/Method of victory/i);
-      expect(page).toMatch(/Round of victory/i);
+      expect(page).not.toMatch(/Round of victory/i);
 
       // And says which Bouts still need sitting down with, which is what the
       // admin came to the page to find out.
@@ -299,22 +299,22 @@ describe("a fight card in the game", async () => {
     });
 
     it("offers every Outcome, grouped by the fighter its answers are about", async () => {
-      // Fourteen boxes on a three-round Bout (ADR-0015), which is why the
+      // Eight boxes on every Bout (ADR-0015, ADR-0016), which is why the
       // screen groups: the fighter is named once at the head of a row and the
       // answers under it are short. Unfiltered, and it has to be — a Bout with
       // one unpriced Outcome cannot be opened, so an admin who could not reach
-      // the twelve new numbers could not open a Bout at all.
+      // the six method numbers could not open a Bout at all.
       const { cookie, eventId } = await importedCard();
 
       const page = await $fetch<string>(`/admin/events/${eventId}`, { headers: { cookie } });
 
-      expect(page.match(/type="number"/g)).toHaveLength(14);
+      expect(page.match(/type="number"/g)).toHaveLength(8);
 
       // The whole answer to a screen reader, and the short form beside the box.
       expect(page).toContain("Method of victory: Giorgi Tsiklauri by Submission");
-      expect(page).toContain("Round of victory: Levan Beridze in round 3");
+      expect(page).toContain("Winner: Levan Beridze");
       expect(page).toMatch(/>\s*Submission\s*</);
-      expect(page).toMatch(/>\s*Round 3\s*</);
+      expect(page).toMatch(/>\s*Wins\s*</);
     });
 
     it("says nothing about a card nobody has imported", async () => {
@@ -1237,14 +1237,10 @@ describe("a fight card in the game", async () => {
       const shown = await publicCard();
       const offered = shown.predictions?.bouts[1];
 
-      // The whole set, in the order they are asked: every Question of both
-      // fighters (ADR-0015), and a round for each round scheduled.
+      // The whole set, in the order they are asked: both Questions of both
+      // fighters (ADR-0015), and nothing about the round (ADR-0016).
       expect(
-        offered?.outcomes.map((outcome) => [
-          outcome.question,
-          outcome.corner,
-          outcome.method ?? outcome.round,
-        ]),
+        offered?.outcomes.map((outcome) => [outcome.question, outcome.corner, outcome.method]),
       ).toEqual([
         ["winner", "red", null],
         ["winner", "blue", null],
@@ -1254,30 +1250,21 @@ describe("a fight card in the game", async () => {
         ["method", "blue", "ko_tko"],
         ["method", "blue", "submission"],
         ["method", "blue", "decision"],
-        ["round", "red", 1],
-        ["round", "red", 2],
-        ["round", "red", 3],
-        ["round", "blue", 1],
-        ["round", "blue", 2],
-        ["round", "blue", 3],
       ]);
 
       const page = await publicPage();
 
-      // Every Outcome the route offers is on the page: #43 retires the filter
-      // the card was rendered through, so all three Questions are asked and
-      // both fighters are named as answers to each of them, at what each of
-      // them pays. Round 4 is the one nobody is offered — this Bout is
-      // scheduled for three.
+      // Every Outcome the route offers is on the page: both Questions asked,
+      // and both fighters named as answers to each of them, at what each of
+      // them pays. The round of victory is the Question nobody is offered any
+      // more (ADR-0016).
       expect(page).toContain("×2.50");
       expect(page).toContain(QUESTION_LABELS.winner);
       expect(page).toContain(QUESTION_LABELS.method);
-      expect(page).toContain(QUESTION_LABELS.round);
       expect(page).toContain(`Giorgi Tsiklauri by ${METHOD_LABELS.submission}`);
       expect(page).toContain(`Levan Beridze by ${METHOD_LABELS.submission}`);
-      expect(page).toContain("Giorgi Tsiklauri in round 2");
-      expect(page).toContain("Levan Beridze in round 2");
-      expect(page).not.toContain("in round 4");
+      expect(page).not.toContain("Round of victory");
+      expect(page).not.toContain("in round 2");
     });
 
     it("offers nothing on a Bout nobody has opened, because nothing on it is priced", async () => {
@@ -1400,7 +1387,7 @@ describe("a fight card in the game", async () => {
       const repriced = await cardToPrice(eventId, cookie);
 
       expect(repriced.bouts[0]).toMatchObject({ priced: false, scheduledRounds: 5 });
-      expect(repriced.bouts[0]?.outcomes.length).toBe(18);
+      expect(repriced.bouts[0]?.outcomes.length).toBe(8);
     });
   });
 });

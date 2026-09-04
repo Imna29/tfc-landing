@@ -690,40 +690,36 @@ export const bouts = pgTable(
 
 /**
  * One selectable answer to one Question about a Bout — "Fighter A", "Fighter A
- * by KO/TKO", "Fighter A in round 2" — carrying the Multiplier that answer
- * pays.
+ * by KO/TKO" — carrying the Multiplier that answer pays.
  *
- * Every Bout is imported with its whole set: two winner Outcomes, six method
- * Outcomes, and two for each round the Bout is scheduled for, so a three-round
- * Bout has fourteen and no round 4 to offer either fighter. They are written
+ * Every Bout is imported with its whole set: two winner Outcomes and six method
+ * Outcomes, eight on every Bout however long it is booked for. They are written
  * by the import that creates the Bout and by nothing else — see
  * `defaultOutcomes` in `shared/pricing.ts`, which is the one place that says
  * what a Bout is asked.
  *
  * **Every answer names the corner it is about** (ADR-0015), so `corner` is on
- * every row and `method` and `round` are the two it is asked *about*: a corner
- * always, plus exactly one of those two, decided by `question`.
+ * every row and `method` is the thing it is asked *about*: a corner always,
+ * plus a method exactly where `question` says so.
  * `outcomes_answers_its_question` is what says so.
  *
- * The three unique indexes are what stop a Bout being asked the same thing
- * twice — two "Fighter A in round 2" Outcomes on one Bout would be two
- * different Multipliers for one answer, and no saying which a fan was shown.
- * All three are corner-inclusive, and they have to be: they held a Bout to one
- * answer per Question by NULL-distinctness while a method row carried no
- * corner, and with a corner on every row `(bout_id, corner)` alone would
- * collide across the three Questions. Only the winner one is partial, because
- * `(bout_id, corner)` is unique among winner rows and nowhere else; the other
- * two are unique over the whole table, which is what lets `predictions` point
- * at them.
+ * The two unique indexes are what stop a Bout being asked the same thing twice
+ * — two "Fighter A by KO/TKO" Outcomes on one Bout would be two different
+ * Multipliers for one answer, and no saying which a fan was shown. Both are
+ * corner-inclusive, and they have to be: they held a Bout to one answer per
+ * Question by NULL-distinctness while a method row carried no corner, and with
+ * a corner on every row `(bout_id, corner)` alone would collide across the
+ * Questions. Only the winner one is partial, because `(bout_id, corner)` is
+ * unique among winner rows and nowhere else; the method one is unique over the
+ * whole table, which is what lets `predictions` point at it.
  *
  * `pricedAt` and `pricedBy` are the difference between a seeded default and a
  * price. Import seeds a Multiplier on every Outcome so that pricing a card is
- * fourteen to eighteen numbers adjusted rather than authored from blank
- * (ADR-0002), and those seeded numbers are deliberately not a price: they are
- * null here until an admin has saved the Bout, and a Bout with an unpriced
- * Outcome cannot be opened. The migration that creates this table holds that
- * with a trigger, so it is true of a hand-written `update` as well as of the
- * route.
+ * eight numbers adjusted rather than authored from blank (ADR-0002), and those
+ * seeded numbers are deliberately not a price: they are null here until an
+ * admin has saved the Bout, and a Bout with an unpriced Outcome cannot be
+ * opened. The migration that creates this table holds that with a trigger, so
+ * it is true of a hand-written `update` as well as of the route.
  *
  * A Multiplier is copied onto a Prediction when an Entry is submitted and
  * never read back (ADR-0002), which is why nothing here is frozen once a Bout
@@ -740,10 +736,8 @@ export const outcomes = pgTable(
     question: text("question").$type<Question>().notNull(),
     /** Which fighter this answer is about, on every Outcome (ADR-0015). */
     corner: text("corner").$type<Corner>().notNull(),
-    /** How that fighter wins, on a method Outcome. Null on every other. */
+    /** How that fighter wins, on a method Outcome. Null on a winner Outcome. */
     method: text("method").$type<Method>(),
-    /** Which round they win in, on a round Outcome. Null on every other. */
-    round: integer("round"),
     /**
      * What this answer pays.
      *
@@ -761,48 +755,34 @@ export const outcomes = pgTable(
   },
   (table) => [
     // One winner Outcome per corner. Partial because `(bout_id, corner)` is
-    // unique among winner rows and among no others — a Bout carries seven or
-    // nine rows for each of its corners. Nothing points a foreign key at this
-    // one, which is what makes a partial index usable here: Postgres will not
-    // reference one.
+    // unique among winner rows and among no others — a Bout carries four rows
+    // for each of its corners. Nothing points a foreign key at this one, which
+    // is what makes a partial index usable here: Postgres will not reference
+    // one.
     uniqueIndex("outcomes_one_per_corner")
       .on(table.boutId, table.corner)
       .where(sql`${table.question} = 'winner'`),
-    // One method and one round Outcome per corner. Unique over the whole table
-    // rather than over their own Questions — a winner row's null method and a
-    // round row's null method are each distinct from everything, so those rows
-    // sit in these indexes without colliding — which is what lets
-    // `predictions_method_is_offered` and `predictions_round_is_offered` point
-    // at them.
+    // One method Outcome per corner. Unique over the whole table rather than
+    // over the method Question — a winner row's null method is distinct from
+    // everything, so those rows sit in this index without colliding — which is
+    // what lets `predictions_method_is_offered` point at it.
     uniqueIndex("outcomes_one_per_method").on(table.boutId, table.corner, table.method),
-    uniqueIndex("outcomes_one_per_round").on(table.boutId, table.corner, table.round),
-    check("outcomes_question_known", sql`${table.question} in ('winner', 'method', 'round')`),
+    check("outcomes_question_known", sql`${table.question} in ('winner', 'method')`),
     check("outcomes_corner_known", sql`${table.corner} in ('red', 'blue')`),
     check(
       "outcomes_method_known",
       sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
     ),
-    // The upper bound is the one `bouts_rounds_are_scheduled` puts on a Bout.
-    // That a Bout offers exactly the rounds it is scheduled for is arithmetic
-    // the import does, not something Postgres can check across the two tables.
-    check(
-      "outcomes_round_is_a_round",
-      sql`${table.round} is null or ${table.round} between 1 and 12`,
-    ),
-    // A corner always, plus exactly one of a method and a round, decided by
-    // the Question it answers (ADR-0015). Without this a row could carry a
-    // method and a round at once, and nothing downstream would know which of
-    // them a fan had picked. The corner is said here as well as on the column,
-    // because this is where the whole shape of an answer is written down.
+    // A corner always, plus a method exactly where the Question names one
+    // (ADR-0015). Without this a winner row could carry a method, and nothing
+    // downstream would know which of the two answers a fan had picked. The
+    // corner is said here as well as on the column, because this is where the
+    // whole shape of an answer is written down.
     check(
       "outcomes_answers_its_question",
       sql`${table.corner} is not null
-        and ((${table.question} = 'winner'
-              and ${table.method} is null and ${table.round} is null)
-          or (${table.question} = 'method' and ${table.method} is not null
-              and ${table.round} is null)
-          or (${table.question} = 'round' and ${table.round} is not null
-              and ${table.method} is null))`,
+        and ((${table.question} = 'winner' and ${table.method} is null)
+          or (${table.question} = 'method' and ${table.method} is not null))`,
     ),
     // A Multiplier at or below 1 pays a correct Prediction its own Coins back
     // or less, which is not a price anybody meant to type. The ceiling is the
@@ -936,11 +916,10 @@ export const boutResults = pgTable(
      *
      * `RecordedMethod` rather than `Method`: a disqualification is a way a
      * Bout ends and is not one of the three answers the game offers, so it
-     * settles the winner Question and turns the other two into No Results.
+     * settles the winner Question and turns the method Question into a No
+     * Result.
      */
     method: text("method").$type<RecordedMethod>(),
-    /** The round it ended in, or null where it did not end inside one. */
-    round: integer("round"),
     /**
      * Why the Bout produced nothing gradable, or null where it produced a
      * Result. The four ADR-0005 names: cancelled, withdrawal, draw, no contest.
@@ -952,23 +931,6 @@ export const boutResults = pgTable(
       .references(() => users.id),
   },
   (table) => [
-    // The round it ended in is a round the Bout was offering, held by the same
-    // key a Prediction's round is (`outcomes_one_per_round`). A result naming
-    // round 4 of a three-round Bout is a fight that did not happen — and it
-    // would be graded against round answers no fan was ever offered.
-    //
-    // The winning corner is in the key because that index is corner-inclusive
-    // now (ADR-0015), and it names exactly the right Outcome: the row a fan
-    // answering "this fighter in this round" would have picked. It costs
-    // nothing in reach — `bout_results_a_round_is_a_finish` makes a round
-    // impossible without a method, and `bout_results_is_a_result_or_no_result`
-    // makes a method impossible without a winner, so the two columns are
-    // non-null together or the key is not checked at all.
-    foreignKey({
-      columns: [table.boutId, table.winner, table.round],
-      foreignColumns: [outcomes.boutId, outcomes.corner, outcomes.round],
-      name: "bout_results_round_was_offered",
-    }),
     check(
       "bout_results_winner_known",
       sql`${table.winner} is null
@@ -996,17 +958,6 @@ export const boutResults = pgTable(
       sql`(${table.noResult} is null) = (${table.winner} is not null
         and ${table.method} is not null)`,
     ),
-    // A round belongs to a finish, said both ways round because a Result is a
-    // statement of fact about the whole Bout rather than one answer to one of
-    // its Questions: a KO/TKO and a Submission happened in a round, and a
-    // Decision, a disqualification and a No Result did not. Deliberately not
-    // asked of a Prediction, which names a round on its own terms and is
-    // graded wrong on a Bout that went the distance (ADR-0014).
-    check(
-      "bout_results_a_round_is_a_finish",
-      sql`(${table.round} is not null) = (${table.method} is not null
-        and ${table.method} in ('ko_tko', 'submission'))`,
-    ),
   ],
 );
 
@@ -1016,8 +967,8 @@ export const boutResults = pgTable(
  * {@link boutResults} always says what the game grades against, which is what
  * a correction updates it to be. This is where what it used to say goes, and
  * it is the difference between an audit trail that can say "the Bout was
- * recorded as Beridze by KO/TKO in round 2, and that was wrong" and one that
- * can only say that somebody changed something.
+ * recorded as Beridze by KO/TKO, and that was wrong" and one that can only say
+ * that somebody changed something.
  *
  * The question it answers is asked after the fact, by a fan whose Entry was
  * Won and is now Lost, so it is append-only for exactly the reason
@@ -1030,12 +981,10 @@ export const boutResults = pgTable(
  * corrections oldest-first is reading everything anybody has ever said about
  * that fight, in the order they said it.
  *
- * The columns describing the superseded ending are the same four
+ * The columns describing the superseded ending are the same three
  * {@link boutResults} carries, held to the same values by checks of their own —
  * a log that could hold a shape the table it logs could never have held is a
- * log of something that did not happen. What it deliberately does not carry is
- * `bout_results_round_was_offered`: that Outcome exists because this row's
- * Bout was priced with it, and the log is not the place to discover otherwise.
+ * log of something that did not happen.
  */
 export const boutResultCorrections = pgTable(
   "bout_result_corrections",
@@ -1048,8 +997,6 @@ export const boutResultCorrections = pgTable(
     winner: text("winner").$type<Corner>(),
     /** How the superseded Result said it ended. */
     method: text("method").$type<RecordedMethod>(),
-    /** The round the superseded Result said it ended in. */
-    round: integer("round"),
     /** Why the superseded row said the Bout produced nothing gradable. */
     noResult: text("no_result").$type<NoResultReason>(),
     /** When the superseded statement was made, and by which admin. */
@@ -1086,11 +1033,6 @@ export const boutResultCorrections = pgTable(
       "bout_result_corrections_is_a_result_or_no_result",
       sql`(${table.noResult} is null) = (${table.winner} is not null
         and ${table.method} is not null)`,
-    ),
-    check(
-      "bout_result_corrections_a_round_is_a_finish",
-      sql`(${table.round} is not null) = (${table.method} is not null
-        and ${table.method} in ('ko_tko', 'submission'))`,
     ),
   ],
 );
@@ -1183,12 +1125,12 @@ export const entries = pgTable(
  * One answer to one Question on one Bout, carrying what that answer paid.
  *
  * The same shape as the {@link outcomes} row it is a copy of (ADR-0014): a
- * Question, the corner the answer is about, exactly one non-null answer among
- * `method` and `round`, and one Multiplier.
+ * Question, the corner the answer is about, a `method` exactly where the
+ * Question names one, and one Multiplier.
  * `predictions_answers_its_question` says so here the way
- * `outcomes_answers_its_question` says it there, and it is what stops a row
- * carrying two answers — which nothing downstream could grade, because there
- * would be no saying which of them the fan gave.
+ * `outcomes_answers_its_question` says it there, and it is what stops a winner
+ * row carrying a method — which nothing downstream could grade, because there
+ * would be no saying which of the two the fan gave.
  *
  * **An Entry holds at most one Prediction per Bout**, and
  * `predictions_one_per_bout_in_an_entry` is what makes that true rather than
@@ -1202,26 +1144,25 @@ export const entries = pgTable(
  * separately.
  *
  * The answer is stored as what it says rather than as a reference to the
- * Outcome that offered it, and the two foreign keys are what keep the two from
- * ever disagreeing: `(bout_id, corner, method)` and `(bout_id, corner, round)`
- * each point at an Outcome row of that Bout, so a method or a round answer
- * exists here only if the Bout was actually offering it, to that fighter — a
- * three-round Bout has no round 4 to point at for either of them, and an
- * Outcome a re-import took away is one nothing here can name. What the keys
- * hold is *which answer was offered*, not what it pays: the Multiplier is in
- * no constraint, and copying the right number onto the right answer is
- * `priceOf`'s, on both sides of a submission. Postgres does not check a
- * foreign key whose columns include a null, which is exactly right: one of the
- * two is null on every row, and the one that is not is the one being held to
- * the card.
+ * Outcome that offered it, and `predictions_method_is_offered` is what keeps
+ * the two from ever disagreeing: `(bout_id, corner, method)` points at an
+ * Outcome row of that Bout, so a method answer exists here only if the Bout was
+ * actually offering it, to that fighter — "Beridze by Submission" on a Bout
+ * offering it only to Tsiklauri has nothing to point at, and an Outcome a
+ * re-import took away is one nothing here can name. What the key holds is
+ * *which answer was offered*, not what it pays: the Multiplier is in no
+ * constraint, and copying the right number onto the right answer is `priceOf`'s,
+ * on both sides of a submission. Postgres does not check a foreign key whose
+ * columns include a null, which is exactly right: `method` is null on every
+ * winner row, and non-null on every row the key is meant to hold.
  *
- * **There is no third key for the winner Question, and that is a consequence
+ * **There is no second key for the winner Question, and that is a consequence
  * of the corner rather than an omission.** It was `(bout_id, corner)`, which
- * Postgres could check because a null corner on every method and round row
- * left that pair unique across the table. With a corner on every row it is
- * unique only among winner rows, a foreign key cannot reference a partial
- * unique index, and no other column set is both unique across {@link outcomes}
- * and non-null on a winner Prediction — so there is no widening that saves it.
+ * Postgres could check because a null corner on every method row left that pair
+ * unique across the table. With a corner on every row it is unique only among
+ * winner rows, a foreign key cannot reference a partial unique index, and no
+ * other column set is both unique across {@link outcomes} and non-null on a
+ * winner Prediction — so there is no widening that saves it.
  *
  * What holds that answer to the card instead is a chain rather than one key.
  * `predictions_bout_id_bouts_id_fk` says the Bout exists and
@@ -1255,14 +1196,12 @@ export const predictions = pgTable(
     boutId: uuid("bout_id")
       .notNull()
       .references(() => bouts.id),
-    /** Which of the three Questions this Prediction answers. */
+    /** Which of the two Questions this Prediction answers. */
     question: text("question").$type<Question>().notNull(),
     /** Which fighter the fan's answer is about, on every Prediction (ADR-0015). */
     corner: text("corner").$type<Corner>().notNull(),
-    /** How they say that fighter wins, on a method Prediction. Null on every other. */
+    /** How they say that fighter wins, on a method Prediction. Null on a winner one. */
     method: text("method").$type<Method>(),
-    /** Which round they say that fighter wins in, on a round Prediction. Null otherwise. */
-    round: integer("round"),
     /**
      * What that answer paid when the Entry was submitted.
      *
@@ -1279,49 +1218,30 @@ export const predictions = pgTable(
     // Everything settlement reads: every Prediction on a Bout that just got a
     // result (#14).
     index("predictions_by_bout").on(table.boutId),
-    // The answer was one the Bout was offering, for the fighter it names. Each
-    // of these points at the Outcome row that priced it, through the unique
-    // indexes `outcomes` already has — which is also what makes "that round
-    // does not exist in this Bout" and "that Outcome is not on this Bout"
-    // refusals from the database rather than only from a route.
+    // The answer was one the Bout was offering, for the fighter it names. It
+    // points at the Outcome row that priced it, through the unique index
+    // `outcomes` already has — which is also what makes "that Outcome is not on
+    // this Bout" a refusal from the database rather than only from a route.
     foreignKey({
       name: "predictions_method_is_offered",
       columns: [table.boutId, table.corner, table.method],
       foreignColumns: [outcomes.boutId, outcomes.corner, outcomes.method],
     }),
-    foreignKey({
-      name: "predictions_round_is_offered",
-      columns: [table.boutId, table.corner, table.round],
-      foreignColumns: [outcomes.boutId, outcomes.corner, outcomes.round],
-    }),
-    check("predictions_question_known", sql`${table.question} in ('winner', 'method', 'round')`),
+    check("predictions_question_known", sql`${table.question} in ('winner', 'method')`),
     check("predictions_corner_known", sql`${table.corner} in ('red', 'blue')`),
     check(
       "predictions_method_known",
       sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
     ),
-    // The bounds `bouts_rounds_are_scheduled` puts on a Bout, and `SCHEDULED_ROUNDS`
-    // in `shared/events.ts` on an import. That the round is one *this* Bout is
-    // scheduled for is `predictions_round_is_offered`'s to say, because only
-    // the Outcome rows know it.
-    check(
-      "predictions_round_is_a_round",
-      sql`${table.round} is null or ${table.round} between 1 and 12`,
-    ),
-    // A corner always, plus exactly one of a method and a round, decided by
-    // the Question it answers — the same rule `outcomes_answers_its_question`
-    // holds the Outcome to, because this is a copy of one. Without it a row
-    // could carry a method and a round at once, and nothing grading it would
-    // know which of them the fan gave.
+    // A corner always, plus a method exactly where the Question names one — the
+    // same rule `outcomes_answers_its_question` holds the Outcome to, because
+    // this is a copy of one. Without it a winner row could carry a method, and
+    // nothing grading it would know which of the two the fan gave.
     check(
       "predictions_answers_its_question",
       sql`${table.corner} is not null
-        and ((${table.question} = 'winner'
-              and ${table.method} is null and ${table.round} is null)
-          or (${table.question} = 'method' and ${table.method} is not null
-              and ${table.round} is null)
-          or (${table.question} = 'round' and ${table.round} is not null
-              and ${table.method} is null))`,
+        and ((${table.question} = 'winner' and ${table.method} is null)
+          or (${table.question} = 'method' and ${table.method} is not null))`,
     ),
     // The same bounds an Outcome's Multiplier is held to, copied here because
     // this is a copy of one: a Prediction paying ×1 or less returns a fan who

@@ -28,14 +28,7 @@ import {
 } from "./entries";
 import type { Corner } from "./events";
 import { multiplierLabel } from "./predictions";
-import {
-  isMethod,
-  isRound,
-  METHODS,
-  METHOD_LABELS,
-  type Method,
-  type OutcomeAnswer,
-} from "./pricing";
+import { isMethod, METHODS, METHOD_LABELS, type Method, type OutcomeAnswer } from "./pricing";
 
 /**
  * The four ways a Bout produces nothing gradable: it was cancelled, a fighter
@@ -94,30 +87,15 @@ export function isNoResultReason(value: unknown): value is NoResultReason {
 }
 
 /**
- * Whether a Bout ending this way ends inside a round.
- *
- * A KO/TKO and a Submission happen in a round somebody can name; a Decision is
- * the Bout going the distance, and a disqualification records no round either
- * (ADR-0005). It is a fact about a {@link RecordedMethod} rather than about an
- * answer a fan gave: a round Prediction stands on its own (ADR-0014), and the
- * only thing left asking this is the Result an admin enters and the
- * `bout_results_a_round_is_a_finish` constraint under it.
- */
-export function isFinish(method: RecordedMethod | null): boolean {
-  return method === "ko_tko" || method === "submission";
-}
-
-/**
  * How a Bout ended, where it ended with a winner: one of the three methods the
  * game offers, or the disqualification it does not.
  *
  * Deliberately not {@link Method}, and deliberately wider than it. ADR-0005
  * settles a DQ's **winner** Question normally, because the DQ winner did win,
- * while the method and round Questions become No Results — "won by DQ" is not
- * one of the three answers any fan was offered, so no fan can have got it
- * wrong. Keeping the two types apart is what stops that fourth value reaching
- * an Outcome or a Prediction, where it would be an answer nobody was ever
- * shown.
+ * while the method Question becomes a No Result — "won by DQ" is not one of the
+ * three answers any fan was offered, so no fan can have got it wrong. Keeping
+ * the two types apart is what stops that fourth value reaching an Outcome or a
+ * Prediction, where it would be an answer nobody was ever shown.
  *
  * Spelled out again in `bout_results_method_known`, which is one value wider
  * than `outcomes_method_known` and `predictions_method_known` for exactly this
@@ -139,14 +117,20 @@ export const RECORDED_METHOD_LABELS = {
 
 /**
  * What an admin records about a Bout that has been fought to a winner: who won,
- * how it ended, and — where it ended inside one — which round.
+ * and how it ended.
  *
- * One statement about all three Questions, where a Prediction answers one of
- * them — which is what makes grading a comparison rather than an
- * interpretation: each Prediction is read against the one field of this that
- * answers its Question. `winner` rather than `corner`, because that is the
- * Question it answers (`CONTEXT.md`) and because a Result is a statement about
- * the Bout rather than a pick somebody made.
+ * One statement about both Questions, where a Prediction answers one of them —
+ * which is what makes grading a comparison rather than an interpretation: each
+ * Prediction is read against the one field of this that answers its Question.
+ * `winner` rather than `corner`, because that is the Question it answers
+ * (`CONTEXT.md`) and because a Result is a statement about the Bout rather than
+ * a pick somebody made.
+ *
+ * **The round it ended in is not recorded**, because nothing would read it.
+ * ADR-0016 retired the round Question, and the round on a Result only ever
+ * existed to grade the answers to it — `bout_results_round_was_offered` pointed
+ * at the round Outcomes themselves. A Result records what the game asked about,
+ * and the game does not ask about the round.
  *
  * A Bout that produced nothing gradable is a No Result and is not one of these
  * (ADR-0005). See {@link BoutEnding}, which is what anything grading against a
@@ -155,8 +139,6 @@ export const RECORDED_METHOD_LABELS = {
 export interface BoutResult {
   winner: Corner;
   method: RecordedMethod;
-  /** The round it ended in, or null where it did not end inside one. */
-  round: number | null;
 }
 
 /**
@@ -213,21 +195,17 @@ export const PREDICTION_GRADE_LABELS = {
  *
  * One answer against what the Bout produced, on the Question the fan chose to
  * answer (ADR-0014). A winner Prediction is graded on who won however the Bout
- * ended, and nothing else about it is asked. **A method or a round Prediction
- * is graded on the winner as well**, because it names one (ADR-0015): "Beridze
- * by Submission" is wrong on a Bout Tsiklauri submitted, and a round answer
- * naming the fighter who lost is wrong even where the Bout did end in the
- * round it named. A round Prediction on a Bout that went the distance is
- * **wrong** — a Decision ends in no round, which is precisely not ending in
- * the one the fan named.
+ * ended, and nothing else about it is asked. **A method Prediction is graded on
+ * the winner as well**, because it names one (ADR-0015): "Beridze by
+ * Submission" is wrong on a Bout Tsiklauri submitted.
  *
  * The two ADR-0005 cases are the ones worth reading closely. A Bout that
  * produced nothing gradable grades every Prediction on it a No Result,
  * whatever anybody answered — there is nothing to have been right or wrong
  * about. A disqualification settles the winner Question alone: it is not one
- * of the three methods any fan was offered, so a method or round Prediction on
- * that Bout is a No Result rather than a loss, and a fan is never marked wrong
- * for failing to predict an answer that was never on the card.
+ * of the three methods any fan was offered, so a method Prediction on that Bout
+ * is a No Result rather than a loss, and a fan is never marked wrong for
+ * failing to predict an answer that was never on the card.
  */
 export function gradePrediction(
   prediction: OutcomeAnswer,
@@ -245,22 +223,17 @@ export function gradePrediction(
   }
 
   // And "won by DQ" is not one of the three methods any fan was offered, so
-  // the other two Questions have nothing here to be graded against — whichever
-  // fighter they named, the one who was disqualified included.
+  // the method Question has nothing here to be graded against — whichever
+  // fighter it named, the one who was disqualified included.
   if (result.method === "disqualification") return "no result";
 
-  // **The corner has to match as well.** A method or a round answer names the
-  // fighter it is about (ADR-0015), so "Beridze by Submission" on a Bout
-  // Tsiklauri submitted is a fan who read the ending and named the wrong
-  // fighter to produce it, and a round answer naming the fighter who lost is
-  // wrong even where the Bout did end in the round it named.
+  // **The corner has to match as well.** A method answer names the fighter it
+  // is about (ADR-0015), so "Beridze by Submission" on a Bout Tsiklauri
+  // submitted is a fan who read the ending and named the wrong fighter to
+  // produce it.
   if (prediction.corner !== result.winner) return "wrong";
 
-  if (prediction.question === "method") {
-    return prediction.method === result.method ? "correct" : "wrong";
-  }
-
-  return prediction.round === result.round ? "correct" : "wrong";
+  return prediction.method === result.method ? "correct" : "wrong";
 }
 
 /** One Prediction of an Entry, beside how the Bout it answered ended. */
@@ -306,9 +279,9 @@ export function gradeEntry(graded: readonly GradedPrediction[]): EntryStatus {
  * ADR-0005 as arithmetic, and the same two cases {@link gradePrediction}
  * answers a No Result for: a Bout that produced nothing gradable pays ×1.0
  * whatever was answered on it, and a disqualification pays ×1.0 on the method
- * and round Questions it never settled. Everything else pays exactly what
- * ADR-0002 froze onto it — a winner Prediction on a disqualification included,
- * because that Question was settled and the fan answered it.
+ * Question it never settled. Everything else pays exactly what ADR-0002 froze
+ * onto it — a winner Prediction on a disqualification included, because that
+ * Question was settled and the fan answered it.
  *
  * Answers a repriced Prediction rather than the number itself, so that a
  * settled Entry is priced by `potentialReward` — the same function that priced
@@ -382,7 +355,7 @@ export function entryAsItStands(entry: {
 }
 
 /**
- * One Result as a sentence: "Levan Beridze by KO/TKO in round 2".
+ * One Result as a sentence: "Levan Beridze by KO/TKO".
  *
  * Written in the words `outcomeLabel` in `shared/pricing.ts` names the answers
  * a fan picked from, and deliberately so: an admin checking a Result against
@@ -391,9 +364,7 @@ export function entryAsItStands(entry: {
  * comparison work they have to do in their head.
  */
 export function resultLabel(result: BoutResult, corners: Record<Corner, string>): string {
-  const round = result.round === null ? "" : ` in round ${result.round}`;
-
-  return `${corners[result.winner]} by ${RECORDED_METHOD_LABELS[result.method]}${round}`;
+  return `${corners[result.winner]} by ${RECORDED_METHOD_LABELS[result.method]}`;
 }
 
 /**
@@ -444,19 +415,14 @@ export interface ResultCorrection {
  * Asked of a correction before anything is written, so that an admin who
  * re-entered what was already there is told so rather than being handed a
  * correction that reversed nothing, re-paid the identical Rewards and left a
- * row in the audit log saying a Result was replaced with itself. Every answer
- * has to match, the null ones included: a Decision has no round and a No
- * Result has no winner, and "unanswered" is as much a part of what was
- * recorded as the answers are.
+ * row in the audit log saying a Result was replaced with itself. Both answers
+ * have to match, and a No Result is the same ending only as the same reason:
+ * "unanswered" is as much a part of what was recorded as the answers are.
  */
 export function isTheSameEnding(one: BoutEnding, other: BoutEnding): boolean {
   if (one.noResult || other.noResult) return one.noResult === other.noResult;
 
-  return (
-    one.result.winner === other.result.winner &&
-    one.result.method === other.result.method &&
-    one.result.round === other.result.round
-  );
+  return one.result.winner === other.result.winner && one.result.method === other.result.method;
 }
 
 /**
@@ -585,18 +551,6 @@ export const RESULT_MESSAGES = {
     "Choose how the Bout ended: KO/TKO, Submission, Decision, or a " +
     "disqualification. A Bout that ended in none of those produced nothing " +
     "the game can grade, which is a No Result rather than a method.",
-  aDecisionHasNoRound:
-    "A Decision is the Bout going the distance, so there is no round to " +
-    "record it in. Clear the round, or say it ended in a KO/TKO or a " +
-    "Submission.",
-  aFinishHasARound:
-    "A KO/TKO and a Submission happen in a round. Say which one this Bout " +
-    "ended in — fans predicted it, and it is what their round answer is " +
-    "graded against.",
-  aDisqualificationHasNoRound:
-    "A disqualification settles who won and nothing else: it is not one of " +
-    "the three methods fans were offered, so the method and round Questions " +
-    "on this Bout are No Results. Clear the round.",
   noResultReasonNotChosen:
     "Say why this Bout produced nothing to grade: it was cancelled, a fighter " +
     "withdrew, it was a draw, or it was a no contest. Every Prediction on it " +
@@ -604,12 +558,6 @@ export const RESULT_MESSAGES = {
   aNoResultDecidedNothing:
     "A Bout either produced a result or it produced none, and this says both. " +
     "Enter the winner and the method, or the reason there is neither.",
-  roundNotScheduled: (scheduledRounds: number) =>
-    `This Bout is scheduled for ${scheduledRounds} rounds, so it cannot have ` +
-    "ended in a later one. No fan was offered that round either.",
-  unreadable:
-    "That result could not be read. Choose the winner, the method and — for a " +
-    "finish — the round, and enter it again. Nothing has been settled.",
   boutNotOpened:
     "Nobody opened this Bout for predictions, so no Entry is riding on how it " +
     "went and there is nothing to settle. A card can still be re-imported " +
@@ -634,7 +582,7 @@ export const RESULT_MESSAGES = {
  * How a Bout ended, as the admin area sends it.
  *
  * There are two controls and they send two different bodies, because they are
- * two different statements about the fight: the result form sends the three
+ * two different statements about the fight: the result form sends the two
  * answers, and the No Result control sends the reason. **Whether `noResult` is
  * there at all is what says which of them was used** — present and null is an
  * admin who pressed "Enter No Result" without saying why, and that is a
@@ -647,7 +595,6 @@ export const RESULT_MESSAGES = {
 export interface EnteredEnding {
   winner?: Corner | null;
   method?: RecordedMethod | null;
-  round?: number | null;
   noResult?: NoResultReason | null;
 }
 
@@ -657,12 +604,13 @@ export type ParsedEnding =
   | { ending?: undefined; problem: string };
 
 /**
- * Reads what an admin entered about a Bout, against the Bout it is about.
+ * Reads what an admin entered about a Bout.
  *
- * The Bout is needed for one thing and only one: how many rounds it was
- * scheduled for, which is what makes "round 4" wrong on a three-round opener.
- * Everything else is what a Result may be made of at all, and is the same
- * question on every Bout on every card.
+ * Takes nothing but the body, which is the shape ADR-0016 leaves it in. It used
+ * to be handed the Bout as well, for one thing and only one: how many rounds it
+ * was scheduled for, which was what made "round 4" wrong on a three-round
+ * opener. With no round to record, what a Result may be made of at all is the
+ * same question on every Bout on every card.
  *
  * A No Result is read first because it is a statement about the whole Bout:
  * nothing was decided, so there is no winner to check and no method to reject.
@@ -670,20 +618,18 @@ export type ParsedEnding =
  * winner *and* said the Bout produced nothing has two different fights in mind,
  * and quietly honouring one of them would settle the wrong one.
  *
- * Asked again in Postgres — `bout_results_a_round_is_a_finish`,
- * `bout_results_is_a_result_or_no_result` and the key holding the round to one
- * the Bout offered — because a rule that lives only in a handler is one
- * refactor away from disappearing. It is asked here so that an admin is told
- * which answer is wrong rather than being handed the database's opinion.
+ * Asked again in Postgres — `bout_results_is_a_result_or_no_result` — because a
+ * rule that lives only in a handler is one refactor away from disappearing. It
+ * is asked here so that an admin is told which answer is wrong rather than
+ * being handed the database's opinion.
  */
-export function parseEnding(value: unknown, bout: { scheduledRounds: number }): ParsedEnding {
+export function parseEnding(value: unknown): ParsedEnding {
   const entered = (value ?? {}) as {
     winner?: unknown;
     method?: unknown;
-    round?: unknown;
     noResult?: unknown;
   };
-  const { winner = null, method = null, round = null } = entered;
+  const { winner = null, method = null } = entered;
 
   // `undefined` rather than null, because it is the field being there at all
   // that says the No Result control was the one used. A reason nobody chose
@@ -696,7 +642,7 @@ export function parseEnding(value: unknown, bout: { scheduledRounds: number }): 
     // Nothing the admin area sends alongside it, and a body that names a
     // winner as well is two different accounts of one fight — settling
     // whichever of them happened to be read would settle the wrong one.
-    if (winner !== null || method !== null || round !== null) {
+    if (winner !== null || method !== null) {
       return { problem: RESULT_MESSAGES.aNoResultDecidedNothing };
     }
 
@@ -705,36 +651,12 @@ export function parseEnding(value: unknown, bout: { scheduledRounds: number }): 
 
   if (winner !== "red" && winner !== "blue") return { problem: RESULT_MESSAGES.winnerNotChosen };
 
-  // A disqualification is a winner and nothing else. The round is refused
-  // rather than dropped, because an admin who named one is describing a finish
-  // this Bout is not being recorded as having.
-  if (method === "disqualification") {
-    if (round !== null) return { problem: RESULT_MESSAGES.aDisqualificationHasNoRound };
+  // A disqualification is a winner and nothing else: it is not one of the three
+  // methods any fan was offered, so it settles the winner Question and leaves
+  // the method Question a No Result (ADR-0005).
+  if (method === "disqualification") return { ending: { result: { winner, method } } };
 
-    return { ending: { result: { winner, method, round: null } } };
-  }
-
-  // Asked before the round is read, so that an admin who has answered neither
-  // is told about the method — which is the answer they have to give before a
-  // round means anything at all.
   if (!isMethod(method)) return { problem: RESULT_MESSAGES.methodNotChosen };
 
-  if (round !== null && !isRound(round)) return { problem: RESULT_MESSAGES.unreadable };
-
-  if (method === "decision") {
-    if (round !== null) return { problem: RESULT_MESSAGES.aDecisionHasNoRound };
-
-    return { ending: { result: { winner, method, round: null } } };
-  }
-
-  // A finish happened in a round, and the round it happened in is a fact about
-  // the Bout rather than something an admin may leave out: it is what every
-  // round answer on this Bout is graded against.
-  if (round === null) return { problem: RESULT_MESSAGES.aFinishHasARound };
-
-  if (round > bout.scheduledRounds) {
-    return { problem: RESULT_MESSAGES.roundNotScheduled(bout.scheduledRounds) };
-  }
-
-  return { ending: { result: { winner, method, round } } };
+  return { ending: { result: { winner, method } } };
 }

@@ -10,7 +10,6 @@ import {
 } from "#shared/pricing";
 import {
   boutEndingLabel,
-  isFinish,
   NO_RESULT_LABELS,
   NO_RESULT_REASONS,
   RECORDED_METHODS,
@@ -30,15 +29,15 @@ import {
  * The screen ADR-0002 costs TFC. Multipliers are fixed by hand, so somebody
  * sits down with this before every card — which is why import seeds every
  * Outcome and this page is numbers to correct per Bout rather than a blank
- * form. Fourteen to eighteen of them, since every answer names the fighter it
- * is about (ADR-0015), which is what {@link questionsOf} lays out a corner at
- * a time: six "Tsiklauri by Submission"-width labels down one column is a
- * screen an admin loses their place in. It is deliberately plain otherwise,
- * like the rest of the admin area (ADR-0011).
+ * form. Eight of them, since every answer names the fighter it is about
+ * (ADR-0015), which is what {@link questionsOf} lays out a corner at a time:
+ * six "Tsiklauri by Submission"-width labels down one column is a screen an
+ * admin loses their place in. It is deliberately plain otherwise, like the rest
+ * of the admin area (ADR-0011).
  *
  * Every Outcome is offered, unfiltered, and that is not the card's decision:
  * a Bout with any unpriced Outcome cannot be opened, so an admin who could not
- * reach the method and round numbers could not open a Bout at all.
+ * reach the method numbers could not open a Bout at all.
  *
  * A Bout is priced, opened and locked on its own rather than the card in one
  * go. A card is rarely ready all at once — a late replacement on one Bout
@@ -60,7 +59,7 @@ import {
  * of that is taken back by pressing it again.
  *
  * A Bout that has settled shows what it was recorded as, and the same form
- * becomes the one that corrects it. The same three answers about the same
+ * becomes the one that corrects it. The same two answers about the same
  * fight, and a Bout is only ever offering one of the two — so what changes is
  * the paragraph in front of it, the words on the buttons and where they post.
  * The paragraph is the part that matters: correcting takes Coins back off fans
@@ -136,15 +135,15 @@ const problem = ref("");
 const done = ref("");
 
 /**
- * The three Questions of a Bout, each grouped by the fighter its answers are
+ * The two Questions of a Bout, each grouped by the fighter its answers are
  * about.
  *
  * Two rows per Question — one per corner, red first — because that is the
- * shape the answers have (ADR-0015) and because it is what keeps fourteen to
- * eighteen inputs readable: the fighter is named once at the head of a row,
- * and the boxes under it are the answers about them. `answerLabel` is what
- * names those, and `outcomeLabel` still names the whole answer to a screen
- * reader, so the two ways of reading the page say the same thing.
+ * shape the answers have (ADR-0015) and because it is what keeps eight inputs
+ * readable: the fighter is named once at the head of a row, and the boxes under
+ * it are the answers about them. `answerLabel` is what names those, and
+ * `outcomeLabel` still names the whole answer to a screen reader, so the two
+ * ways of reading the page say the same thing.
  *
  * Every Question and every answer to it, unfiltered: a Bout with one unpriced
  * Outcome cannot be opened, so an answer this screen did not offer would be a
@@ -234,14 +233,14 @@ async function openBout(bout: (typeof bouts.value)[number]) {
 /**
  * What is currently chosen in each Bout's result form, keyed by Bout.
  *
- * The round only goes with a finish, so the control for it is offered only
- * alongside one, and nothing is sent for it otherwise. `parseResult` refuses
- * that pairing regardless, and Postgres refuses it under that — this is so an
- * admin is not left looking at a control that means nothing.
+ * Two answers, which is what a Result is made of since ADR-0016: who won and
+ * how. There is no round control, because there is no round on a Result to
+ * enter.
  *
  * Kept across a refresh rather than rebuilt from the answer, unlike the
- * Multipliers above: a result refused for its round is one an admin still has
- * most of right, and clearing it would make them enter the whole thing again.
+ * Multipliers above: a result refused for one of its answers is one an admin
+ * still has the rest of right, and clearing it would make them enter the whole
+ * thing again.
  */
 const entered = ref<Record<string, Required<EnteredEnding>>>({});
 
@@ -251,7 +250,7 @@ watch(
     entered.value = Object.fromEntries(
       card.map((bout) => [
         bout.id,
-        entered.value[bout.id] ?? { winner: null, method: null, round: null, noResult: null },
+        entered.value[bout.id] ?? { winner: null, method: null, noResult: null },
       ]),
     );
   },
@@ -269,16 +268,6 @@ const recordedMethods = RECORDED_METHODS.map((method) => ({
   method,
   label: RECORDED_METHOD_LABELS[method],
 }));
-
-/** Whether a round can be named alongside the method chosen so far. */
-function endsInARound(boutId: string): boolean {
-  return isFinish(entered.value[boutId]?.method ?? null);
-}
-
-/** The rounds this Bout could have ended in, which are the ones it offered. */
-function roundsOf(bout: (typeof bouts.value)[number]): number[] {
-  return Array.from({ length: bout.scheduledRounds }, (_, index) => index + 1);
-}
 
 /** What was entered, as the admin reads it back on a settled Bout. */
 function settledAs(bout: (typeof bouts.value)[number]): string | null {
@@ -305,7 +294,7 @@ function correctedFrom(
 /**
  * Whether this Bout's form is correcting a result rather than entering one.
  *
- * The two are one form, because they ask for the same three answers about the
+ * The two are one form, because they ask for the same two answers about the
  * same fight and a Bout is only ever offering one of them: a Bout still being
  * fought has no result to correct, and a settled one is finished with being
  * settled. What differs is the sentence in front of it, the words on the
@@ -321,10 +310,6 @@ async function enterResult(bout: (typeof bouts.value)[number]) {
   const ending = {
     winner: answered?.winner ?? null,
     method: answered?.method ?? null,
-    // A round only means anything alongside a finish, so a Decision and a
-    // disqualification send none whatever is still sitting in the control
-    // behind them.
-    round: endsInARound(bout.id) ? (answered?.round ?? null) : null,
   };
 
   if (correcting(bout)) return correct(bout, ending);
@@ -448,9 +433,9 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
     <div class="max-w-5xl mx-auto">
       <p class="text-on-surface/80 leading-relaxed">
         Every Outcome arrived with a Multiplier from a fixed table, which is a starting point and
-        not a price: nothing that wrote it knows which fighter is favoured. Adjust the fourteen to
-        eighteen numbers on a Bout, save them, and the Bout can be opened. Every answer names the
-        fighter it is about and every Multiplier stands for that answer outright, so
+        not a price: nothing that wrote it knows which fighter is favoured. Adjust the eight numbers
+        on a Bout, save them, and the Bout can be opened. Every answer names the fighter it is about
+        and every Multiplier stands for that answer outright, so
         <em>Tsiklauri by Submission</em> is what that fighter winning that way pays — and it is a
         different number from the same finish by the other corner.
       </p>
@@ -502,7 +487,7 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
         <!--
           A Question at a time, and within it a fighter at a time. The name is
           the row's heading rather than the head of every label, which is what
-          keeps six method boxes and up to ten round boxes readable.
+          keeps the winner box and the three method boxes readable.
         -->
         <div v-for="asked in questionsOf(bout)" :key="asked.question" class="mt-6">
           <h3 class="font-headline text-xs font-black uppercase tracking-widest">
@@ -582,20 +567,6 @@ async function lockBout(bout: (typeof bouts.value)[number]) {
                 <option :value="null">Choose</option>
                 <option v-for="ended in recordedMethods" :key="ended.method" :value="ended.method">
                   {{ ended.label }}
-                </option>
-              </select>
-            </label>
-
-            <label v-if="endsInARound(bout.id)" class="flex items-center gap-2">
-              <span>Round</span>
-              <select
-                v-model.number="entered[bout.id]!.round"
-                :aria-label="`${correcting(bout) ? 'Corrected round' : 'Round'} Bout ${bout.cardOrder} ended in`"
-                class="border border-outline-variant/40 bg-surface px-2 py-1"
-              >
-                <option :value="null">Choose</option>
-                <option v-for="round in roundsOf(bout)" :key="round" :value="round">
-                  Round {{ round }}
                 </option>
               </select>
             </label>

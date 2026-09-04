@@ -157,7 +157,7 @@ export function boutOutcomes(boutId: string) {
     .select()
     .from(outcomes)
     .where(eq(outcomes.boutId, boutId))
-    .orderBy(outcomes.question, outcomes.corner, outcomes.method, outcomes.round);
+    .orderBy(outcomes.question, outcomes.corner, outcomes.method);
 }
 
 /**
@@ -195,7 +195,7 @@ export async function adminWithASeason(name = "Season 1"): Promise<CardAdmin> {
 }
 
 /** What each answer on a Bout pays, unless a test says otherwise. */
-export const TEST_MULTIPLIERS: Record<Question, number> = { winner: 2, method: 2.5, round: 3 };
+export const TEST_MULTIPLIERS: Record<Question, number> = { winner: 2, method: 2.5 };
 
 /** Prices every Outcome on a Bout, by the Question it answers. */
 export async function priceBout(

@@ -38,7 +38,6 @@ function prediction(overrides: Partial<HistoricPrediction> = {}): HistoricPredic
     question: "winner",
     corner: "red",
     method: null,
-    round: null,
     multiplier: 2,
     ending: null,
     ...overrides,
@@ -156,12 +155,12 @@ describe("reading one Entry back", () => {
           prediction({
             boutId: "bout-1",
             corner: "red",
-            ending: { result: { winner: "red", method: "decision", round: null } },
+            ending: { result: { winner: "red", method: "decision" } },
           }),
           prediction({
             boutId: "bout-2",
             corner: "red",
-            ending: { result: { winner: "blue", method: "decision", round: null } },
+            ending: { result: { winner: "blue", method: "decision" } },
           }),
           prediction({ boutId: "bout-3", ending: { noResult: "withdrawal" } }),
           prediction({ boutId: "bout-4", ending: null }),
@@ -188,12 +187,12 @@ describe("reading one Entry back", () => {
           prediction({
             boutId: "bout-1",
             corner: "blue",
-            ending: { result: { winner: "red", method: "decision", round: null } },
+            ending: { result: { winner: "red", method: "decision" } },
           }),
           prediction({
             boutId: "bout-2",
             corner: "red",
-            ending: { result: { winner: "red", method: "decision", round: null } },
+            ending: { result: { winner: "red", method: "decision" } },
           }),
         ],
       }),
@@ -207,7 +206,7 @@ describe("reading one Entry back", () => {
       entry({
         predictions: [
           prediction({
-            ending: { result: { winner: "red", method: "ko_tko", round: 2 } },
+            ending: { result: { winner: "red", method: "ko_tko" } },
           }),
           prediction({ boutId: "bout-2", ending: { noResult: "draw" } }),
           prediction({ boutId: "bout-3", ending: null }),
@@ -216,7 +215,7 @@ describe("reading one Entry back", () => {
     );
 
     expect(read.predictions.map((one) => one.ending)).toEqual([
-      "Giorgi Tsiklauri by KO/TKO in round 2",
+      "Giorgi Tsiklauri by KO/TKO",
       "No Result — Draw",
       null,
     ]);
@@ -231,7 +230,7 @@ describe("reading one Entry back", () => {
           prediction({
             boutId: "bout-2",
             multiplier: 3,
-            ending: { result: { winner: "red", method: "decision", round: null } },
+            ending: { result: { winner: "red", method: "decision" } },
           }),
         ],
       }),

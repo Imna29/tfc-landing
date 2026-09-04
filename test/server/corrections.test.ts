@@ -23,7 +23,6 @@ import {
   fanWithCoins,
   ledgerFor,
   methodOn,
-  roundOn,
   settle,
   settleAsNoResult,
   statusOf,
@@ -127,11 +126,7 @@ describe("correcting a result", async () => {
 
       await settle(card, 0, { winner: "red", method: "decision" });
 
-      const { correction } = await correct(card, 0, {
-        winner: "red",
-        method: "ko_tko",
-        round: 2,
-      });
+      const { correction } = await correct(card, 0, { winner: "red", method: "ko_tko" });
 
       expect(correction).toMatchObject({ graded: 2, won: 1, lost: 1, reversed: 0, paid: 0 });
       expect(await statusOf(right.entry.id)).toBe("won");
@@ -163,15 +158,11 @@ describe("correcting a result", async () => {
 
       const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "submission")]);
 
-      await settle(card, 0, { winner: "red", method: "submission", round: 2 });
+      await settle(card, 0, { winner: "red", method: "submission" });
 
       expect(await statusOf(entry.id)).toBe("won");
 
-      const { correction } = await correct(card, 0, {
-        winner: "blue",
-        method: "submission",
-        round: 2,
-      });
+      const { correction } = await correct(card, 0, { winner: "blue", method: "submission" });
 
       // The method Outcome paid ×2.50, so 50 Coins go back the way they came.
       expect(correction).toMatchObject({ graded: 1, won: 0, lost: 1, paid: 0, reversed: 50 });
@@ -179,62 +170,53 @@ describe("correcting a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
     });
 
-    it("pays a round Prediction the corrected winner turns out to have landed", async () => {
-      // And the same correction the other way round, on the Question a fan is
-      // most likely to name the wrong fighter in: the round was right all
+    it("pays a method Prediction the corrected winner turns out to have landed", async () => {
+      // And the same correction the other way round: the method was right all
       // along, and the fighter it named was only wrong because the Result was.
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "blue", 2)]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "blue", "ko_tko")]);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
 
       expect(await statusOf(entry.id)).toBe("lost");
 
-      const { correction } = await correct(card, 0, {
-        winner: "blue",
-        method: "ko_tko",
-        round: 2,
-      });
+      const { correction } = await correct(card, 0, { winner: "blue", method: "ko_tko" });
 
-      // The round Outcome pays ×3, so 20 Coins return 60.
-      expect(correction).toMatchObject({ graded: 1, won: 1, lost: 0, paid: 60, reversed: 0 });
+      // The method Outcome pays ×2.50, so 20 Coins return 50.
+      expect(correction).toMatchObject({ graded: 1, won: 1, lost: 0, paid: 50, reversed: 0 });
       expect(await statusOf(entry.id)).toBe("won");
-      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 60 });
+      expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 + 50 });
     });
 
-    it("takes a round Prediction back when the round it named is the thing corrected", async () => {
-      // The correction only a round Prediction can be flipped by: the fighter
-      // is right and stays right, and it is the round the admin typed that was
-      // wrong. Neither of the other two Questions notices, which is why this
-      // is here beside the two the corrected winner decides.
+    it("takes a method Prediction back when the method is the thing corrected", async () => {
+      // The correction only a method Prediction is flipped by: the fighter is
+      // right and stays right, and it is how the admin recorded the ending that
+      // was wrong. The winner Question does not notice, which is why this is
+      // here beside the two the corrected winner decides.
       const card = await upcomingCard(1);
       const fan = await fanWithCoins();
 
-      const { entry } = await submit(fan, 20, [roundOn(card.bouts[0]!.id, "red", 2)]);
+      const { entry } = await submit(fan, 20, [methodOn(card.bouts[0]!.id, "red", "ko_tko")]);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
 
       expect(await statusOf(entry.id)).toBe("won");
 
-      const { correction } = await correct(card, 0, {
-        winner: "red",
-        method: "ko_tko",
-        round: 3,
-      });
+      const { correction } = await correct(card, 0, { winner: "red", method: "submission" });
 
       // The Reward the first Result paid comes back as a row that says so
       // rather than by editing the one that paid it (ADR-0003).
-      expect(correction).toMatchObject({ graded: 1, won: 0, lost: 1, paid: 0, reversed: 60 });
+      expect(correction).toMatchObject({ graded: 1, won: 0, lost: 1, paid: 0, reversed: 50 });
       expect(await statusOf(entry.id)).toBe("lost");
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 20 });
 
       expect((await ledgerFor(fan.id)).map((row) => [row.kind, row.amount])).toEqual([
         ["season_grant", STARTING_BALANCE],
         ["entry_commitment", -20],
-        ["entry_reward", 60],
-        ["entry_reversal", -60],
+        ["entry_reward", 50],
+        ["entry_reversal", -50],
       ]);
     });
   });
@@ -335,7 +317,7 @@ describe("correcting a result", async () => {
     it("records what the Result said before, and who changed it", async () => {
       const card = await upcomingCard(1);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
       await correct(card, 0, { winner: "blue", method: "decision" });
       await correctToNoResult(card, 0, "no_contest");
 
@@ -345,8 +327,8 @@ describe("correcting a result", async () => {
       // has been recorded as before that, oldest first.
       expect(bout?.ending).toEqual({ noResult: "no_contest" });
       expect(bout?.corrections.map((correction) => correction.ending)).toEqual([
-        { result: { winner: "red", method: "ko_tko", round: 2 } },
-        { result: { winner: "blue", method: "decision", round: null } },
+        { result: { winner: "red", method: "ko_tko" } },
+        { result: { winner: "blue", method: "decision" } },
       ]);
 
       // Each of them says who did it and when, which is what makes the log an
@@ -363,7 +345,7 @@ describe("correcting a result", async () => {
       // read, and for the same reason.
       const card = await upcomingCard(1);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
       await correct(card, 0, { winner: "blue", method: "decision" });
 
       const page = await $fetch<string>(`/admin/events/${card.eventId}`, {
@@ -371,7 +353,7 @@ describe("correcting a result", async () => {
       });
 
       expect(page).toContain("Result: Levan Beridze by Decision");
-      expect(page).toContain("Was Giorgi Tsiklauri by KO/TKO in round 2");
+      expect(page).toContain("Was Giorgi Tsiklauri by KO/TKO");
       expect(page).toContain(card.admin.username);
 
       // And the form on a settled Bout is the one that corrects it, rather
@@ -557,7 +539,7 @@ describe("correcting a result", async () => {
 
       const corrected = await correctResult(
         card.bouts[0]!.id,
-        { winner: "red", method: "decision", round: null },
+        { winner: "red", method: "decision" },
         card.admin.cookie,
       );
 
@@ -570,11 +552,11 @@ describe("correcting a result", async () => {
     it("refuses the result the Bout already has, which corrects nothing", async () => {
       const card = await upcomingCard(1);
 
-      await settle(card, 0, { winner: "red", method: "ko_tko", round: 2 });
+      await settle(card, 0, { winner: "red", method: "ko_tko" });
 
       const corrected = await correctResult(
         card.bouts[0]!.id,
-        { winner: "red", method: "ko_tko", round: 2 },
+        { winner: "red", method: "ko_tko" },
         card.admin.cookie,
       );
 
@@ -595,15 +577,18 @@ describe("correcting a result", async () => {
 
       await settle(card, 0, { winner: "red" });
 
+      // A winner and a reason there is none: two different accounts of one
+      // fight, and honouring whichever was read first would settle the wrong
+      // one.
       const corrected = await correctResult(
         card.bouts[0]!.id,
-        { winner: "red", method: "decision", round: 2 },
+        { winner: "red", method: "decision", noResult: "draw" },
         card.admin.cookie,
       );
 
       expect(corrected.status).toBe(422);
       await expect(corrected.json()).resolves.toMatchObject({
-        message: RESULT_MESSAGES.aDecisionHasNoRound,
+        message: RESULT_MESSAGES.aNoResultDecidedNothing,
       });
     });
 
@@ -612,7 +597,7 @@ describe("correcting a result", async () => {
 
       const corrected = await correctResult(
         "not-a-bout",
-        { winner: "red", method: "decision", round: null },
+        { winner: "red", method: "decision" },
         card.admin.cookie,
       );
 

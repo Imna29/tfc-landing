@@ -34,7 +34,7 @@ const CORNERS = { red: "Giorgi Tsiklauri", blue: "Levan Beridze" };
 
 /** An answer as the card offers one, which is what a fan clicks. */
 function answer(overrides: Partial<OutcomeAnswer>): OutcomeAnswer {
-  return { question: "winner", corner: "red", method: null, round: null, ...overrides };
+  return { question: "winner", corner: "red", method: null, ...overrides };
 }
 
 // Every answer names the fighter it is about (ADR-0015), so each of these is
@@ -45,9 +45,7 @@ const KO = answer({ question: "method", method: "ko_tko" });
 const SUBMISSION = answer({ question: "method", method: "submission" });
 const DECISION = answer({ question: "method", method: "decision" });
 const BLUE_BY_KO = answer({ question: "method", corner: "blue", method: "ko_tko" });
-const ROUND_TWO = answer({ question: "round", round: 2 });
-const ROUND_THREE = answer({ question: "round", round: 3 });
-const BLUE_IN_ROUND_TWO = answer({ question: "round", corner: "blue", round: 2 });
+const BLUE_BY_SUBMISSION = answer({ question: "method", corner: "blue", method: "submission" });
 
 /** A Prediction with the Multiplier already frozen onto it (ADR-0002). */
 function priced(overrides: Partial<PricedPrediction> = {}): PricedPrediction {
@@ -66,20 +64,13 @@ describe("answering one Bout", () => {
     expect(pickAnswered(RED, BLUE)).toEqual(BLUE);
     expect(pickAnswered(RED, SUBMISSION)).toEqual(SUBMISSION);
     expect(pickAnswered(SUBMISSION, RED)).toEqual(RED);
-    expect(pickAnswered(SUBMISSION, ROUND_TWO)).toEqual(ROUND_TWO);
-    expect(pickAnswered(ROUND_TWO, KO)).toEqual(KO);
+    expect(pickAnswered(SUBMISSION, BLUE_BY_KO)).toEqual(BLUE_BY_KO);
 
     // The one the card makes easiest to reach now the method Question is on
     // it (#42): six method answers in one column, and moving between two of
     // them is one answer replacing another rather than two being held.
     expect(pickAnswered(KO, SUBMISSION)).toEqual(SUBMISSION);
     expect(pickAnswered(SUBMISSION, DECISION)).toEqual(DECISION);
-
-    // And the same again down the round column #43 puts beside it, which is
-    // three to five answers deep: a fan moving from round 2 to round 3 has
-    // changed how long they think the Bout lasts, not added a second view.
-    expect(pickAnswered(ROUND_TWO, ROUND_THREE)).toEqual(ROUND_THREE);
-    expect(pickAnswered(ROUND_THREE, ROUND_TWO)).toEqual(ROUND_TWO);
   });
 
   it("takes the Bout out of the Entry when the same answer is given twice", () => {
@@ -87,7 +78,7 @@ describe("answering one Bout", () => {
     // and a Prediction with no answer on it is not a Prediction.
     expect(pickAnswered(RED, RED)).toBe(null);
     expect(pickAnswered(SUBMISSION, SUBMISSION)).toBe(null);
-    expect(pickAnswered(ROUND_TWO, ROUND_TWO)).toBe(null);
+    expect(pickAnswered(BLUE_BY_KO, BLUE_BY_KO)).toBe(null);
   });
 
   it("says which answer is the one already given", () => {
@@ -95,7 +86,7 @@ describe("answering one Bout", () => {
     expect(isAnswered(RED, BLUE)).toBe(false);
     expect(isAnswered(KO, KO)).toBe(true);
     expect(isAnswered(KO, DECISION)).toBe(false);
-    expect(isAnswered(ROUND_TWO, ROUND_TWO)).toBe(true);
+    expect(isAnswered(BLUE_BY_KO, BLUE_BY_KO)).toBe(true);
     expect(isAnswered(null, RED)).toBe(false);
   });
 
@@ -104,9 +95,9 @@ describe("answering one Bout", () => {
     // side, and a fan who taps the second has changed their answer rather than
     // taken the first one back (ADR-0015).
     expect(isAnswered(KO, BLUE_BY_KO)).toBe(false);
-    expect(isAnswered(ROUND_TWO, BLUE_IN_ROUND_TWO)).toBe(false);
+    expect(isAnswered(SUBMISSION, BLUE_BY_SUBMISSION)).toBe(false);
     expect(pickAnswered(KO, BLUE_BY_KO)).toEqual(BLUE_BY_KO);
-    expect(pickAnswered(ROUND_TWO, BLUE_IN_ROUND_TWO)).toEqual(BLUE_IN_ROUND_TWO);
+    expect(pickAnswered(SUBMISSION, BLUE_BY_SUBMISSION)).toEqual(BLUE_BY_SUBMISSION);
   });
 });
 
@@ -173,7 +164,7 @@ describe("what an Entry returns if every Prediction lands", () => {
 });
 
 describe("what a Bout is offering on a Prediction", () => {
-  /** Some of the fourteen answers a three-round Bout offers, priced. */
+  /** Some of the eight answers a Bout offers, priced. */
   const offered = [
     { ...RED, multiplier: 1.9 },
     { ...BLUE, multiplier: 2.1 },
@@ -181,14 +172,12 @@ describe("what a Bout is offering on a Prediction", () => {
     { ...SUBMISSION, multiplier: 3.2 },
     { ...DECISION, multiplier: 2 },
     { ...BLUE_BY_KO, multiplier: 4.6 },
-    { ...ROUND_TWO, multiplier: 3.2 },
-    { ...BLUE_IN_ROUND_TWO, multiplier: 5.4 },
   ];
 
   it("prices the one answer the Prediction gave, whichever Question it answered", () => {
     expect(priceOf(BLUE, offered)).toBe(2.1);
     expect(priceOf(KO, offered)).toBe(2.2);
-    expect(priceOf(ROUND_TWO, offered)).toBe(3.2);
+    expect(priceOf(SUBMISSION, offered)).toBe(3.2);
   });
 
   it("prices the fighter the answer names, not just the answer", () => {
@@ -196,13 +185,13 @@ describe("what a Bout is offering on a Prediction", () => {
     // matchup (ADR-0015), and pricing one at the other's Multiplier would pay
     // a fan a number nobody offered them.
     expect(priceOf(BLUE_BY_KO, offered)).toBe(4.6);
-    expect(priceOf(BLUE_IN_ROUND_TWO, offered)).toBe(5.4);
   });
 
   it("prices nothing at all when the Bout does not offer that answer", () => {
-    // Round 4 of a three-round Bout: the fan was never offered it, and there
-    // is no Multiplier to freeze onto a Prediction that claims it.
-    expect(priceOf(answer({ question: "round", round: 4 }), offered)).toBe(null);
+    // An answer this Bout is not offering to this fighter: the fan was never
+    // shown it, and there is no Multiplier to freeze onto a Prediction that
+    // claims it.
+    expect(priceOf(BLUE_BY_SUBMISSION, offered)).toBe(null);
   });
 });
 
@@ -242,43 +231,55 @@ describe("the Entry a fan sends", () => {
     };
   }
 
-  it("reads a whole Entry, with the Questions nobody answered written as nothing", () => {
+  it("reads a whole Entry, with the Question nobody answered written as nothing", () => {
     expect(parseEntry(submitted())).toEqual({
       entry: {
         amount: 20,
-        predictions: [
-          { boutId: BOUT, question: "winner", corner: "red", method: null, round: null },
-        ],
+        predictions: [{ boutId: BOUT, question: "winner", corner: "red", method: null }],
       },
     });
   });
 
-  it("reads an answer to each of the three Questions, each naming a fighter", () => {
+  it("reads an answer to each of the two Questions, each naming a fighter", () => {
     const answers = [
       { boutId: BOUT, question: "method", corner: "blue", method: "submission" },
-      { boutId: ANOTHER_BOUT, question: "round", corner: "red", round: 2 },
+      { boutId: ANOTHER_BOUT, question: "winner", corner: "red" },
     ];
 
     expect(parseEntry(submitted({ predictions: answers })).entry?.predictions).toEqual([
-      { boutId: BOUT, question: "method", corner: "blue", method: "submission", round: null },
-      { boutId: ANOTHER_BOUT, question: "round", corner: "red", method: null, round: 2 },
+      { boutId: BOUT, question: "method", corner: "blue", method: "submission" },
+      { boutId: ANOTHER_BOUT, question: "winner", corner: "red", method: null },
     ]);
   });
 
-  it("refuses a method or a round answer that names no fighter", () => {
+  it("refuses a method answer that names no fighter", () => {
     // ADR-0015: every answer is about a corner, and one that names none is not
     // an answer the card ever offered. `predictions_answers_its_question` and
     // the `not null` on the column refuse the same row underneath.
     for (const prediction of [
       { boutId: BOUT, question: "method", method: "submission" },
       { boutId: BOUT, question: "method", corner: null, method: "submission" },
-      { boutId: BOUT, question: "round", round: 2 },
-      { boutId: BOUT, question: "round", corner: "green", round: 2 },
+      { boutId: BOUT, question: "winner", corner: "green" },
     ]) {
       expect(parseEntry(submitted({ predictions: [prediction] })).problem).toBe(
         ENTRY_MESSAGES.unreadable,
       );
     }
+  });
+
+  it("refuses a round answer, which is a Question the game no longer asks", () => {
+    // A card left open in a tab from before ADR-0016 posts one. The Entry is
+    // refused whole rather than committed with the round answer dropped: a fan
+    // who asked for three Predictions and got two chained a different Entry
+    // than the one they read the Reward for.
+    const stale = submitted({
+      predictions: [
+        { boutId: BOUT, question: "winner", corner: "red" },
+        { boutId: ANOTHER_BOUT, question: "round", corner: "red", round: 2 },
+      ],
+    });
+
+    expect(parseEntry(stale).problem).toBe(ENTRY_MESSAGES.unreadable);
   });
 
   it("chains Predictions across different Bouts", () => {
@@ -341,7 +342,7 @@ describe("the Entry a fan sends", () => {
       { boutId: BOUT, question: "winner", corner: null },
       { boutId: BOUT, question: "winner", corner: "green" },
       { boutId: BOUT, question: "method", corner: "red", method: null },
-      { boutId: BOUT, question: "round", corner: "red", round: null },
+      { boutId: BOUT, question: "method", corner: "red", method: "knockdown" },
     ]) {
       expect(parseEntry(submitted({ predictions: [prediction] })).problem).toBe(
         ENTRY_MESSAGES.unreadable,
@@ -349,20 +350,17 @@ describe("the Entry a fan sends", () => {
     }
   });
 
-  it("refuses a Prediction carrying more than one answer", () => {
+  it("refuses a winner Prediction carrying a method as well", () => {
     // The rule `predictions_answers_its_question` holds underneath: two
     // answers on one row is a Prediction nothing could grade, because there
     // would be no saying which of them the fan gave.
-    for (const prediction of [
-      { boutId: BOUT, question: "winner", corner: "red", round: 2 },
-      { boutId: BOUT, question: "winner", corner: "red", method: "ko_tko" },
-      { boutId: BOUT, question: "method", corner: "red", method: "ko_tko", round: 2 },
-      { boutId: BOUT, question: "round", corner: "red", round: 2, method: "ko_tko" },
-    ]) {
-      expect(parseEntry(submitted({ predictions: [prediction] })).problem).toBe(
-        ENTRY_MESSAGES.unreadable,
-      );
-    }
+    expect(
+      parseEntry(
+        submitted({
+          predictions: [{ boutId: BOUT, question: "winner", corner: "red", method: "ko_tko" }],
+        }),
+      ).problem,
+    ).toBe(ENTRY_MESSAGES.unreadable);
   });
 
   it("refuses an Amount that is not a whole number of Coins", () => {
@@ -380,10 +378,11 @@ describe("the Entry a fan sends", () => {
     ).toBe(ENTRY_MESSAGES.unreadable);
   });
 
-  it("refuses a round that is not a round", () => {
-    for (const round of [0, 2.5, "two"]) {
+  it("refuses a Question the game does not ask", () => {
+    // The round of victory among them, since ADR-0016 retired it.
+    for (const question of ["round", "referee", null]) {
       const wrong = submitted({
-        predictions: [{ boutId: BOUT, question: "round", corner: "red", round }],
+        predictions: [{ boutId: BOUT, question, corner: "red", round: 2 }],
       });
 
       expect(parseEntry(wrong).problem).toBe(ENTRY_MESSAGES.unreadable);

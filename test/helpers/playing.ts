@@ -80,7 +80,6 @@ export interface Answered {
   question: Question;
   corner: Corner;
   method?: Method;
-  round?: number;
 }
 
 /**
@@ -88,8 +87,8 @@ export interface Answered {
  *
  * The answer nearly every case in these suites is about — a settlement, a
  * correction, a refund and a leaderboard are none of them about *which*
- * Question was answered. A case that is about one of the others says so by
- * naming it, through {@link methodOn} or {@link roundOn}.
+ * Question was answered. A case that is about the other one says so by naming
+ * it, through {@link methodOn}.
  */
 export function winnerOn(boutId: string, corner: Corner): Answered {
   return { boutId, question: "winner", corner };
@@ -106,31 +105,13 @@ export function methodOn(boutId: string, corner: Corner, method: Method): Answer
   return { boutId, question: "method", corner, method };
 }
 
-/**
- * The round Prediction a case commits: this fighter wins in this round.
- *
- * Names no finish, and is correct only when the fighter it names won and the
- * Bout was recorded as ending in the round it names. A Bout that went to a
- * Decision ended in no round at all, so it is graded wrong there rather than
- * neutral — and a disqualification records no round either but was never an
- * answer the game offered, so it is a No Result (ADR-0005). The two read alike
- * and settle differently.
- */
-export function roundOn(boutId: string, corner: Corner, round: number): Answered {
-  return { boutId, question: "round", corner, round };
-}
-
 /** Submits an Entry the way the panel on the card does. */
 export async function submit(fan: { cookie: string }, amount: number, predictions: Answered[]) {
   const response = await postJson(
     "/api/predictions/entries",
     {
       amount,
-      predictions: predictions.map((one) => ({
-        method: null,
-        round: null,
-        ...one,
-      })),
+      predictions: predictions.map((one) => ({ method: null, ...one })),
     },
     fan.cookie,
   );
@@ -146,7 +127,6 @@ export async function submit(fan: { cookie: string }, amount: number, prediction
 export interface EnteredResult {
   winner?: Corner;
   method?: RecordedMethod;
-  round?: number | null;
 }
 
 /** Locks a Bout and enters its result, which is how a card is settled. */
@@ -161,7 +141,7 @@ export async function settle(
 
   const entered = await enterResult(
     bout.id,
-    { winner: "red", method: "decision", round: null, ...result },
+    { winner: "red", method: "decision", ...result },
     card.admin.cookie,
   );
 
@@ -202,7 +182,7 @@ export async function correct(
 ): Promise<{ correction: Correction }> {
   const corrected = await correctResult(
     card.bouts[place]!.id,
-    { winner: "red", method: "decision", round: null, ...result },
+    { winner: "red", method: "decision", ...result },
     card.admin.cookie,
   );
 

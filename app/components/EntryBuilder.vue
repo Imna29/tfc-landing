@@ -127,12 +127,11 @@ async function submit() {
       method: "POST",
       body: {
         amount: amount.value,
-        predictions: props.predictions.map(({ boutId, question, corner, method, round }) => ({
+        predictions: props.predictions.map(({ boutId, question, corner, method }) => ({
           boutId,
           question,
           corner,
           method,
-          round,
         })),
       },
     });

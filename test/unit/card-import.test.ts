@@ -318,7 +318,7 @@ describe("reading a card out of Prismic", () => {
     expect(problem).toMatch(/division/i);
   });
 
-  it("refuses a Bout with no scheduled rounds, which decides the rounds offered", () => {
+  it("refuses a Bout with no scheduled rounds, which a fan reads on the card", () => {
     const { card, problem } = readCard(
       eventDocument({ bouts: [boutRow({ scheduled_rounds: null })] }),
       REFERENCED,

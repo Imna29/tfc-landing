@@ -4,9 +4,9 @@
  *
  * The two halves are apart because they answer different questions. Pricing
  * asks whether the game will take these answers at all — is that Bout still
- * open, does that round exist on it — and can be asked without writing
- * anything. Submitting asks the only question that has to be answered while
- * holding a lock: whether the fan still has the Coins.
+ * open, is that answer on it — and can be asked without writing anything.
+ * Submitting asks the only question that has to be answered while holding a
+ * lock: whether the fan still has the Coins.
  *
  * Nothing here decides what an Entry may be made of. That is `shared/entries.ts`,
  * asked of what arrived before any of this runs, and asked again by the page
@@ -43,18 +43,17 @@ export const ENTRIES_HOLD_ONE_TO_TEN_PREDICTIONS = "entries_hold_one_to_ten_pred
 export const COMMITMENTS_ARE_WITHIN_THE_BALANCE = "entry_commitments_are_within_the_balance";
 
 /**
- * The keys that hold a Prediction to answers its Bout was actually offering,
+ * The key that holds a Prediction to an answer its Bout was actually offering,
  * for the fighter it names (ADR-0015).
  *
- * Two rather than three. `predictions_winner_is_offered` was `(bout_id,
- * corner)`, and that pair stopped being unique across `outcomes` the moment
- * every row carried a corner — see the note on `predictions` in
- * `server/db/schema.ts` for what holds a winner answer to the card instead.
+ * There is one, and there is one because the other two went for different
+ * reasons. `predictions_winner_is_offered` was `(bout_id, corner)`, and that
+ * pair stopped being unique across `outcomes` the moment every row carried a
+ * corner — see the note on `predictions` in `server/db/schema.ts` for what
+ * holds a winner answer to the card instead. `predictions_round_is_offered`
+ * went with the Question it was about (ADR-0016).
  */
-export const ANSWERS_ARE_OFFERED = [
-  "predictions_method_is_offered",
-  "predictions_round_is_offered",
-] as const;
+export const AN_ANSWER_IS_OFFERED = "predictions_method_is_offered";
 
 /** The key that holds a Prediction to a Bout that is on a card. */
 export const PREDICTIONS_POINT_AT_A_BOUT = "predictions_bout_id_bouts_id_fk";
@@ -167,7 +166,7 @@ export async function priceAnswers(
   const onTheCard = new Map(rows.map((row) => [row.id, row]));
 
   // Every Outcome of every Bout answered, in one query: an Entry is at most
-  // ten Bouts of eighteen Outcomes, and reading them a Bout at a time would be
+  // ten Bouts of eight Outcomes, and reading them a Bout at a time would be
   // ten round trips before anything is written.
   const offered = await useDatabase()
     .select({
@@ -175,7 +174,6 @@ export async function priceAnswers(
       question: outcomes.question,
       corner: outcomes.corner,
       method: outcomes.method,
-      round: outcomes.round,
       multiplier: outcomes.multiplier,
     })
     .from(outcomes)
@@ -210,9 +208,8 @@ export async function priceAnswers(
 
     // Priced by the same function the panel priced it with, from the Outcomes
     // Postgres holds rather than the ones the page was looking at. Null is an
-    // answer this Bout does not offer — a round it is not scheduled for, an
-    // answer about the other fighter at this one's price, or an Outcome a
-    // re-import took away.
+    // answer this Bout does not offer — an answer about the other fighter at
+    // this one's price, or an Outcome a re-import took away.
     const multiplier = priceOf(answer, offeredOn.get(answer.boutId) ?? []);
 
     if (multiplier === null) return refuse(422, ENTRY_MESSAGES.answerNotOffered);
@@ -268,7 +265,6 @@ export async function submitEntry(submission: {
           question: prediction.question,
           corner: prediction.corner,
           method: prediction.method,
-          round: prediction.round,
           multiplier: prediction.multiplier,
         })),
       );
@@ -297,7 +293,6 @@ export async function submitEntry(submission: {
             question: prediction.question,
             corner: prediction.corner,
             method: prediction.method,
-            round: prediction.round,
             multiplier: prediction.multiplier,
           })),
         },
@@ -357,7 +352,7 @@ async function refusalBehind(
   // between the pricing above and this write, which is only possible while
   // every Bout on it is closed and therefore only for an Entry that was
   // already refused a moment ago for a better reason.
-  if (ANSWERS_ARE_OFFERED.some((key) => refusedByConstraint(error, key))) {
+  if (refusedByConstraint(error, AN_ANSWER_IS_OFFERED)) {
     return { status: 409, problem: ENTRY_MESSAGES.answerNotOffered };
   }
 

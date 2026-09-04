@@ -17,12 +17,13 @@ export type Corner = "red" | "blue";
 /**
  * How many rounds a Bout may be scheduled for.
  *
- * The floor is what makes a Bout predictable at all — #9 offers a fan a round
- * of victory for each round scheduled. The ceiling is not a rule about the
- * sport; it is the guard against a number typed with a stuck key becoming
- * fifty round Outcomes on a Bout. Spelled out again in the
- * `bouts_rounds_are_scheduled` check constraint, and again as the bounds on
- * the field in `customtypes/event/index.json`.
+ * A fact about the fight rather than about the game: a fan reads it on the
+ * card beside the weight class, and since ADR-0016 retired the round Question
+ * nothing prices it and nothing is graded against it. The bounds are the guard
+ * against a number typed with a stuck key — a Bout booked over fifty rounds is
+ * a card somebody has to look at — rather than a rule about the sport.
+ * Spelled out again in the `bouts_rounds_are_scheduled` check constraint, and
+ * again as the bounds on the field in `customtypes/event/index.json`.
  */
 export const SCHEDULED_ROUNDS = { minimum: 1, maximum: 12 } as const;
 
@@ -97,9 +98,8 @@ export const EVENT_MESSAGES = {
   roundsUnreadable: (position: number) =>
     `The ${ordinal(position)} Bout is not scheduled for a whole number of ` +
     `rounds between ${SCHEDULED_ROUNDS.minimum} and ${SCHEDULED_ROUNDS.maximum}. ` +
-    "A fan is offered a round of victory for each fighter in each round " +
-    "scheduled, so a Bout that does not say how many it has cannot be " +
-    "predicted on.",
+    "It is how long the fight is booked for, and a fan reads it on the card " +
+    "beside the weight class.",
   mainEventRepeated:
     "Two Bouts on this card are both flagged the main event. Only one Bout " + "closes a card.",
   cornerUnnamed: (position: number, corner: Corner) =>

@@ -29,7 +29,9 @@ carries fourteen to eighteen priced numbers rather than eight to ten.
 
 Nothing else moves. A round Prediction still needs no finish named beside it, and a round
 Prediction on a Bout that went to a Decision is still graded wrong rather than refused at
-submission. [[adr-0002]], [[adr-0005]] and [[adr-0013]] are as this record left them.
+submission — **both of which [[adr-0016]] later made moot by retiring the round Question
+altogether**, so this paragraph is about a Question the game no longer asks. [[adr-0002]],
+[[adr-0005]] and [[adr-0013]] are as this record left them.
 
 Citations to this record in the schema, the shared modules and the components are left
 pointing here, and what they describe is what is still shipped until the change [[adr-0015]]

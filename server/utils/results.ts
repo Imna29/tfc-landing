@@ -69,9 +69,6 @@ export const RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED = "results_are_entered_on_
 /** The name of the constraint trigger tying a Result to a settled Bout. */
 export const RESULTS_ARE_ENTERED_ON_SETTLED_BOUTS = "results_are_entered_on_settled_bouts";
 
-/** The key holding a Result's round to one the Bout was offering. */
-export const A_RESULTS_ROUND_WAS_OFFERED = "bout_results_round_was_offered";
-
 /** The check holding a row to a Result or a No Result, and never half of either. */
 export const A_RESULT_OR_A_NO_RESULT = "bout_results_is_a_result_or_no_result";
 
@@ -133,7 +130,7 @@ export type Settled =
  * means the second settlement waits and then reads the first one's Result.
  */
 export async function settleBout(
-  bout: { id: string; scheduledRounds: number },
+  bout: { id: string },
   ending: BoutEnding,
   by: string,
 ): Promise<Settled> {
@@ -150,7 +147,6 @@ export async function settleBout(
         boutId: bout.id,
         winner: ending.result?.winner ?? null,
         method: ending.result?.method ?? null,
-        round: ending.result?.round ?? null,
         noResult: ending.noResult ?? null,
         enteredBy: by,
       });
@@ -163,7 +159,7 @@ export async function settleBout(
       return { settlement: await grade(tx, bout.id) };
     });
   } catch (error) {
-    const refusal = refusalBehind(error, bout);
+    const refusal = refusalBehind(error);
 
     if (refusal) return { refusal };
 
@@ -310,11 +306,9 @@ export async function entriesToGrade(
       question: predictions.question,
       corner: predictions.corner,
       method: predictions.method,
-      round: predictions.round,
       multiplier: predictions.multiplier,
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
-      resultRound: boutResults.round,
       resultNoResult: boutResults.noResult,
     })
     .from(entries)
@@ -341,7 +335,6 @@ export async function entriesToGrade(
       question: row.question,
       corner: row.corner,
       method: row.method,
-      round: row.round,
       multiplier: row.multiplier,
       ending: endingFrom(row),
     });
@@ -477,11 +470,10 @@ export async function markEntries(
     );
 }
 
-/** The four columns a `bout_results` row is read back through. */
+/** The three columns a `bout_results` row is read back through. */
 export interface RecordedEnding {
   resultWinner: Corner | null;
   resultMethod: RecordedMethod | null;
-  resultRound: number | null;
   resultNoResult: NoResultReason | null;
 }
 
@@ -489,7 +481,7 @@ export interface RecordedEnding {
  * How a Bout ended, joined onto whatever is being read beside it, or null where
  * it has not settled.
  *
- * The one place the four nullable columns are turned back into the union
+ * The one place the three nullable columns are turned back into the union
  * `shared/results.ts` grades against, so that nothing else has to know which
  * combinations of them are possible. `bout_results_is_a_result_or_no_result`
  * is what makes the half-filled row this would have to guess about
@@ -499,9 +491,7 @@ export function endingFrom(row: RecordedEnding): BoutEnding | null {
   if (row.resultNoResult !== null) return { noResult: row.resultNoResult };
   if (row.resultWinner === null || row.resultMethod === null) return null;
 
-  return {
-    result: { winner: row.resultWinner, method: row.resultMethod, round: row.resultRound },
-  };
+  return { result: { winner: row.resultWinner, method: row.resultMethod } };
 }
 
 /**
@@ -512,17 +502,13 @@ export function endingFrom(row: RecordedEnding): BoutEnding | null {
  * card moved between the question and the write: another admin entered the
  * result, or the sweep locked a Bout this one thought was open.
  */
-function refusalBehind(error: unknown, bout: { scheduledRounds: number }): ResultRefusal | null {
+function refusalBehind(error: unknown): ResultRefusal | null {
   if (refusedByConstraint(error, ONE_RESULT_PER_BOUT)) {
     return { status: 409, problem: RESULT_MESSAGES.alreadySettled };
   }
 
   if (refusedByConstraint(error, RESULTS_ARE_ENTERED_ON_BOUTS_THAT_LOCKED)) {
     return { status: 409, problem: RESULT_MESSAGES.boutNotOpened };
-  }
-
-  if (refusedByConstraint(error, A_RESULTS_ROUND_WAS_OFFERED)) {
-    return { status: 422, problem: RESULT_MESSAGES.roundNotScheduled(bout.scheduledRounds) };
   }
 
   return null;
@@ -543,7 +529,6 @@ export async function endingsOn(boutIds: readonly string[]): Promise<Map<string,
       boutId: boutResults.boutId,
       resultWinner: boutResults.winner,
       resultMethod: boutResults.method,
-      resultRound: boutResults.round,
       resultNoResult: boutResults.noResult,
     })
     .from(boutResults)

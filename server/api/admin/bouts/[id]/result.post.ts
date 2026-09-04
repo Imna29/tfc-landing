@@ -15,9 +15,9 @@ import { RESULT_MESSAGES, parseEnding } from "#shared/results";
  * whether it is at a point where a result means anything, and only then whether
  * the result is one this Bout could have produced. Each is asked again
  * underneath — by the `bout_results` primary key, by the trigger that refuses a
- * Result on a Bout nobody opened, and by the key holding its round to one the
- * Bout offered — because two admins at cageside can press this in the same
- * second.
+ * Result on a Bout nobody opened, and by the check holding a row to a Result or
+ * a No Result and never half of either — because two admins at cageside can
+ * press this in the same second.
  *
  * A Bout that produced nothing gradable comes through here too, as a No Result
  * naming which of ADR-0005's four it was. It settles by exactly the same path
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
   // this refusal is keeping open rather than the one it is shutting.
   if (bout.status === "closed") throw refuse(409, RESULT_MESSAGES.boutNotOpened);
 
-  const { ending, problem } = parseEnding(await readBody(event), bout);
+  const { ending, problem } = parseEnding(await readBody(event));
 
   if (problem !== undefined) throw refuse(422, problem);
 

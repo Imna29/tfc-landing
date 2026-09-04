@@ -40,13 +40,13 @@ export const BOUTS_ARE_OPENED_ONLY_WHEN_PRICED = "bouts_are_opened_only_when_pri
  */
 export async function seedOutcomes(
   tx: DatabaseTransaction,
-  imported: readonly { id: string; scheduledRounds: number }[],
+  imported: readonly { id: string }[],
 ): Promise<void> {
   await tx
     .insert(outcomes)
     .values(
       imported.flatMap((bout) =>
-        defaultOutcomes(bout.scheduledRounds).map((outcome) => ({ boutId: bout.id, ...outcome })),
+        defaultOutcomes().map((outcome) => ({ boutId: bout.id, ...outcome })),
       ),
     );
 }
@@ -54,7 +54,7 @@ export async function seedOutcomes(
 /**
  * One Outcome of a Bout, as the admin pricing it sees it.
  *
- * The answer itself is `OutcomeAnswer` rather than its four fields written out
+ * The answer itself is `OutcomeAnswer` rather than its three fields written out
  * again, so that a change to what an answer *is* — the corner ADR-0015 added,
  * say — reaches this without anybody remembering to bring it.
  */
@@ -161,8 +161,8 @@ export async function boutToPrice(boutId: string): Promise<BoutToPrice | null> {
  * answering with how many were actually priced.
  *
  * One statement rather than one per Outcome: a save is a whole Bout's pricing,
- * and fourteen to eighteen round trips would be as many chances to be
- * interrupted halfway through a card that would then look half priced.
+ * and eight round trips would be as many chances to be interrupted halfway
+ * through a card that would then look half priced.
  *
  * `boutId` is in the `where` clause as well as the ids, so an Outcome on
  * another Bout cannot be priced through this Bout's URL however it got into
@@ -227,7 +227,7 @@ export async function openBout(boutId: string): Promise<boolean> {
  * were asked and the Lock it has if it has one.
  *
  * One query with a join rather than a query per Bout: a card is up to a dozen
- * Bouts of fourteen to eighteen Outcomes each, and this is read on every save.
+ * Bouts of eight Outcomes each, and this is read on every save.
  * The Lock audit log, the Results and the corrections made to them are separate
  * queries rather than more joins onto that one, because each belongs to the
  * module that writes it and because a card holds few enough of each to ask for
@@ -250,7 +250,6 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
         question: outcomes.question,
         corner: outcomes.corner,
         method: outcomes.method,
-        round: outcomes.round,
         multiplier: outcomes.multiplier,
         pricedAt: outcomes.pricedAt,
       },
@@ -280,7 +279,6 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
         question: outcome.question,
         corner: outcome.corner,
         method: outcome.method,
-        round: outcome.round,
         multiplier: outcome.multiplier,
         priced: outcome.pricedAt !== null,
       });
@@ -300,6 +298,6 @@ async function boutsToPrice(where: SQL): Promise<BoutToPrice[]> {
     lock: locked.get(bout.id) ?? null,
     ending: settled.get(bout.id) ?? null,
     corrections: corrected.get(bout.id) ?? [],
-    outcomes: inAskedOrder(bout.outcomes, bout.scheduledRounds),
+    outcomes: inAskedOrder(bout.outcomes),
   }));
 }

@@ -1,13 +1,13 @@
 /**
- * Pricing a Bout: the three Questions asked about it, the Outcomes that answer
+ * Pricing a Bout: the two Questions asked about it, the Outcomes that answer
  * them, and the table every Multiplier starts from.
  *
  * ADR-0002 chose fixed Multipliers set by hand over a self-balancing pool,
  * because a fan has to know what they stand to win at the moment they commit.
  * The bill for that choice is this module: somebody at TFC prices every card
  * before it opens, for every card, forever. Seeding each Outcome from a
- * default is what keeps that bill payable — an admin adjusts fourteen to
- * eighteen numbers per Bout rather than authoring them from blank.
+ * default is what keeps that bill payable — an admin adjusts eight numbers per
+ * Bout rather than authoring them from blank.
  *
  * Shared for the same reason `shared/events.ts` is: the server refuses with the
  * sentence the admin area shows, and `test/unit/vocabulary.test.ts` holds all
@@ -16,28 +16,31 @@
 import type { Corner } from "./events";
 
 /**
- * One thing asked about a Bout. There are three and there will only ever be
- * three — a Question is not a field somebody adds, it is what a Prediction
- * answers one of (ADR-0014).
+ * One thing asked about a Bout. There are two — a Question is not a field
+ * somebody adds, it is what a Prediction answers one of (ADR-0014).
+ *
+ * There were three. The round of victory was retired by ADR-0016: it was the
+ * Question a fan was least able to answer and the one that made a Bout's
+ * offering depend on how long it was booked for, and the game asks the winner
+ * and the method of victory now.
  *
  * Spelled out again in the `outcomes_question_known` and
  * `predictions_question_known` check constraints, for the reason given on
  * `Role` in `server/db/schema.ts`.
  */
-export type Question = "winner" | "method" | "round";
+export type Question = "winner" | "method";
 
 /** How a Bout ends, when it ends in something gradable. */
 export type Method = "ko_tko" | "submission" | "decision";
 
 /**
- * The three Questions, in the order they are asked: who wins, how they win,
- * and the round they win in.
+ * The two Questions, in the order they are asked: who wins, and how they win.
  *
  * The order every Outcome is seeded, priced and offered in, said once here.
  * Each is asked on its own terms and answered on its own (ADR-0014), so this
  * is the order they are read in rather than an order they are answered in.
  */
-export const QUESTIONS = ["winner", "method", "round"] as const satisfies readonly Question[];
+export const QUESTIONS = ["winner", "method"] as const satisfies readonly Question[];
 
 /** The methods of victory, in the order an admin prices them. */
 export const METHODS = ["ko_tko", "submission", "decision"] as const satisfies readonly Method[];
@@ -49,7 +52,6 @@ export const CORNERS = ["red", "blue"] as const satisfies readonly Corner[];
 export const QUESTION_LABELS = {
   winner: "Winner",
   method: "Method of victory",
-  round: "Round of victory",
 } as const satisfies Record<Question, string>;
 
 /** What each method of victory is called wherever one is shown. */
@@ -63,17 +65,15 @@ export const METHOD_LABELS = {
  * What one Outcome is called, given the two names the Bout is fought under.
  *
  * **Every answer names the fighter it is about** (ADR-0015). A winner Outcome
- * is that fighter's name; a method Outcome is "Tsiklauri by KO/TKO" and a
- * round Outcome "Tsiklauri in round 2". The bare forms these replace —
- * "KO/TKO", "Round 2" — read beside a Winner column listing two fighters as
- * though they were about one of them, and never said which.
+ * is that fighter's name, and a method Outcome is "Tsiklauri by KO/TKO". The
+ * bare form it replaces — "KO/TKO" — read beside a Winner column listing two
+ * fighters as though it were about one of them, and never said which.
  *
  * Read from the Question the Outcome answers, which is the column that says
- * which of the two remaining answers it carries. The Question's own name
- * stands in for an answer that cannot be missing —
- * `outcomes_answers_its_question` is what makes that unreachable, and an
- * Outcome quietly renamed to the empty string would be a Multiplier with
- * nothing beside it.
+ * whether it carries a method at all. The Question's own name stands in for an
+ * answer that cannot be missing — `outcomes_answers_its_question` is what makes
+ * that unreachable, and an Outcome quietly renamed to the empty string would be
+ * a Multiplier with nothing beside it.
  *
  * The corners are passed in rather than looked up because who is in the red
  * corner is a fact about the Bout, not about the Outcome — and because this is
@@ -85,26 +85,20 @@ export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, str
 
   if (outcome.question === "winner") return fighter;
 
-  if (outcome.question === "method") {
-    return outcome.method
-      ? `${fighter} by ${METHOD_LABELS[outcome.method]}`
-      : QUESTION_LABELS.method;
-  }
-
-  return outcome.round === null ? QUESTION_LABELS.round : `${fighter} in round ${outcome.round}`;
+  return outcome.method ? `${fighter} by ${METHOD_LABELS[outcome.method]}` : QUESTION_LABELS.method;
 }
 
 /**
  * The same answer with the fighter lifted out of it, for a screen that has
- * already named them: "Wins", "KO/TKO", "Round 2".
+ * already named them: "Wins", "KO/TKO".
  *
  * Beside {@link outcomeLabel} rather than in the admin area, because these are
  * two ways of saying one thing and the danger is that they come to say
  * different things. What a fan reads is always the full name; this is the
- * layout the admin pricing screen needs to hold fourteen to eighteen inputs
- * per Bout legibly (ADR-0015), where the corner is a heading over a row of
- * answers rather than a word repeated down every label. Every input on that
- * screen is still labelled to a screen reader with the full name.
+ * layout the admin pricing screen needs to hold eight inputs per Bout legibly
+ * (ADR-0015), where the corner is a heading over a row of answers rather than a
+ * word repeated down every label. Every input on that screen is still labelled
+ * to a screen reader with the full name.
  *
  * "Wins" rather than nothing on the winner Question, because a box with no
  * words beside it is a Multiplier nobody can check.
@@ -112,28 +106,22 @@ export function outcomeLabel(outcome: OutcomeAnswer, corners: Record<Corner, str
 export function answerLabel(outcome: OutcomeAnswer): string {
   if (outcome.question === "winner") return "Wins";
 
-  if (outcome.question === "method") {
-    return outcome.method ? METHOD_LABELS[outcome.method] : QUESTION_LABELS.method;
-  }
-
-  return outcome.round === null ? QUESTION_LABELS.round : `Round ${outcome.round}`;
+  return outcome.method ? METHOD_LABELS[outcome.method] : QUESTION_LABELS.method;
 }
 
 /**
  * Which Question an Outcome answers, which fighter it is about, and which
  * answer it carries.
  *
- * **A corner always**, plus exactly one of `method` and `round`, decided by
- * `question` — a winner Outcome carries neither. That is a smaller rule than
- * the "exactly one of three" it replaces, and it says something the old one
- * could not: every answer is about a fighter (ADR-0015).
+ * **A corner always**, plus a `method` exactly where `question` says so — a
+ * winner Outcome carries none. Every answer is about a fighter (ADR-0015), and
  * `outcomes_answers_its_question` and `predictions_answers_its_question` are
- * where Postgres holds it.
+ * where Postgres holds both halves of that.
  *
- * Written as three columns rather than one answer field because a round is a
- * number that has to stay a number — the round Outcomes offered are the rounds
- * the Bout is scheduled for, and that is arithmetic, not a string somebody
- * parses back out.
+ * `method` is its own column rather than a general answer field, because that
+ * is what lets Postgres say a method Outcome carries a method and a winner
+ * Outcome carries none — `outcomes_answers_its_question` is written in terms of
+ * it.
  *
  * This much of an Outcome is what tells it from the others on its Bout, and is
  * all anything sorting or naming them needs. What it pays, who priced it and
@@ -143,18 +131,17 @@ export interface OutcomeAnswer {
   question: Question;
   corner: Corner;
   method: Method | null;
-  round: number | null;
 }
 
 /**
- * Whether this is one of the three Questions a Bout is asked.
+ * Whether this is one of the two Questions a Bout is asked.
  *
  * Read off the wire in one place — the Prediction a fan submits, which says
  * which Question it answers before it says the answer — and spelled out again
  * in `predictions_question_known`.
  */
 export function isQuestion(value: unknown): value is Question {
-  return value === "winner" || value === "method" || value === "round";
+  return value === "winner" || value === "method";
 }
 
 /**
@@ -171,18 +158,6 @@ export function isMethod(value: unknown): value is Method {
 }
 
 /**
- * Whether this is a round a Bout could be scheduled for.
- *
- * Which rounds *this* Bout has is a fact about the Bout — a three-round card
- * opener has no round 4 — and is checked against the Outcomes it was opened
- * with, by the `predictions_round_is_offered` and `bout_results_round_was_offered`
- * keys underneath that.
- */
-export function isRound(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1;
-}
-
-/**
  * One Outcome as it is seeded: which answer it is, and what it pays until an
  * admin says otherwise.
  */
@@ -191,56 +166,25 @@ export interface SeededOutcome extends OutcomeAnswer {
 }
 
 /**
- * What a round deeper than its format's row is seeded at.
- *
- * Only a Bout booked over some other number of rounds reaches one: each
- * format's row covers its own rounds. `SCHEDULED_ROUNDS` allows one to twelve,
- * which is the guard against a stuck key rather than a format anybody books, so
- * a round past the fifth repeats the deepest number the table has rather than
- * the table inventing an opinion about a round nobody schedules.
- *
- * The deepest number of the five-round row, said here so that it stays the
- * deepest: the row ends with it. It is on that row's terms rather than on terms
- * of its own — per corner, like every number beside it — so it moves whenever
- * the row does. A deepest number left behind while the row was re-priced around
- * it would pay the deepest round of all on the terms of a table that no longer
- * exists.
- */
-const DEEPEST_ROUND_MULTIPLIER = 28.5;
-
-/**
- * What a finish in each round pays on a five-round Bout — a main event or a
- * title fight — and the row every other format is seeded from.
- *
- * Named because it is read twice: as the five-round row of
- * {@link DEFAULT_MULTIPLIERS}, and as the fallback for a Bout booked over some
- * other number of rounds, which is the more forgiving of the two rows to be
- * wrong with. Its numbers climb steeply because a finish is far likelier early
- * than late: reaching round 5 at all means four rounds already failed to end
- * the Bout.
- */
-const FIVE_ROUND_MULTIPLIERS = [7.5, 11.9, 17.8, 23.7, DEEPEST_ROUND_MULTIPLIER] as const;
-
-/**
  * What each Outcome pays before anybody has looked at the Bout.
  *
  * A starting point, deliberately not a price: nothing here knows which fighter
  * is favoured, and the two corners are seeded level because the table cannot
  * tell them apart. What it is for is the shape of a card — that a Submission
- * pays more than a KO/TKO, and a deep round more than an early one — so an
- * admin pricing a card is correcting numbers rather than inventing them.
+ * pays more than a KO/TKO — so an admin pricing a card is correcting numbers
+ * rather than inventing them.
  *
- * **Every number here is what one corner pays, which is why the method and
- * round rows are twice what a Bout-level table would carry.** Every answer
- * names a fighter (ADR-0015) and this table cannot tell the two apart, so a
- * chance about the Bout — that it ends by Submission, that it ends in round 2 —
- * splits evenly between the corners, and half a chance is twice the Multiplier.
- * That is not a new principle: it is the one already seeding both winner
- * Outcomes at 1.90, applied to the other two Questions now that they have
- * corners to be level between. The winner row does not move, because "red
- * wins" always named a fighter. There is no per-corner row here for the same
- * reason there is no favourite: nothing that writes this knows which fighter is
- * which, so one number is what each of the two is seeded from.
+ * **Every number here is what one corner pays, which is why the method row is
+ * twice what a Bout-level table would carry.** Every answer names a fighter
+ * (ADR-0015) and this table cannot tell the two apart, so a chance about the
+ * Bout — that it ends by Submission — splits evenly between the corners, and
+ * half a chance is twice the Multiplier. That is not a new principle: it is the
+ * one already seeding both winner Outcomes at 1.90, applied to the method
+ * Question now that it has corners to be level between. The winner row does not
+ * move, because "red wins" always named a fighter. There is no per-corner row
+ * here for the same reason there is no favourite: nothing that writes this
+ * knows which fighter is which, so one number is what each of the two is seeded
+ * from.
  *
  * The split is a fact about these numbers before it is a fact about the
  * Outcomes they seed, and {@link defaultOutcomes} is where it becomes one: it
@@ -260,10 +204,10 @@ const FIVE_ROUND_MULTIPLIERS = [7.5, 11.9, 17.8, 23.7, DEEPEST_ROUND_MULTIPLIER]
  * scales with how well the table knows the answer.** The winner Question
  * carries about 5%: 50/50 is *known* before anybody looks at the two fighters,
  * so there is no estimate here to be wrong about and no reason to charge for
- * one. Method and round carry about 8%, because they rest on a prior — a
- * regional promotion finishes something like 65% of its Bouts — and the three
- * extra points are protection against that estimate being off, not a wider
- * spread taken for its own sake.
+ * one. Method carries about 8%, because it rests on a prior — a regional
+ * promotion finishes something like 65% of its Bouts — and the three extra
+ * points are protection against that estimate being off, not a wider spread
+ * taken for its own sake.
  *
  * **Decision at 5.30 is the cell that reads like a typo**, and it is the one an
  * admin is most likely to "correct" back. Two numbers look righter than it and
@@ -278,67 +222,42 @@ const FIVE_ROUND_MULTIPLIERS = [7.5, 11.9, 17.8, 23.7, DEEPEST_ROUND_MULTIPLIER]
  * almost entirely on one answer, and on the ending a fan is second most likely
  * to be right about.
  *
- * **Round 5 of a five-round Bout seeds at 28.50, and that is the cell of the
- * round rows that reads like a typo.** It is the deepest round of the format
- * least likely to reach it, split between two corners: reaching round 5 at all
- * means four rounds already failed to end the Bout, and then it has to be that
- * fighter who ends it. An admin who "corrects" it back to 14.25 is pricing a
- * Bout ending in round 5 at twice its chance, and paying for it every card.
+ * There is no round row, and there is no row that depends on the format a Bout
+ * is booked in. ADR-0016 retired the round Question, and with it the one part
+ * of this table that had to know whether a Bout was scheduled for three rounds
+ * or five.
  */
 export const DEFAULT_MULTIPLIERS = {
   winner: { red: 1.9, blue: 1.9 },
   method: { ko_tko: 4.4, submission: 8.1, decision: 5.3 },
-  /**
-   * By the rounds the Bout is scheduled for, then by the round.
-   *
-   * Two rows rather than one map, because the same round is a different
-   * question in each format TFC books: round 3 of a three-round Bout is the
-   * last one and catches everything still standing, where round 3 of a
-   * five-rounder is a middle round with two more behind it. One row served
-   * both, and it was wrong for at least one of them everywhere they differ.
-   *
-   * A row read across both corners totals to the finishes, not to the whole
-   * Bout: about 70%, which is the same 65% prior the method row carries with
-   * the same 8% on it. What is missing from 100% is the Decisions — 35% as a
-   * prior, and the 37.7% the method row prices them at — because a Decision
-   * ends in no round at all. A round Prediction on a Bout that went the
-   * distance is wrong rather than unanswered (ADR-0014).
-   */
-  round: {
-    3: [6.3, 9.5, 11.4],
-    5: FIVE_ROUND_MULTIPLIERS,
-  } as Record<number, readonly number[]>,
 } as const satisfies {
   winner: Record<Corner, number>;
   method: Record<Method, number>;
-  round: Record<number, readonly number[]>;
 };
 
 /**
  * Every Outcome a Bout is imported with, in the order an admin prices them.
  *
- * **Each Question asked of both fighters** (ADR-0015): two winner Outcomes,
- * six method Outcomes, and two for each scheduled round — fourteen on a
- * three-round Bout and eighteen on a five-round one. Each corner is seeded
- * from the same number, because nothing here knows which fighter is favoured;
- * that is the same reason both winner Outcomes seed level, applied to the
- * other two Questions now that they have corners to be level between.
+ * **Each Question asked of both fighters** (ADR-0015): two winner Outcomes and
+ * six method Outcomes, eight on every Bout. Each corner is seeded from the same
+ * number, because nothing here knows which fighter is favoured; that is the
+ * same reason both winner Outcomes seed level, applied to the method Question
+ * now that it has corners to be level between.
  *
  * The order is the order they are asked in and the order they are read in:
- * winner, then method, then round, and red before blue within each. It is what
+ * winner, then method, and red before blue within each. It is what
  * {@link inAskedOrder} sorts everything else back into.
  *
- * The round Outcomes are generated from the rounds the Bout is actually
- * scheduled for, so a three-round Bout offers no round 4 to either fighter and
- * a fan cannot be shown a round that does not exist (#10 renders exactly
- * these).
+ * **Takes nothing**, which is the shape ADR-0016 leaves it in: every Bout is
+ * asked the same eight things, whether it is booked over three rounds or five.
+ * How long a Bout is scheduled for is a fact a fan reads on the card and
+ * nothing prices.
  */
-export function defaultOutcomes(scheduledRounds: number): SeededOutcome[] {
+export function defaultOutcomes(): SeededOutcome[] {
   const winners: SeededOutcome[] = CORNERS.map((corner) => ({
     question: "winner",
     corner,
     method: null,
-    round: null,
     multiplier: DEFAULT_MULTIPLIERS.winner[corner],
   }));
 
@@ -347,26 +266,11 @@ export function defaultOutcomes(scheduledRounds: number): SeededOutcome[] {
       question: "method" as const,
       corner,
       method,
-      round: null,
       multiplier: DEFAULT_MULTIPLIERS.method[method],
     })),
   );
 
-  // The row this Bout is booked in, or the five-round row for a Bout booked in
-  // neither of the two formats TFC runs.
-  const booked = DEFAULT_MULTIPLIERS.round[scheduledRounds] ?? FIVE_ROUND_MULTIPLIERS;
-
-  const rounds: SeededOutcome[] = CORNERS.flatMap((corner) =>
-    Array.from({ length: scheduledRounds }, (_, index) => ({
-      question: "round" as const,
-      corner,
-      method: null,
-      round: index + 1,
-      multiplier: booked[index] ?? DEEPEST_ROUND_MULTIPLIER,
-    })),
-  );
-
-  return [...winners, ...methods, ...rounds];
+  return [...winners, ...methods];
 }
 
 /**
@@ -419,15 +323,15 @@ export const PRICING_MESSAGES = {
  * "Beridze by KO/TKO" are two answers at two prices, and a key that read only
  * the method would price one of them at the other's Multiplier — which is what
  * `priceOf` in `shared/entries.ts` does with this, on both sides of a
- * submission. A winner Outcome carries neither a method nor a round, so its
- * key ends in nothing: the corner is the whole of its answer.
+ * submission. A winner Outcome carries no method, so its key ends in nothing:
+ * the corner is the whole of its answer.
  *
  * Not an id — this is the identity an Outcome has before it is written, so
  * that the order an admin prices Outcomes in can be the order they were seeded
  * in, said once in {@link defaultOutcomes} rather than again in SQL.
  */
 export function outcomeKey(outcome: OutcomeAnswer): string {
-  return `${outcome.question}:${outcome.corner}:${outcome.method ?? outcome.round ?? ""}`;
+  return `${outcome.question}:${outcome.corner}:${outcome.method ?? ""}`;
 }
 
 /**
@@ -435,22 +339,21 @@ export function outcomeKey(outcome: OutcomeAnswer): string {
  * them in and the order a fan is offered them in.
  *
  * Sorted here rather than in SQL because the order is a fact about the domain
- * — winner, then method, then round; red before blue; KO/TKO before
- * Submission; round 1 before round 2 — and {@link defaultOutcomes} is where
- * that is written down. Ordering by the columns would put "blue" before "red"
- * and "method" before "winner", and would need saying again in every query.
+ * — winner, then method; red before blue; KO/TKO before Submission before
+ * Decision — and {@link defaultOutcomes} is where that is written down.
+ * Ordering by the columns would put "blue" before "red" and "method" before
+ * "winner", and would need saying again in every query.
  */
 export function inAskedOrder<Outcome extends OutcomeAnswer>(
   unordered: readonly Outcome[],
-  scheduledRounds: number,
 ): Outcome[] {
-  const asked = defaultOutcomes(scheduledRounds).map(outcomeKey);
+  const asked = defaultOutcomes().map(outcomeKey);
   const place = (outcome: Outcome) => {
     const at = asked.indexOf(outcomeKey(outcome));
 
-    // An Outcome the table no longer asks about — a Bout whose scheduled
-    // rounds were cut by a re-import would be one, if a re-import kept its
-    // Bouts. It sorts last rather than disappearing.
+    // An Outcome the table no longer asks about — a round Outcome written
+    // before ADR-0016 would have been one, if the migration that retired the
+    // Question had left any behind. It sorts last rather than disappearing.
     return at === -1 ? asked.length : at;
   };
 

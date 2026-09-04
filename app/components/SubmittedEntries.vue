@@ -44,7 +44,7 @@ import { endingNote, entryAsItStands } from "#shared/results";
  * **A Prediction whose answer stopped counting says so, and says why.** It is
  * the only place a fan finds out that a Bout was cancelled, lost a fighter,
  * drew, was ruled a no contest, or ended in the disqualification that leaves a
- * method or round Prediction with nothing to grade — and a Multiplier that quietly
+ * method Prediction with nothing to grade — and a Multiplier that quietly
  * dropped to ×1.0 with no sentence beside it reads as the game having taken
  * something away rather than as ADR-0005 protecting them from it. The sentence
  * is `endingNote`'s and the number is `settledPrice`'s, reached through the
