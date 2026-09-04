@@ -137,6 +137,20 @@ describe("reading a card out of Prismic", () => {
     });
   });
 
+  it("reads a Bout authored before main_event and title_fight existed as neither", () => {
+    // Prismic leaves a Boolean field `null` on a document saved before the
+    // field was added to the custom type, rather than backfilling it — the
+    // same as an editor leaving a checkbox unchecked.
+    const olderBout = eventDocument({
+      bouts: [boutRow({ main_event: null, title_fight: null })],
+    });
+
+    const { card, problem } = readCard(olderBout, REFERENCED);
+
+    expect(problem).toBeUndefined();
+    expect(card?.bouts.at(0)).toMatchObject({ mainEvent: false, titleFight: false });
+  });
+
   it("imports a Bout whose corner is only a name, for a replacement with no profile yet", () => {
     const lateReplacement = eventDocument({
       bouts: [

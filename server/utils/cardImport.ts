@@ -35,8 +35,13 @@ export interface PrismicBout {
   blue_corner_name: string | null;
   division: PrismicLink | null;
   scheduled_rounds: number | null;
-  main_event: boolean;
-  title_fight: boolean;
+  /**
+   * `null` for a Bout authored before this field existed on the custom type —
+   * Prismic leaves an older document's value for a newly added Boolean field
+   * unset rather than backfilling it, and unset reads the same as unchecked.
+   */
+  main_event: boolean | null;
+  title_fight: boolean | null;
 }
 
 /** An `event` document, as far as the import is concerned. */
@@ -228,8 +233,8 @@ function readBout(
       blue: blue.corner,
       division,
       scheduledRounds,
-      mainEvent: row.main_event,
-      titleFight: row.title_fight,
+      mainEvent: row.main_event ?? false,
+      titleFight: row.title_fight ?? false,
     },
   };
 }
