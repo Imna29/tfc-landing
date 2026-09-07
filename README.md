@@ -94,7 +94,7 @@ workflow runs: install, `vercel build`, `pnpm db:migrate`, `vercel deploy
 --prebuilt`, then a `GET /api/health` against the deployment that just went up.
 A failed migration fails the run, and the old deployment keeps serving.
 
-Why in that order, and what it does not protect you from, is ADR-0018. The short
+Why in that order, and what it does not protect you from, is ADR-0019. The short
 version: an additive migration is safe, and a dropped or renamed column needs
 expand/contract across two deploys, because the previous deployment is still
 serving while the migration runs.

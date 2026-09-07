@@ -1,6 +1,6 @@
 # The only thing that deploys. Vercel's own Git integration is off
 # (`vercel.json`), because a deploy has to be able to wait for a migration and
-# Vercel's cannot. See ADR-0018.
+# Vercel's cannot. See ADR-0019.
 name: Deploy
 
 on:
@@ -92,7 +92,7 @@ jobs:
       # not leave a migrated database behind it, and code that needs the new
       # schema must not be serving before the schema is there. That still only
       # holds for migrations the running code can survive — a destructive one
-      # needs expand/contract across two deploys. See ADR-0018.
+      # needs expand/contract across two deploys. See ADR-0019.
       - name: Apply migrations
         run: pnpm db:migrate
         env:
