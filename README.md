@@ -120,6 +120,10 @@ variable `PREVIEW_ALIAS` (for example `dev.tfcgeo.com`) is the stable hostname a
 Two databases means two of everything the database holds. A dev database has no
 admin until the `role` grant in the Admin section is run against it too.
 
+Until `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` all exist, the
+deploy workflow names what is missing in the run summary and stops without
+deploying. A branch that goes red on every push is a branch people stop reading.
+
 ### Node version
 
 CI and the deploy build on Node 24, pinned in `.node-version`, while this repo is
