@@ -86,6 +86,8 @@ jobs:
         run: vercel pull --yes --environment="$VERCEL_TARGET" --token="$VERCEL_TOKEN"
 
       - name: Build
+        env:
+          NITRO_PRESET: vercel
         run: vercel build $PROD_FLAG --token="$VERCEL_TOKEN"
 
       # Between the build and the deploy, deliberately. A build that fails must
