@@ -74,6 +74,63 @@ bun run preview
 
 Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
 
+## Deployment
+
+Two branches, two databases, two Vercel targets. `dev` is the preview site,
+`main` is production, and work reaches them by pull request in that order.
+Neither is pushed to directly.
+
+```
+feature/* --PR--> dev --PR--> main
+                   |            |
+                   v            v
+            preview target   production
+              dev database    prod database
+```
+
+`.github/workflows/deploy.yml` is the only thing that deploys. Vercel's own Git
+integration is turned off in `vercel.json`, so a push does nothing until the
+workflow runs: install, `vercel build`, `pnpm db:migrate`, `vercel deploy
+--prebuilt`, then a `GET /api/health` against the deployment that just went up.
+A failed migration fails the run, and the old deployment keeps serving.
+
+Why in that order, and what it does not protect you from, is ADR-0019. The short
+version: an additive migration is safe, and a dropped or renamed column needs
+expand/contract across two deploys, because the previous deployment is still
+serving while the migration runs.
+
+### What is configured where
+
+Secrets that name a database live on the GitHub *environment*, not the
+repository, so a run off `dev` cannot read production's connection string.
+
+| | `preview` (from `dev`) | `production` (from `main`) |
+| --- | --- | --- |
+| GitHub environment secret | `DATABASE_URL` — dev database | `DATABASE_URL` — prod database |
+| Vercel `BETTER_AUTH_URL` | the preview alias | `https://tfcgeo.com` |
+| Vercel `BETTER_AUTH_SECRET` | its own | its own |
+| Vercel `RESEND_API_KEY` | **unset** — emails go to the log | set |
+
+Repository secrets, shared by both: `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
+`VERCEL_PROJECT_ID`, and optionally `VERCEL_AUTOMATION_BYPASS_SECRET` so the
+health check can reach a deployment behind Vercel Authentication. The repository
+variable `PREVIEW_ALIAS` (for example `dev.tfcgeo.com`) is the stable hostname a
+`dev` deploy re-points at itself; leave it unset and that step is skipped.
+
+Two databases means two of everything the database holds. A dev database has no
+admin until the `role` grant in the Admin section is run against it too.
+
+Until `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` all exist, the
+deploy workflow names what is missing in the run summary and stops without
+deploying. A branch that goes red on every push is a branch people stop reading.
+
+### Node version
+
+CI and the deploy build on Node 24, pinned in `.node-version`, while this repo is
+developed on 26. `vercel build` runs on the runner, and the Nitro preset writes
+the running major into each function's runtime; Vercel Functions do not offer 26.
+Raise the pin only when Vercel raises theirs.
+
 ## Content model
 
 Pages are authored in Prismic. The models live in the repo — one directory per

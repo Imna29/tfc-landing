@@ -1,0 +1,135 @@
+# The only thing that deploys. Vercel's own Git integration is off
+# (`vercel.json`), because a deploy has to be able to wait for a migration and
+# Vercel's cannot. See ADR-0019.
+name: Deploy
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+# One deploy at a time per branch, and never cancelled: a run that has already
+# migrated must be allowed to finish deploying the code that migration was
+# written for.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  # Until the Vercel secrets exist there is nothing to deploy to, and a branch
+  # that goes red on every push teaches everyone to ignore it. Say what is
+  # missing and stop.
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=""
+          [ -n "$VERCEL_TOKEN" ] || missing="$missing VERCEL_TOKEN"
+          [ -n "$VERCEL_ORG_ID" ] || missing="$missing VERCEL_ORG_ID"
+          [ -n "$VERCEL_PROJECT_ID" ] || missing="$missing VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "Deploys are not set up yet. Missing repository secrets:$missing" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    name: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    runs-on: ubuntu-latest
+    # Which database and which Vercel target this run is allowed to touch is
+    # decided here, by the branch, and enforced by GitHub: `DATABASE_URL` is an
+    # environment secret, so a run off `dev` cannot read production's.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TARGET: ${{ github.ref_name == 'main' && 'production' || 'preview' }}
+      PROD_FLAG: ${{ github.ref_name == 'main' && '--prod' || '' }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # An environment without a database is a misconfiguration, not a reason
+      # to build for ten minutes first.
+      - name: Check this environment has a database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::No DATABASE_URL on the '$VERCEL_TARGET' environment. Add it under Settings -> Environments."
+            exit 1
+          fi
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          # Node 24, not the 26 this repo is developed on: `vercel build` runs
+          # here rather than on Vercel, and the Nitro preset writes the running
+          # major into the function's runtime. Vercel Functions do not offer 26.
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install the Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull the Vercel environment
+        run: vercel pull --yes --environment="$VERCEL_TARGET" --token="$VERCEL_TOKEN"
+
+      - name: Build
+        run: vercel build $PROD_FLAG --token="$VERCEL_TOKEN"
+
+      # Between the build and the deploy, deliberately. A build that fails must
+      # not leave a migrated database behind it, and code that needs the new
+      # schema must not be serving before the schema is there. That still only
+      # holds for migrations the running code can survive — a destructive one
+      # needs expand/contract across two deploys. See ADR-0019.
+      - name: Apply migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Deploy
+        id: deploy
+        run: echo "url=$(vercel deploy --prebuilt $PROD_FLAG --token="$VERCEL_TOKEN")" >> "$GITHUB_OUTPUT"
+
+      # Every preview deploy gets its own URL, and the links TFC emails are
+      # built from one fixed origin (`BETTER_AUTH_URL`). This is what keeps that
+      # origin pointing at the newest `dev` deploy. No-op until PREVIEW_ALIAS is
+      # set as a repository variable.
+      - name: Point the preview alias at this deployment
+        if: github.ref_name == 'dev' && vars.PREVIEW_ALIAS != ''
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" "${{ vars.PREVIEW_ALIAS }}" --token="$VERCEL_TOKEN"
+
+      # `/api/health` answers with a user count rather than a fixed `ok`, so a
+      # pass here is the deployed server reaching Postgres, not a cache.
+      - name: Prove the deployment can reach Postgres
+        env:
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          url="${{ steps.deploy.outputs.url }}/api/health"
+          if [ -n "$BYPASS" ]; then
+            curl --fail --silent --show-error --header "x-vercel-protection-bypass: $BYPASS" "$url"
+          else
+            curl --fail --silent --show-error "$url"
+          fi
+
+      - name: Say where it went
+        run: |
+          {
+            echo "### Deployed \`${{ github.ref_name }}\` to $VERCEL_TARGET"
+            echo
+            echo "- ${{ steps.deploy.outputs.url }}"
+            if [ -n "${{ vars.PREVIEW_ALIAS }}" ] && [ "$VERCEL_TARGET" = "preview" ]; then
+              echo "- https://${{ vars.PREVIEW_ALIAS }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

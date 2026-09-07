@@ -1,0 +1,51 @@
+# What has to be true before anything merges. Nothing here touches a database
+# or a deployment: this workflow only ever reads the branch it is given.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+# A branch only needs the answer for its newest commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      # Pure logic and configuration: no database, no Nuxt, no container, so it
+      # answers in seconds and is worth having separate from the suite below.
+      - name: Unit tests
+        run: pnpm exec vitest run --project unit
+
+  server-tests:
+    name: server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The real Nitro server against a real Postgres, which `globalSetup`
+      # builds and starts: a Nuxt build and a Postgres image pull before the
+      # first assertion. Docker is already on the runner, and the timeouts in
+      # `vitest.config.ts` are written for a cold start like this one.
+      - name: Server tests
+        run: pnpm exec vitest run --project server
