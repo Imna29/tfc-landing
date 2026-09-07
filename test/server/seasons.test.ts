@@ -41,8 +41,8 @@ import { setupTestServer } from "../helpers/server";
  *
  * The other end of `test/server/coins.test.ts`. That file is where Coins come
  * from; this is where a Season's answer stops changing. Closing one **freezes
- * its final standings permanently** — the record TFC awards Prizes from
- * (ADR-0007) — and opening the next puts every fan back on the same hundred
+ * its final standings permanently** — the permanent record of how it went
+ * (ADR-0018) — and opening the next puts every fan back on the same hundred
  * Coins, which is what makes "no mid-Season top-ups" survivable rather than
  * terminal for a fan who reached zero.
  *
@@ -121,8 +121,8 @@ describe("closing a Season, and the one after it", async () => {
 
       // Read from Postgres rather than from the answer: `closed_by` is
       // deliberately not on the `Season` any route hands out — it is written so
-      // that a disputed Prize can be traced back to whoever froze the standings
-      // it was decided on, which is a question somebody asks the database.
+      // that a disputed result can be traced back to whoever froze the
+      // standings, which is a question somebody asks the database.
       const [closed] = await testDatabase().select().from(seasons);
 
       expect(closed?.status).toBe("closed");
@@ -166,7 +166,7 @@ describe("closing a Season, and the one after it", async () => {
 
       // There is no route that tries, so this is the hand-typed `update` the
       // trigger exists for. ADR-0006 makes a Lock final for the same reason a
-      // Season is: the standings behind a Prize cannot be made to say something
+      // Season is: a Season's frozen standings cannot be made to say something
       // else afterwards.
       const reopened = await refusalFrom(
         sql`update seasons set status = 'open', closed_at = null, closed_by = null`,
@@ -329,8 +329,8 @@ describe("closing a Season, and the one after it", async () => {
       // Both hold the hundred every fan starts on, so the only thing between
       // them is when they got there — the admin when the Season opened, the fan
       // when they signed up into it. A snapshot ordered by Balance alone would
-      // freeze whichever row Postgres happened to return first, and hand a
-      // Prize out on it.
+      // freeze whichever row Postgres happened to return first, and record
+      // that as the order they finished in.
       const admin = await adminWithASeason();
       const fan = await fanWithCoins();
       const seasonId = await openedSeasonId();
@@ -358,8 +358,8 @@ describe("closing a Season, and the one after it", async () => {
       expect(frozen.top).toHaveLength(LEADERBOARD_PLACES);
       expect(frozen.fans).toBe(LEADERBOARD_PLACES + 3);
 
-      // The record is of everybody, which is what makes it the evidence behind
-      // a Prize rather than a screenshot of the top of the page.
+      // The record is of everybody, which is what makes it a record of the
+      // Season rather than a screenshot of the top of the page.
       const stored = await testDatabase()
         .select()
         .from(finalStandings)
@@ -559,22 +559,22 @@ describe("closing a Season, and the one after it", async () => {
       expect((await refused.json()).message).toBe(PAST_SEASONS_MESSAGES.notFound);
     });
 
-    it("never says a fan's real name", async () => {
+    it("says nothing about a fan but their username", async () => {
       const admin = await adminWithASeason();
       const fan = await fanWithCoins();
       const seasonId = await openedSeasonId();
 
       await closeOpenSeason(admin.cookie);
 
-      // `signUp` names every fan Nino Beridze. The columns exist so TFC can
-      // match a Prize to a person and never leave the database (ADR-0007) —
-      // and this is the page a Prize is actually decided on.
-      expect(JSON.stringify(await finalStandingsFor(seasonId))).not.toMatch(/Nino|Beridze/);
+      // A phone number is the one private thing an account holds and never
+      // leaves the database (ADR-0018). This page outlives the Season, so it is
+      // the one a leak would sit on longest.
+      expect(JSON.stringify(await finalStandingsFor(seasonId))).not.toContain(fan.details.phone);
 
       const page = await $fetch<string>(`/standings/${seasonId}`);
 
       expect(page).toContain(fan.details.username);
-      expect(page).not.toMatch(/Nino|Beridze/);
+      expect(page).not.toContain(fan.details.phone);
     });
 
     it("renders the page a fan reads it on, with their own row on it", async () => {

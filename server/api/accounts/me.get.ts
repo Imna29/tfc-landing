@@ -5,7 +5,7 @@
  * makes this the route a signed-out visitor is bounced off.
  */
 export default defineEventHandler(async (event) => {
-  const { username, email, emailVerified } = await requireFan(event);
+  const { username, email } = await requireFan(event);
 
-  return { username, email, emailVerified };
+  return { username, email };
 });

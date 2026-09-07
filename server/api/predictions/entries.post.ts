@@ -27,11 +27,6 @@ export default defineEventHandler(async (event) => {
   // part".
   if (!fan) throw refuse(401, ENTRY_MESSAGES.signIn);
 
-  // The published contest rules promise this one (ADR-0007): a confirmed
-  // address before a first Entry. It is also the whole of "one account per
-  // person" — a speed bump rather than a guarantee, and the only one there is.
-  if (!fan.emailVerified) throw refuse(403, ENTRY_MESSAGES.emailUnverified);
-
   const season = await currentSeason();
 
   if (!season) throw refuse(409, ENTRY_MESSAGES.noSeasonOpen);

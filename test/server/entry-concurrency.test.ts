@@ -7,7 +7,7 @@ import { postJson, signUp } from "../helpers/accounts";
 import { cardBout, cardInTheGame } from "../helpers/cards";
 import { testDatabase } from "../helpers/database";
 import { setupTestServer } from "../helpers/server";
-import { confirmEmail, fanId } from "../helpers/users";
+import { fanId } from "../helpers/users";
 
 /**
  * Two requests about the same fan's Coins, arriving in the same moment.
@@ -36,8 +36,6 @@ describe("two requests in the same moment", async () => {
     });
 
     const signedUp = await signUp();
-
-    await confirmEmail(signedUp.details.email);
 
     const fan = await fanId(signedUp.details.email);
 
@@ -82,8 +80,6 @@ describe("two requests in the same moment", async () => {
     });
 
     const signedUp = await signUp();
-
-    await confirmEmail(signedUp.details.email);
 
     const fan = await fanId(signedUp.details.email);
 
@@ -138,8 +134,6 @@ describe("two requests in the same moment", async () => {
     });
 
     const signedUp = await signUp();
-
-    await confirmEmail(signedUp.details.email);
 
     const fan = await fanId(signedUp.details.email);
 

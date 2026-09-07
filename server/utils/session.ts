@@ -8,9 +8,9 @@ import { useDatabase } from "./db";
 /**
  * A signed-in fan, plus the id the server needs to write rows against them.
  *
- * There is no first or last name on this type, and no way to get one: real
- * names are `returned: false` in `server/utils/auth.ts`, so they are not in
- * the session `better-auth` hands back in the first place. See ADR-0007.
+ * There is no phone number on this type, and no way to get one: it is
+ * `returned: false` in `server/utils/auth.ts`, so it is not in the session
+ * `better-auth` hands back in the first place. See ADR-0018.
  */
 export interface SignedInFan extends Fan {
   id: string;
@@ -23,8 +23,8 @@ export interface SignedInFan extends Fan {
  * about a fan is built from here, so the rename cannot be got half right in
  * one route and forgotten in another.
  */
-export function fanFrom(user: { name: string; email: string; emailVerified: boolean }): Fan {
-  return { username: user.name, email: user.email, emailVerified: user.emailVerified };
+export function fanFrom(user: { name: string; email: string }): Fan {
+  return { username: user.name, email: user.email };
 }
 
 /** Who is making this request, or `null` if nobody is signed in. */

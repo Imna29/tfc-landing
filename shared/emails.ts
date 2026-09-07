@@ -1,6 +1,10 @@
 /**
- * Email addresses: what counts as one, the two messages TFC ever sends to one,
- * where the links in them land, and the sentences the app says about either.
+ * Email addresses: what counts as one, the one message TFC ever sends to one,
+ * where the link in it lands, and the sentences the app says about it.
+ *
+ * There used to be two. ADR-0018 retired the confirmation link along with the
+ * contest whose rules required it, which leaves the password reset — the one
+ * email a fan asks for rather than one TFC decides to send.
  *
  * The copy lives here rather than beside the transport that sends it for the
  * same reason `shared/signUp.ts` holds the sentences a rejected form shows: an
@@ -12,27 +16,22 @@
  * configuration enforcing it (`server/utils/auth.ts`) cannot drift apart.
  */
 
-/** How long a link confirming an email address lasts. */
-export const VERIFICATION_LINK_HOURS = 24;
-
 /**
  * How long a link for setting a new password lasts.
  *
- * Shorter than a verification link on purpose: this one lets whoever holds it
- * take an account over, so it should be useful for about as long as it takes
- * to walk from the sign-in form to an inbox and back.
+ * Deliberately short: this one lets whoever holds it take an account over, so
+ * it should be useful for about as long as it takes to walk from the sign-in
+ * form to an inbox and back.
  */
 export const PASSWORD_RESET_LINK_HOURS = 1;
-
-/** Where a fan lands after following the link in a verification email. */
-export const EMAIL_CONFIRMED_PATH = "/account/email-confirmed";
 
 /** Where a fan lands after following the link in a password reset email. */
 export const PASSWORD_RESET_PATH = "/account/reset-password";
 
-// Deliberately loose. An address is only really validated by sending mail to
-// it, which is what the verification email is for; this catches the typo that
-// could never receive one.
+// Deliberately loose, and looser in consequence than it was: nothing confirms
+// an address any more (ADR-0018), so this is the only check there is. It still
+// only catches the typo that could never receive mail — an address is really
+// validated by sending to it, and TFC finds out when a password reset bounces.
 const EMAIL_ADDRESS = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
 
 /** Whether text is shaped like an address a message could reach. */
@@ -59,7 +58,6 @@ export const EMAIL_MESSAGES = {
   resetOnItsWay:
     "If that address has an account, a link for setting a new password is on its way. " +
     "Check your inbox.",
-  confirmationOnItsWay: "A new link is on its way. Check your inbox.",
   notSent:
     "TFC could not send that email just now. Nothing is wrong with your account — " +
     "try again in a moment.",
@@ -68,22 +66,8 @@ export const EMAIL_MESSAGES = {
   // three and none of them is worth telling a stranger apart.
   linkExpired:
     "That link did not work. It may have expired, or already been used. Ask for a new one.",
-  confirmed: "Your email address is confirmed.",
   passwordChanged: "Your new password is set. Sign in with it.",
 } as const satisfies Record<string, string>;
-
-/** The link a fan follows to confirm the address they signed up with. */
-export function verificationEmail(link: string): EmailMessage {
-  return compose(
-    "Confirm your email address",
-    ["Welcome to TFC Predictions.", "Confirm this address to finish setting up your account:"],
-    link,
-    [
-      `The link lasts ${inHours(VERIFICATION_LINK_HOURS)}.`,
-      "If you did not create an account with TFC, ignore this email.",
-    ],
-  );
-}
 
 /** The link a fan follows to set a new password after losing the old one. */
 export function passwordResetEmail(link: string): EmailMessage {

@@ -23,7 +23,7 @@ import {
   type CardInTheGame,
 } from "./cards";
 import { testDatabase } from "./database";
-import { confirmEmail, fanId } from "./users";
+import { fanId } from "./users";
 
 /**
  * Playing the game from a test: a fan with Coins, a card to predict on, an
@@ -43,11 +43,9 @@ import { confirmEmail, fanId } from "./users";
  * answer it is checking.
  */
 
-/** A fan who can play: a Season's Coins, and a confirmed address. */
+/** A fan who can play, which since ADR-0018 is any fan with a Season's Coins. */
 export async function fanWithCoins() {
   const signedUp = await signUp();
-
-  await confirmEmail(signedUp.details.email);
 
   return { ...signedUp, id: await fanId(signedUp.details.email) };
 }

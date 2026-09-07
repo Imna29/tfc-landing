@@ -84,7 +84,7 @@ export const CLOSE_MESSAGES = {
   /** What the admin area says beside the button, before it is pressed. */
   what:
     "Closing a Season freezes what every fan finished on — their Coins and " +
-    "their place — as the record TFC decides Prizes from. It cannot be " +
+    "their place — as the permanent record of how it went. It cannot be " +
     "undone, and a Season with a Bout still open or still waiting on a Result " +
     "will not close at all.",
 } as const;

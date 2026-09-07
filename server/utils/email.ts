@@ -56,9 +56,9 @@ export function useMailer(): Mailer {
  * The mailer an environment asks for.
  *
  * `RESEND_API_KEY` is the whole switch. Without it messages are written to the
- * log, so that anyone can follow a verification link on a machine where nobody
- * has verified a sending domain — which is the reason #5 was split out of the
- * accounts ticket in the first place.
+ * log, so that anyone can follow a password reset link on a machine where
+ * nobody has verified a sending domain — which is the reason #5 was split out
+ * of the accounts ticket in the first place.
  *
  * With it, two more variables become mandatory rather than optional, because
  * real sending is the moment they start mattering: `EMAIL_FROM`, since Resend
@@ -152,7 +152,7 @@ export function createResendMailer({ apiKey, from, baseUrl }: ResendSettings): M
  * A mailer that writes messages to the log instead of sending them.
  *
  * The link is written out in full, because following it is how anyone works on
- * verification or password reset without a verified sending domain.
+ * a password reset without a verified sending domain.
  */
 export function createLoggingMailer(): Mailer {
   return {

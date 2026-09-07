@@ -43,7 +43,9 @@ The line between the two sites is drawn in `app/utils/navigation.ts` and applied
 `app/middleware/play-section.global.ts`, so which chrome a page gets is decided in one
 place rather than page by page. It is deliberately not the same list as the edge-cache
 exemptions in `route-rules.ts`: that one is about what may be stored, this one about what
-a page looks like, and `/prizes` and `/contest-rules` are in the game and cached.
+a page looks like. They agree on every page today — nothing in the game is cached since
+[[adr-0018]] removed the two pages that were — but the exemption list also carries `/api`
+and `/admin`, which are not pages a fan plays on.
 
 ### Event
 
@@ -349,15 +351,15 @@ The cap is a rule of the game rather than a number frozen on the Entry, so a Rew
 worked out from the Predictions every time one is needed and never read back from a promise.
 See [[adr-0013]].
 
-### Prize
+### Prize — retired
 
-What a top finisher of a Season receives from TFC once it ends — never Coins, and never a
-cash equivalent. Described on the prizes page, governed by the published contest rules, and
-awarded by hand, offline, by TFC staff. The application has no notion of a prize: no
-claiming, no shipping details, no prize state. See [[adr-0007]].
+**There are no Prizes.** [[adr-0018]] removed them: nothing is awarded outside the game for
+finishing a Season anywhere in particular, and the word should not appear in new copy, new
+code or new records except to say this.
 
-Not a [[reward]]. A Reward is Coins the game pays a winning Entry; a Prize is what the
-Season's final standings are worth outside the game. Never a "payout" for either.
+What a Season is played for is the [[leaderboard]] while it runs and its
+[[final-standings]] once it closes. A [[reward]] is the word that survives, and it means
+one thing only: the Coins the game pays a winning Entry. Never a "payout".
 
 ### Fan
 
@@ -365,10 +367,11 @@ A person with an account: the audience this game is built for, and the word the 
 user stories use throughout. Prefer it to "user" in copy and in names for things a fan
 would recognise as themselves.
 
-A Fan is public only as their [[username]]. Their first and last name are held solely so
-TFC can match a [[prize]] to a person and are never returned by any endpoint; their date
-of birth is the only evidence of the 18+ gate and is stored as a date, never as an age.
-See [[adr-0007]].
+A Fan is public only as their [[username]]. The one private thing an account holds is a
+phone number: required, unique across accounts, and never returned by any endpoint. It is
+how TFC reaches a fan, and being unique is the whole of "one account per person". A Fan has
+no name and no date of birth on record — [[adr-0018]] retired both along with the contest
+that was the only reason for either.
 
 The table is `users` and `better-auth` calls the model `user`, because that is what it
 requires of a schema. Above that layer — routes, composables, pages, tests — the word is
@@ -435,8 +438,9 @@ Read from the materialised [[balance]] rather than by adding the ledger up, beca
 leaderboard asks for a page of them and every profile asks for one.
 
 A fan reads their own Rank on their profile however far down it they are, which is the
-question the top ten cannot answer for somebody sitting at 340th. What a Rank is worth
-outside the game is a [[prize]], and only a Season's final standings decide those.
+question the top ten cannot answer for somebody sitting at 340th. A Rank is worth nothing
+outside the game and is not meant to be ([[adr-0018]]); it is the answer to "how am I
+doing?", which is the only question it was ever good at.
 
 ### Leaderboard
 
@@ -445,15 +449,16 @@ the signed-in fan's own row pinned below them however far down they are. A fan a
 the top ten is marked in it rather than shown twice.
 
 Each row is a [[username]], a [[balance]] and the **Entries played** — the Entries that
-fan has committed in the Season, a [[cancellation]] never being one they played. Real
-names never appear here or anywhere else ([[adr-0007]]).
+fan has committed in the Season, a [[cancellation]] never being one they played. A
+[[username]] is the only thing about a fan that appears here or anywhere public
+([[adr-0018]]).
 
 Public, and personalised anyway: a visitor with no account reads the top ten, which is how
 somebody sizes up a competition before joining it, and it is the pinned row that makes the
 page as a whole uncacheable ([[adr-0008]]).
 
-Singular, and always of one Season. A Season that has ended has **final standings** and
-they decide [[prize]]s; the leaderboard is the one being played.
+Singular, and always of one Season. A Season that has ended has **final standings**, which
+are the record of what it finished as; the leaderboard is the one being played.
 
 ### No Result
 
@@ -497,15 +502,15 @@ opened does not stop it: it took no Predictions and can never settle.
 ### Final standings
 
 What a Season finished as: every fan's closing [[balance]] and the [[rank]] it put them at,
-frozen the moment the Season closed and never written again. The record TFC awards
-[[prize]]s from ([[adr-0007]]), and the evidence behind one that is disputed.
+frozen the moment the Season closed and never written again. The record of what happened,
+and the answer to "who won that one?" for as long as anybody asks.
 
 Not the [[leaderboard]], which is the Season being played and moves with every settlement.
 The final standings are read from a table of their own rather than from the materialised
 [[balance]], so a [[correction]] entered on a settled Bout years later moves the Coin ledger
 and never them. They keep the [[rank]]'s full ordering, ties and all — a snapshot ordered by
-Balance alone would hand a Prize to whichever of two tied fans the database happened to
-return first.
+Balance alone would put whichever of two tied fans the database happened to return first
+above the other, and record it as the order they finished in.
 
 A Season has them from the moment it closes and never before. They are public, at
 `/standings/<season>`, and personalised the way the leaderboard is: a visitor reads the top

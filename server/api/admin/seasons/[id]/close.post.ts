@@ -6,8 +6,8 @@ import { CLOSE_MESSAGES } from "#shared/seasons";
  *
  * The other half of `POST /api/admin/seasons`, and the higher-consequence half.
  * Opening a Season decides its economy; this decides what it finished as, and
- * that answer is what TFC awards Prizes from (ADR-0007). It cannot be pressed
- * twice and there is no route back — `a_closed_season_is_never_reopened`
+ * that answer is the permanent record of the Season (ADR-0018). It cannot be
+ * pressed twice and there is no route back — `a_closed_season_is_never_reopened`
  * refuses even a hand-typed `update`, for the reason ADR-0006 makes a Lock
  * final.
  *

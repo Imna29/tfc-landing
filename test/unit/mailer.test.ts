@@ -4,9 +4,9 @@ import { startMailbox, type Mailbox } from "../helpers/mailbox";
 
 const message = {
   to: "nino@example.com",
-  subject: "Confirm your email address",
-  text: "Welcome to TFC Predictions.",
-  html: "<p>Welcome to TFC Predictions.</p>",
+  subject: "Set a new password",
+  text: "Set a new password for TFC Predictions.",
+  html: "<p>Set a new password for TFC Predictions.</p>",
 };
 
 const FROM = "TFC Predictions <no-reply@mail.tfcgeo.com>";

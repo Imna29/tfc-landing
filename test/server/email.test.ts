@@ -2,14 +2,7 @@ import { $fetch, fetch } from "@nuxt/test-utils/e2e";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { accounts, verifications } from "../../server/db/schema";
-import {
-  cookieFrom,
-  fanDetails,
-  postJson,
-  signInRequest,
-  signUp,
-  signUpRequest,
-} from "../helpers/accounts";
+import { postJson, signInRequest, signUp } from "../helpers/accounts";
 import { testDatabase } from "../helpers/database";
 import { linkIn, pathOf, startMailbox } from "../helpers/mailbox";
 import { freePort, setupTestServer } from "../helpers/server";
@@ -44,16 +37,6 @@ describe("transactional email", async () => {
     return fetch(pathOf(link), { redirect: "manual" });
   }
 
-  /** Signs a fan up and hands back the link they were sent to confirm. */
-  async function signUpAndRead(overrides: Parameters<typeof signUp>[0] = {}) {
-    const fan = await signUp(overrides);
-    const message = mailbox.lastTo(fan.details.email);
-
-    if (!message) throw new Error(`Nothing was sent to ${fan.details.email}.`);
-
-    return { ...fan, message, link: linkIn(message) };
-  }
-
   /**
    * The stored password hash, for asserting that something did or did not
    * change it.
@@ -84,110 +67,38 @@ describe("transactional email", async () => {
     return { asked, message, token };
   }
 
-  describe("confirming an email address", () => {
-    it("sends a new fan a link, from the address TFC has verified", async () => {
-      const { details, message, link } = await signUpAndRead();
+  describe("what signing up sends", () => {
+    it("sends a new fan nothing at all", async () => {
+      // ADR-0018 retired the confirmation link. Sign-up used to send one from
+      // this route and report whether it left; now the account simply exists
+      // and the fan is playing. This is the test that would fail if anything
+      // started emailing a new fan again.
+      const { details, cookie } = await signUp();
 
-      expect(message.from).toBe(SENDER);
-      expect(message.to).toBe(details.email);
-      expect(message.subject).toMatch(/confirm/i);
-      // Absolute, and pointing at this app: a relative link in an email is
-      // read in a mail client that has no idea what it is relative to.
-      expect(link.startsWith(`${origin}/`)).toBe(true);
-      expect(message.authorization).toBe("Bearer re_a_test_key");
-    });
-
-    it("marks the account confirmed when the fan follows the link", async () => {
-      const { cookie, link } = await signUpAndRead();
-
-      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toMatchObject({
-        emailVerified: false,
-      });
-
-      const landing = await follow(link);
-
-      expect(landing.status).toBe(302);
-      expect(landing.headers.get("location")).toContain("/account/email-confirmed");
-      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toMatchObject({
-        emailVerified: true,
-      });
-    });
-
-    it("sends a fan who never got the first email another one that works", async () => {
-      const { details, cookie } = await signUpAndRead();
-      mailbox.clear();
-
-      const asked = await postJson("/api/accounts/verification-email", {}, cookie);
-
-      expect(asked.status).toBe(200);
-      expect(await asked.json()).toEqual({ sent: true });
-
-      const again = mailbox.lastTo(details.email);
-
-      if (!again) throw new Error("No second email.");
-
-      await follow(linkIn(again));
-
-      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toMatchObject({
-        emailVerified: true,
-      });
-    });
-
-    it("does not send a fan a link they no longer need", async () => {
-      const { cookie, link } = await signUpAndRead();
-      await follow(link);
-      mailbox.clear();
-
-      const asked = await postJson("/api/accounts/verification-email", {}, cookie);
-
-      expect(await asked.json()).toEqual({ sent: false });
       expect(mailbox.sent).toEqual([]);
-    });
+      expect(mailbox.lastTo(details.email)).toBeUndefined();
 
-    it("will not send to an address the asker is not signed in as", async () => {
-      const { details } = await signUpAndRead();
-      mailbox.clear();
-
-      // No cookie: there is no address in the body to point this at either,
-      // which is what keeps it from being a way to mail strangers.
-      const asked = await postJson("/api/accounts/verification-email", {
+      // And the account is real, signed in, and answers with no confirmation
+      // state to act on.
+      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toEqual({
+        username: details.username,
         email: details.email,
       });
-
-      expect(asked.status).toBe(401);
-      expect(mailbox.sent).toEqual([]);
     });
 
-    it("tells a new fan when their email could not be sent, and keeps the account", async () => {
-      mailbox.refuseNext();
-
-      const details = fanDetails();
-      const response = await signUpRequest(details);
-
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ verificationEmailSent: false });
-
-      // The account is real and the fan is in it: a mail provider having a bad
-      // minute must not cost them the username and password they just chose.
-      expect(
-        await $fetch("/api/accounts/me", { headers: { cookie: cookieFrom(response) } }),
-      ).toMatchObject({ username: details.username, emailVerified: false });
-    });
-
-    it("answers a fan asking again with a failure, not with reassurance", async () => {
-      const { cookie } = await signUpAndRead();
-      mailbox.refuseNext();
+    it("has no route left for asking to be sent a confirmation", async () => {
+      const { cookie } = await signUp();
 
       const asked = await postJson("/api/accounts/verification-email", {}, cookie);
 
-      expect(asked.status).toBe(502);
-      expect(await asked.text()).toMatch(/try again/i);
+      expect(asked.status).toBe(404);
+      expect(mailbox.sent).toEqual([]);
     });
   });
 
   describe("setting a new password", () => {
     it("sends a fan who is locked out a link, and takes them to the form", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       mailbox.clear();
 
       const { asked, message } = await askForNewPassword(details.email);
@@ -203,7 +114,7 @@ describe("transactional email", async () => {
     });
 
     it("lets the fan sign in with the new password, and not with the old one", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       const { token } = await askForNewPassword(details.email);
 
       const set = await postJson("/api/auth/reset-password", {
@@ -224,7 +135,7 @@ describe("transactional email", async () => {
     });
 
     it("signs the fan out everywhere, because they may not have been the one signed in", async () => {
-      const { details, cookie } = await signUpAndRead();
+      const { details, cookie } = await signUp();
       const { token } = await askForNewPassword(details.email);
 
       await postJson("/api/auth/reset-password", { newPassword: "a brand new password", token });
@@ -235,7 +146,7 @@ describe("transactional email", async () => {
     });
 
     it("will not let one link set two passwords", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       const { token } = await askForNewPassword(details.email);
 
       await postJson("/api/auth/reset-password", { newPassword: "a brand new password", token });
@@ -251,7 +162,7 @@ describe("transactional email", async () => {
     });
 
     it("will not let an expired link set a password", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       const { token } = await askForNewPassword(details.email);
       const before = await storedPassword();
 
@@ -272,7 +183,7 @@ describe("transactional email", async () => {
     });
 
     it("says the same thing about an address with no account as one with", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       mailbox.clear();
 
       const known = await postJson("/api/accounts/password-reset", { email: details.email });
@@ -296,7 +207,7 @@ describe("transactional email", async () => {
     it("will not let `better-auth`'s own route answer success for an email it lost", async () => {
       // Reachable by anything that skips this app's routes, and the one path
       // where `better-auth` swallows the refusal and answers 200 on its own.
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       mailbox.refuseNext();
 
       const response = await postJson("/api/auth/request-password-reset", {
@@ -308,42 +219,13 @@ describe("transactional email", async () => {
     });
 
     it("tells a locked-out fan when the email could not be sent", async () => {
-      const { details } = await signUpAndRead();
+      const { details } = await signUp();
       mailbox.refuseNext();
 
       const response = await postJson("/api/accounts/password-reset", { email: details.email });
 
       expect(response.status).toBe(502);
       expect(await response.text()).toMatch(/try again/i);
-    });
-  });
-
-  describe("what the rest of the app can see", () => {
-    it("reports the confirmed address through the session every route reads", async () => {
-      const { cookie, link } = await signUpAndRead();
-      await follow(link);
-
-      // Both answers about a fan, because #11 gates a first Entry on this and
-      // will read whichever is nearest.
-      expect(await $fetch("/api/accounts/me", { headers: { cookie } })).toMatchObject({
-        emailVerified: true,
-      });
-      expect(await $fetch("/api/auth/get-session", { headers: { cookie } })).toMatchObject({
-        user: { emailVerified: true },
-      });
-    });
-
-    it("shows a fan on their own profile whether they still have to confirm", async () => {
-      const { cookie, link } = await signUpAndRead();
-
-      expect(await $fetch("/profile", { headers: { cookie } })).toMatch(/not confirmed/i);
-
-      await follow(link);
-
-      const confirmed = await $fetch("/profile", { headers: { cookie } });
-
-      expect(confirmed).toMatch(/confirmed/i);
-      expect(confirmed).not.toMatch(/not confirmed/i);
     });
   });
 });

@@ -5,93 +5,12 @@
  * collects the answers, so a fan reads the same sentence the server would have
  * sent them, before they submit.
  *
- * The rules that decide whether an account may exist at all — the 18+ gate,
- * and the uniqueness of a username — are enforced on the server. What lives
- * here is the arithmetic and the wording they are enforced with.
+ * The rules that decide whether an account may exist at all — the uniqueness
+ * of a username, of an email address, and of a phone number — are enforced on
+ * the server, because only the database can answer them. What lives here is
+ * the arithmetic and the wording they are enforced with.
  */
 import { looksLikeEmail } from "./emails";
-
-/** The age a fan must have reached to take part. See ADR-0007. */
-export const MINIMUM_AGE = 18;
-
-/** A date with no time and no zone, `YYYY-MM-DD`, as a `date` column holds it. */
-export type CalendarDate = string;
-
-type DateParts = [year: number, month: number, day: number];
-
-const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/**
- * A calendar date's parts, or `undefined` if the text is not one.
- *
- * Deliberately not `new Date(text)`: that reads `2026-02-30` as the second of
- * March and `2026-08-24` as midnight UTC, which is the day before in Tbilisi.
- * A date of birth that shifts by a day near a birthday is an eligibility bug.
- */
-export function parseCalendarDate(text: string): DateParts | undefined {
-  const match = CALENDAR_DATE.exec(text.trim());
-
-  if (!match) return undefined;
-
-  const parts = [Number(match[1]), Number(match[2]), Number(match[3])] as DateParts;
-  const [year, month, day] = parts;
-
-  if (month < 1 || month > 12) return undefined;
-  if (day < 1 || day > daysInMonth(year, month)) return undefined;
-
-  return parts;
-}
-
-function daysInMonth(year: number, month: number): number {
-  const lengths = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return lengths[month - 1] ?? 0;
-}
-
-function isLeapYear(year: number): boolean {
-  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-}
-
-/** Negative if `one` falls before `other`, zero on the same day, positive after. */
-function compare(one: DateParts, other: DateParts): number {
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (one[index] ?? 0) - (other[index] ?? 0);
-
-    if (difference !== 0) return difference;
-  }
-
-  return 0;
-}
-
-/**
- * Whether someone born on `dateOfBirth` has reached {@link MINIMUM_AGE} by
- * `on`. Both dates are `YYYY-MM-DD`; text that is not a date is not old enough.
- *
- * There is deliberately no `ageOf()` beside this. ADR-0007 stores a date of
- * birth precisely because an age integer is wrong the day after a birthday,
- * and an exported one is an invitation to write that integer down.
- *
- * A fan born on the 29th of February turns eighteen on the 1st of March in a
- * year that has no 29th: the comparison is on the parts of the date, so the
- * missing day sorts before the 1st rather than becoming some other date.
- */
-export function isOldEnoughOn(dateOfBirth: CalendarDate, on: CalendarDate): boolean {
-  const born = parseCalendarDate(dateOfBirth);
-  const today = parseCalendarDate(on);
-
-  if (!born || !today) return false;
-
-  const [year, month, day] = born;
-
-  return compare(today, [year + MINIMUM_AGE, month, day]) >= 0;
-}
-
-/** Whether a date has not happened yet on `on`. Both are `YYYY-MM-DD`. */
-export function isAfter(date: CalendarDate, on: CalendarDate): boolean {
-  const one = parseCalendarDate(date);
-  const other = parseCalendarDate(on);
-
-  return one !== undefined && other !== undefined && compare(one, other) > 0;
-}
 
 /** The shortest password `better-auth` is configured to accept. */
 export const MINIMUM_PASSWORD_LENGTH = 8;
@@ -99,27 +18,57 @@ export const MINIMUM_PASSWORD_LENGTH = 8;
 /** How long a username may be, in characters. */
 export const USERNAME_LENGTH = { minimum: 3, maximum: 20 } as const;
 
-/** Where TFC is, and therefore which day the 18+ gate is measured against. */
-export const CONTEST_TIME_ZONE = "Asia/Tbilisi";
+/**
+ * How many digits a phone number may carry, after its `+` and ignoring its
+ * punctuation.
+ *
+ * The maximum is E.164's: fifteen digits including the country code, which is
+ * the most any number in the world has. The minimum is the shortest a country
+ * code and a national number come to together.
+ */
+export const PHONE_DIGITS = { minimum: 7, maximum: 15 } as const;
 
-const GEORGIAN_DAY = new Intl.DateTimeFormat("en-CA", {
-  timeZone: CONTEST_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+const PHONE_PUNCTUATION = /[\s().-]/g;
+const E164 = /^\+\d+$/;
 
 /**
- * The date it is in Georgia at `instant`, which is the date the 18+ gate is
- * measured against.
+ * A phone number in the one shape it is stored in, or `""` for anything that
+ * is not a number TFC could dial.
  *
- * Not `toISOString().slice(0, 10)`: Tbilisi is four hours ahead of UTC, so
- * between midnight and 04:00 local time that answers with yesterday — and a
- * fan signing up in the small hours of their eighteenth birthday would be
- * turned away.
+ * Normalising is what makes {@link SignUpDetails.phone} unique in any useful
+ * sense, and uniqueness is the whole of "one account per person" (ADR-0018).
+ * An index over whatever a fan happened to type would hold `+995 555 123456`
+ * beside `+995555123456` and call them two people, so every spelling of one
+ * number has to arrive here and leave as one string.
+ *
+ * Three things happen, in order:
+ *
+ * - The punctuation people separate digits with is thrown away. A `+` anywhere
+ *   but the front survives this and is then refused, because it is not
+ *   punctuation to tidy away — it is a number nobody can dial.
+ * - A leading `00` becomes `+`. It is the same number written the way much of
+ *   Europe writes it, and leaving the two forms apart is the easiest second
+ *   account anybody could open.
+ * - What is left must be E.164: a `+`, then a country code and a national
+ *   number. **A number without one is refused rather than guessed at**, because
+ *   `555123456` is a Georgian number to a Georgian and a Dutch one to somebody
+ *   in Amsterdam. Guessing files two people under one row; accepting it as
+ *   typed files one person under two, which is the failure this whole function
+ *   exists to prevent.
+ *
+ * Idempotent, because the stored form is fed back through it: the database
+ * hook in `server/utils/auth.ts` normalises whatever reaches it, including a
+ * value this function has already answered with.
  */
-export function contestDateOn(instant: Date): CalendarDate {
-  return GEORGIAN_DAY.format(instant);
+export function normalisePhone(text: string): string {
+  const stripped = text.trim().replace(PHONE_PUNCTUATION, "");
+  const dialled = stripped.startsWith("00") ? `+${stripped.slice(2)}` : stripped;
+
+  if (!E164.test(dialled)) return "";
+
+  const digits = dialled.length - 1;
+
+  return digits >= PHONE_DIGITS.minimum && digits <= PHONE_DIGITS.maximum ? dialled : "";
 }
 
 /** What signing up asks a fan for. */
@@ -128,12 +77,12 @@ export interface SignUpDetails {
   username: string;
   email: string;
   password: string;
-  /** Private. Held only so a Prize can be matched to a person (ADR-0007). */
-  firstName: string;
-  /** Private, for the same reason as {@link SignUpDetails.firstName}. */
-  lastName: string;
-  /** Stored as a date, never as an age. See ADR-0007 and {@link isOldEnoughOn}. */
-  dateOfBirth: CalendarDate;
+  /**
+   * Private, and unique across accounts: it is the whole of "one account per
+   * person" (ADR-0018). Always E.164 — {@link normalisePhone} is what puts it
+   * in that shape, and refuses everything it cannot.
+   */
+  phone: string;
 }
 
 export type SignUpField = keyof SignUpDetails;
@@ -156,14 +105,15 @@ export const SIGN_UP_MESSAGES = {
     `Pick a username of ${USERNAME_LENGTH.minimum} to ${USERNAME_LENGTH.maximum} characters, ` +
     "using letters, numbers, hyphens or underscores.",
   usernameTaken: "That username is taken. Pick another one — it is the name other fans will see.",
-  email: "Enter an email address, so TFC can confirm your account.",
+  email: "Enter an email address, so TFC can reach you about your account.",
   emailTaken: "That email address already has an account. Sign in instead.",
   password: `Choose a password of at least ${MINIMUM_PASSWORD_LENGTH} characters.`,
-  firstName: "Enter your first name. It stays private, and is only used to send you a Prize.",
-  lastName: "Enter your last name. It stays private, and is only used to send you a Prize.",
-  dateOfBirth: "Enter your date of birth as a real date.",
-  dateOfBirthInFuture: "That date has not happened yet. Enter the date you were born.",
-  underAge: `You have to be ${MINIMUM_AGE} or over to take part in TFC Predictions.`,
+  phone:
+    "Enter a phone number TFC can reach you on, starting with its country code — " +
+    "+995 555 12 34 56, or 00995 555 12 34 56. It stays private, and other fans never see it.",
+  phoneTaken:
+    "That phone number already has an account. TFC Predictions is played on one account " +
+    "per person — sign in to the one you have.",
 } as const satisfies Record<string, string>;
 
 /** A complete answer, or every reason it is not one. */
@@ -180,46 +130,33 @@ const USERNAME = new RegExp(
  * every reason it cannot be.
  *
  * Every problem is reported, not just the first, so a fan fixes the form once
- * rather than being turned away a field at a time. `today` is passed in
- * because the 18+ gate is arithmetic on a date the caller knows and this
- * function should not go looking for — see {@link contestDateOn}.
+ * rather than being turned away a field at a time.
  *
- * Uniqueness is not decided here: whether a username or an email is already
- * someone else's is a question only the database can answer, and it is asked
- * again when the account is created.
+ * Uniqueness is not decided here: whether a username, an email address or a
+ * phone number is already someone else's is a question only the database can
+ * answer, and it is asked again when the account is created.
  */
-export function parseSignUpDetails(body: unknown, today: CalendarDate): ParsedSignUp {
+export function parseSignUpDetails(body: unknown): ParsedSignUp {
   const answers = asAnswers(body);
   const problems: SignUpProblem[] = [];
 
   const username = text(answers.username);
   const email = text(answers.email).toLowerCase();
   const password = typeof answers.password === "string" ? answers.password : "";
-  const firstName = text(answers.firstName);
-  const lastName = text(answers.lastName);
-  const dateOfBirth = text(answers.dateOfBirth);
+  const phone = normalisePhone(text(answers.phone));
 
   const complain = (field: SignUpField, message: string) => problems.push({ field, message });
 
   if (!USERNAME.test(username)) complain("username", SIGN_UP_MESSAGES.username);
   if (!looksLikeEmail(email)) complain("email", SIGN_UP_MESSAGES.email);
   if (password.length < MINIMUM_PASSWORD_LENGTH) complain("password", SIGN_UP_MESSAGES.password);
-  if (firstName === "") complain("firstName", SIGN_UP_MESSAGES.firstName);
-  if (lastName === "") complain("lastName", SIGN_UP_MESSAGES.lastName);
-
-  if (!parseCalendarDate(dateOfBirth)) {
-    complain("dateOfBirth", SIGN_UP_MESSAGES.dateOfBirth);
-  } else if (isAfter(dateOfBirth, today)) {
-    // Not "you are too young": a date in the future is a typo, and being told
-    // to come back when you are eighteen would not help anyone fix it.
-    complain("dateOfBirth", SIGN_UP_MESSAGES.dateOfBirthInFuture);
-  } else if (!isOldEnoughOn(dateOfBirth, today)) {
-    complain("dateOfBirth", SIGN_UP_MESSAGES.underAge);
-  }
+  // `normalisePhone` answers `""` for everything it will not store, so this is
+  // the only phone check there is — see the note on it for what it refuses.
+  if (phone === "") complain("phone", SIGN_UP_MESSAGES.phone);
 
   if (problems.length > 0) return { problems };
 
-  return { details: { username, email, password, firstName, lastName, dateOfBirth } };
+  return { details: { username, email, password, phone } };
 }
 
 function asAnswers(body: unknown): Record<string, unknown> {

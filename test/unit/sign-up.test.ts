@@ -1,100 +1,105 @@
 import { describe, expect, it } from "vitest";
 import {
-  MINIMUM_AGE,
   MINIMUM_PASSWORD_LENGTH,
+  PHONE_DIGITS,
   SIGN_UP_MESSAGES,
-  contestDateOn,
-  isOldEnoughOn,
+  normalisePhone,
   parseSignUpDetails,
 } from "../../shared/signUp";
 import { findBannedTerms } from "../helpers/vocabulary";
 
 /**
- * ADR-0007: TFC Predictions is 18+, and a date of birth is the only evidence
- * of it the application ever holds. The gate is arithmetic on two calendar
- * dates, so it is checked here rather than through a server that would have to
- * be told what day it is.
+ * A phone number is the one thing sign-up asks for that no other account can
+ * hold (ADR-0018), so the shape it is stored in is what "no other account"
+ * means. Every spelling of one number has to reduce to one string, or
+ * `users_phone_unique` is looking at two rows and seeing two people.
  */
-describe("the 18+ gate", () => {
-  it("is the age ADR-0007 publishes", () => {
-    expect(MINIMUM_AGE).toBe(18);
+describe("normalisePhone", () => {
+  it("throws away the punctuation people type numbers with", () => {
+    for (const typed of [
+      "+995 555 12 34 56",
+      "+995-555-12-34-56",
+      "+995 (555) 12.34.56",
+      "  +995555123456  ",
+    ]) {
+      expect(normalisePhone(typed)).toBe("+995555123456");
+    }
   });
 
-  it("lets in a fan who is comfortably old enough", () => {
-    expect(isOldEnoughOn("1990-06-01", "2026-08-24")).toBe(true);
+  it("reads the 00 prefix as the + it stands for", () => {
+    // The same number, dialled the way half of Europe writes it. Left alone,
+    // this is a second account for somebody who already has one.
+    expect(normalisePhone("00995555123456")).toBe("+995555123456");
+    expect(normalisePhone("00 995 555 12 34 56")).toBe("+995555123456");
   });
 
-  it("keeps out a fan who is comfortably too young", () => {
-    expect(isOldEnoughOn("2015-06-01", "2026-08-24")).toBe(false);
+  it("refuses a number with no country code, rather than guessing one", () => {
+    // `555123456` is a Georgian number to a Georgian and a Dutch one to
+    // somebody in Amsterdam. Guessing would file two people under one row;
+    // accepting it as-is would file one person under two.
+    expect(normalisePhone("555123456")).toBe("");
+    expect(normalisePhone("0555123456")).toBe("");
   });
 
-  it("lets a fan in on their eighteenth birthday, not the day before", () => {
-    expect(isOldEnoughOn("2008-08-24", "2026-08-24")).toBe(true);
-    expect(isOldEnoughOn("2008-08-25", "2026-08-24")).toBe(false);
+  it("answers empty for text that is not a number at all", () => {
+    for (const text of ["", "   ", "call me", "+", "-", "00"]) {
+      expect(normalisePhone(text)).toBe("");
+    }
   });
 
-  it("counts the calendar, not the elapsed days", () => {
-    // A birthday later in the same year has not happened yet.
-    expect(isOldEnoughOn("2008-12-31", "2026-08-24")).toBe(false);
-    expect(isOldEnoughOn("2008-01-01", "2026-08-24")).toBe(true);
+  it("refuses a plus that is not leading, rather than quietly dropping it", () => {
+    expect(normalisePhone("555+123456")).toBe("");
   });
 
-  it("turns a leapling eighteen on the first of March", () => {
-    // 2008-02-29 + 18 years is a date that does not exist. Constructing it
-    // would silently become the first of March or the first of the month
-    // before, depending on the library; the answer must not depend on that.
-    expect(isOldEnoughOn("2008-02-29", "2026-02-28")).toBe(false);
-    expect(isOldEnoughOn("2008-02-29", "2026-03-01")).toBe(true);
-  });
-});
-
-/**
- * TFC operates from Georgia (ADR-0007), so the day the 18+ gate is measured
- * against is the day it is in Tbilisi — not the day it is in UTC, which is the
- * day before for the first four hours of every Georgian morning.
- */
-describe("the day the contest is having", () => {
-  it("is the Georgian day, not the UTC one", () => {
-    // 22:30 UTC is half past two the next morning in Tbilisi.
-    expect(contestDateOn(new Date("2026-08-24T22:30:00Z"))).toBe("2026-08-25");
+  it("holds a number to a dialable length, counting digits and not the plus", () => {
+    expect(normalisePhone(`+${"1".repeat(PHONE_DIGITS.minimum - 1)}`)).toBe("");
+    expect(normalisePhone(`+${"1".repeat(PHONE_DIGITS.minimum)}`)).not.toBe("");
+    expect(normalisePhone(`+${"1".repeat(PHONE_DIGITS.maximum)}`)).not.toBe("");
+    expect(normalisePhone(`+${"1".repeat(PHONE_DIGITS.maximum + 1)}`)).toBe("");
   });
 
-  it("agrees with UTC in the middle of the Georgian day", () => {
-    expect(contestDateOn(new Date("2026-08-24T09:00:00Z"))).toBe("2026-08-24");
+  it("is idempotent, because the stored form is fed back through it", () => {
+    // The database hook in `server/utils/auth.ts` normalises whatever reaches
+    // it, including a number this function already answered with.
+    const once = normalisePhone("+995 555 12 34 56");
+
+    expect(normalisePhone(once)).toBe(once);
   });
 });
 
 describe("parseSignUpDetails", () => {
-  const today = "2026-08-24";
-
   const complete = {
     username: "corner-man",
     email: "fan@example.com",
     password: "a good long password",
-    firstName: "Nino",
-    lastName: "Beridze",
-    dateOfBirth: "1994-03-02",
+    phone: "+995555123456",
   };
 
   const problemsFor = (body: unknown) => {
-    const parsed = parseSignUpDetails(body, today);
+    const parsed = parseSignUpDetails(body);
     return (parsed.problems ?? []).map((problem) => problem.field);
   };
 
   it("accepts a complete answer", () => {
-    expect(parseSignUpDetails(complete, today)).toEqual({ details: complete });
+    expect(parseSignUpDetails(complete)).toEqual({ details: complete });
   });
 
   it("takes the email as an address, however it was typed", () => {
-    const parsed = parseSignUpDetails({ ...complete, email: "  Fan@Example.COM " }, today);
+    const parsed = parseSignUpDetails({ ...complete, email: "  Fan@Example.COM " });
 
     expect(parsed.details?.email).toBe("fan@example.com");
   });
 
   it("keeps a username exactly as the fan chose it, minus the whitespace", () => {
-    const parsed = parseSignUpDetails({ ...complete, username: "  IronMike  " }, today);
+    const parsed = parseSignUpDetails({ ...complete, username: "  IronMike  " });
 
     expect(parsed.details?.username).toBe("IronMike");
+  });
+
+  it("stores the phone number normalised, not as it was typed", () => {
+    const parsed = parseSignUpDetails({ ...complete, phone: "+995 555 12 34 56" });
+
+    expect(parsed.details?.phone).toBe("+995555123456");
   });
 
   it("rejects a username nobody could type or read", () => {
@@ -116,40 +121,34 @@ describe("parseSignUpDetails", () => {
     expect(problemsFor({ ...complete, password: "a".repeat(MINIMUM_PASSWORD_LENGTH) })).toEqual([]);
   });
 
-  it("rejects a real name left blank", () => {
-    expect(problemsFor({ ...complete, firstName: "   " })).toEqual(["firstName"]);
-    expect(problemsFor({ ...complete, lastName: "" })).toEqual(["lastName"]);
-  });
-
-  it("rejects a date of birth that is not a date", () => {
-    for (const dateOfBirth of ["", "yesterday", "1994-13-02", "1994-02-30", "02/03/1994"]) {
-      expect(problemsFor({ ...complete, dateOfBirth })).toEqual(["dateOfBirth"]);
+  it("rejects a phone number left blank, unreachable, or missing its country code", () => {
+    for (const phone of ["", "   ", "call me", "+", "555123456"]) {
+      expect(problemsFor({ ...complete, phone })).toEqual(["phone"]);
     }
   });
 
-  it("tells a fan who typed a date in the future what is wrong with it", () => {
-    const parsed = parseSignUpDetails({ ...complete, dateOfBirth: "2030-01-01" }, today);
-
-    expect(parsed.problems?.map((problem) => problem.field)).toEqual(["dateOfBirth"]);
-    expect(parsed.problems?.[0]?.message).not.toMatch(/\b18\b/);
-    expect(parsed.problems?.[0]?.message).toMatch(/future|has not happened/i);
+  it("rejects a number too short or too long to dial", () => {
+    expect(problemsFor({ ...complete, phone: `+${"1".repeat(PHONE_DIGITS.minimum - 1)}` })).toEqual(
+      ["phone"],
+    );
+    expect(problemsFor({ ...complete, phone: `+${"1".repeat(PHONE_DIGITS.minimum)}` })).toEqual([]);
+    expect(problemsFor({ ...complete, phone: `+${"1".repeat(PHONE_DIGITS.maximum)}` })).toEqual([]);
+    expect(problemsFor({ ...complete, phone: `+${"1".repeat(PHONE_DIGITS.maximum + 1)}` })).toEqual(
+      ["phone"],
+    );
   });
 
-  it("rejects a fan who is not yet eighteen", () => {
-    expect(problemsFor({ ...complete, dateOfBirth: "2010-01-01" })).toEqual(["dateOfBirth"]);
-  });
+  it("says which of the two things is wrong with a number without a country code", () => {
+    const parsed = parseSignUpDetails({ ...complete, phone: "555123456" });
 
-  it("explains being too young as being too young", () => {
-    const parsed = parseSignUpDetails({ ...complete, dateOfBirth: "2010-01-01" }, today);
-
-    expect(parsed.problems?.[0]?.message).toMatch(/\b18\b/);
+    expect(parsed.problems?.[0]?.message).toMatch(/country code/i);
   });
 
   it("reports every problem at once, so the form can be fixed in one pass", () => {
-    expect(problemsFor({ ...complete, username: "x", password: "short", lastName: "" })).toEqual([
+    expect(problemsFor({ ...complete, username: "x", password: "short", phone: "" })).toEqual([
       "username",
       "password",
-      "lastName",
+      "phone",
     ]);
   });
 

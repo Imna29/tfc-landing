@@ -47,134 +47,6 @@ type ContentRelationshipFieldWithData<
 }[Exclude<TCustomType[number], string>["id"]];
 
 /**
- * Item in *Contest Rules → Eligibility rules*
- */
-export interface ContestRulesDocumentDataEligibilityRulesItem {
-	/**
-	 * replaces field in *Contest Rules → Eligibility rules*
-	 *
-	 * - **Field Type**: Select
-	 * - **Placeholder**: Leave empty to add a new rule
-	 * - **API ID Path**: contest_rules.eligibility_rules[].replaces
-	 * - **Documentation**: https://prismic.io/docs/fields/select
-	 */
-	replaces: prismic.SelectField<"age" | "one-account" | "verified-email" | "prize-terms">;
-	
-	/**
-	 * title field in *Contest Rules → Eligibility rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: 18 and over
-	 * - **API ID Path**: contest_rules.eligibility_rules[].title
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	title: prismic.KeyTextField;
-	
-	/**
-	 * detail field in *Contest Rules → Eligibility rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: One sentence a fan can check themselves against
-	 * - **API ID Path**: contest_rules.eligibility_rules[].detail
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	detail: prismic.KeyTextField;
-}
-
-type ContestRulesDocumentDataSlicesSlice = RichTextSectionSlice
-
-/**
- * Content for Contest Rules documents
- */
-interface ContestRulesDocumentData {
-	/**
-	 * Title field in *Contest Rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: Contest rules
-	 * - **API ID Path**: contest_rules.title
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	title: prismic.KeyTextField;
-	
-	/**
-	 * Eligibility heading field in *Contest Rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: Who can play
-	 * - **API ID Path**: contest_rules.eligibility_heading
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	eligibility_heading: prismic.KeyTextField;
-	
-	/**
-	 * Eligibility rules field in *Contest Rules*
-	 *
-	 * - **Field Type**: Group
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: contest_rules.eligibility_rules[]
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
-	 */
-	eligibility_rules: prismic.GroupField<Simplify<ContestRulesDocumentDataEligibilityRulesItem>>;
-	
-	/**
-	 * Slice Zone field in *Contest Rules*
-	 *
-	 * - **Field Type**: Slice Zone
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: contest_rules.slices[]
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/slices
-	 */
-	slices: prismic.SliceZone<ContestRulesDocumentDataSlicesSlice>;/**
-	 * Meta Title field in *Contest Rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: A title of the page used for social media and search engines
-	 * - **API ID Path**: contest_rules.meta_title
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	meta_title: prismic.KeyTextField;
-	
-	/**
-	 * Meta Description field in *Contest Rules*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: A brief summary of the page
-	 * - **API ID Path**: contest_rules.meta_description
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	meta_description: prismic.KeyTextField;
-	
-	/**
-	 * Meta Image field in *Contest Rules*
-	 *
-	 * - **Field Type**: Image
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: contest_rules.meta_image
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/image
-	 */
-	meta_image: prismic.ImageField<never>;
-}
-
-/**
- * Contest Rules document from Prismic
- *
- * - **API ID**: `contest_rules`
- * - **Repeatable**: `false`
- * - **Documentation**: https://prismic.io/docs/content-modeling
- *
- * @typeParam Lang - Language API ID of the document.
- */
-export type ContestRulesDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<ContestRulesDocumentData>, "contest_rules", Lang>;
-
-/**
  * Content for cta documents
  */
 interface CtaDocumentData {
@@ -1300,109 +1172,54 @@ interface PrivacyPolicyDocumentData {
  */
 export type PrivacyPolicyDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<PrivacyPolicyDocumentData>, "privacy_policy", Lang>;
 
-type PrizesDocumentDataSlicesSlice = PrizeTiersSlice | RichTextSectionSlice
-
 /**
- * Content for Prizes documents
+ * Content for Season Deadline documents
  */
-interface PrizesDocumentData {
+interface SeasonDeadlineDocumentData {
 	/**
-	 * Title field in *Prizes*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: Prizes
-	 * - **API ID Path**: prizes.title
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	title: prismic.KeyTextField;
-	
-	/**
-	 * Season name field in *Prizes*
+	 * Season name field in *Season Deadline*
 	 *
 	 * - **Field Type**: Text
 	 * - **Placeholder**: Season 1
-	 * - **API ID Path**: prizes.season_name
+	 * - **API ID Path**: season_deadline.season_name
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	season_name: prismic.KeyTextField;
 	
 	/**
-	 * Season ends at field in *Prizes*
+	 * Season ends at field in *Season Deadline*
 	 *
 	 * - **Field Type**: Timestamp
 	 * - **Placeholder**: The deadline fans are playing against, in Tbilisi time
-	 * - **API ID Path**: prizes.season_ends_at
+	 * - **API ID Path**: season_deadline.season_ends_at
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/timestamp
 	 */
 	season_ends_at: prismic.TimestampField;
 	
 	/**
-	 * Season deadline note field in *Prizes*
+	 * Season deadline note field in *Season Deadline*
 	 *
 	 * - **Field Type**: Text
 	 * - **Placeholder**: One line under the date, about what the deadline means
-	 * - **API ID Path**: prizes.season_deadline_note
+	 * - **API ID Path**: season_deadline.season_deadline_note
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/text
 	 */
 	season_deadline_note: prismic.KeyTextField;
-	
-	/**
-	 * Slice Zone field in *Prizes*
-	 *
-	 * - **Field Type**: Slice Zone
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prizes.slices[]
-	 * - **Tab**: Main
-	 * - **Documentation**: https://prismic.io/docs/slices
-	 */
-	slices: prismic.SliceZone<PrizesDocumentDataSlicesSlice>;/**
-	 * Meta Title field in *Prizes*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: A title of the page used for social media and search engines
-	 * - **API ID Path**: prizes.meta_title
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	meta_title: prismic.KeyTextField;
-	
-	/**
-	 * Meta Description field in *Prizes*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: A brief summary of the page
-	 * - **API ID Path**: prizes.meta_description
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	meta_description: prismic.KeyTextField;
-	
-	/**
-	 * Meta Image field in *Prizes*
-	 *
-	 * - **Field Type**: Image
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prizes.meta_image
-	 * - **Tab**: SEO & Metadata
-	 * - **Documentation**: https://prismic.io/docs/fields/image
-	 */
-	meta_image: prismic.ImageField<never>;
 }
 
 /**
- * Prizes document from Prismic
+ * Season Deadline document from Prismic
  *
- * - **API ID**: `prizes`
+ * - **API ID**: `season_deadline`
  * - **Repeatable**: `false`
  * - **Documentation**: https://prismic.io/docs/content-modeling
  *
  * @typeParam Lang - Language API ID of the document.
  */
-export type PrizesDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<PrizesDocumentData>, "prizes", Lang>;
+export type SeasonDeadlineDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<SeasonDeadlineDocumentData>, "season_deadline", Lang>;
 
 type TermsOfServiceDocumentDataSlicesSlice = TermsOfServiceSlice
 
@@ -1464,7 +1281,7 @@ interface TermsOfServiceDocumentData {
  */
 export type TermsOfServiceDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<TermsOfServiceDocumentData>, "terms_of_service", Lang>;
 
-export type AllDocumentTypes = ContestRulesDocument | CtaDocument | DisciplineDocument | DivisionDocument | EventDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | PrizesDocument | TermsOfServiceDocument;
+export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | EventDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | SeasonDeadlineDocument | TermsOfServiceDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -3022,109 +2839,6 @@ type PrivacyPolicySliceVariation = PrivacyPolicySliceDefault
 export type PrivacyPolicySlice = prismic.SharedSlice<"privacy_policy", PrivacyPolicySliceVariation>;
 
 /**
- * Item in *PrizeTiers → Default → Primary → tiers*
- */
-export interface PrizeTiersSliceDefaultPrimaryTiersItem {
-	/**
-	 * place field in *PrizeTiers → Default → Primary → tiers*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: 1st
-	 * - **API ID Path**: prize_tiers.default.primary.tiers[].place
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	place: prismic.KeyTextField;
-	
-	/**
-	 * prize field in *PrizeTiers → Default → Primary → tiers*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: What this finisher receives
-	 * - **API ID Path**: prize_tiers.default.primary.tiers[].prize
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	prize: prismic.KeyTextField;
-	
-	/**
-	 * detail field in *PrizeTiers → Default → Primary → tiers*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prize_tiers.default.primary.tiers[].detail
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	detail: prismic.KeyTextField;
-	
-	/**
-	 * image field in *PrizeTiers → Default → Primary → tiers*
-	 *
-	 * - **Field Type**: Image
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prize_tiers.default.primary.tiers[].image
-	 * - **Documentation**: https://prismic.io/docs/fields/image
-	 */
-	image: prismic.ImageField<never>;
-}
-
-/**
- * Primary content in *PrizeTiers → Default → Primary*
- */
-export interface PrizeTiersSliceDefaultPrimary {
-	/**
-	 * heading field in *PrizeTiers → Default → Primary*
-	 *
-	 * - **Field Type**: Text
-	 * - **Placeholder**: What you are playing for
-	 * - **API ID Path**: prize_tiers.default.primary.heading
-	 * - **Documentation**: https://prismic.io/docs/fields/text
-	 */
-	heading: prismic.KeyTextField;
-	
-	/**
-	 * intro field in *PrizeTiers → Default → Primary*
-	 *
-	 * - **Field Type**: Rich Text
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prize_tiers.default.primary.intro
-	 * - **Documentation**: https://prismic.io/docs/fields/rich-text
-	 */
-	intro: prismic.RichTextField;
-	
-	/**
-	 * tiers field in *PrizeTiers → Default → Primary*
-	 *
-	 * - **Field Type**: Group
-	 * - **Placeholder**: *None*
-	 * - **API ID Path**: prize_tiers.default.primary.tiers[]
-	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
-	 */
-	tiers: prismic.GroupField<Simplify<PrizeTiersSliceDefaultPrimaryTiersItem>>;
-}
-
-/**
- * Default variation for PrizeTiers Slice
- *
- * - **API ID**: `default`
- * - **Description**: Default
- * - **Documentation**: https://prismic.io/docs/slices
- */
-export type PrizeTiersSliceDefault = prismic.SharedSliceVariation<"default", Simplify<PrizeTiersSliceDefaultPrimary>, never>;
-
-/**
- * Slice variation for *PrizeTiers*
- */
-type PrizeTiersSliceVariation = PrizeTiersSliceDefault
-
-/**
- * PrizeTiers Shared Slice
- *
- * - **API ID**: `prize_tiers`
- * - **Description**: PrizeTiers
- * - **Documentation**: https://prismic.io/docs/slices
- */
-export type PrizeTiersSlice = prismic.SharedSlice<"prize_tiers", PrizeTiersSliceVariation>;
-
-/**
  * Primary content in *RichTextSection → Default → Primary*
  */
 export interface RichTextSectionSliceDefaultPrimary {
@@ -3935,10 +3649,6 @@ declare module "@prismicio/client" {
 	
 	namespace Content {
 		export type {
-			ContestRulesDocument,
-			ContestRulesDocumentData,
-			ContestRulesDocumentDataEligibilityRulesItem,
-			ContestRulesDocumentDataSlicesSlice,
 			CtaDocument,
 			CtaDocumentData,
 			DisciplineDocument,
@@ -3976,9 +3686,8 @@ declare module "@prismicio/client" {
 			PrivacyPolicyDocument,
 			PrivacyPolicyDocumentData,
 			PrivacyPolicyDocumentDataSlicesSlice,
-			PrizesDocument,
-			PrizesDocumentData,
-			PrizesDocumentDataSlicesSlice,
+			SeasonDeadlineDocument,
+			SeasonDeadlineDocumentData,
 			TermsOfServiceDocument,
 			TermsOfServiceDocumentData,
 			TermsOfServiceDocumentDataSlicesSlice,
@@ -4058,11 +3767,6 @@ declare module "@prismicio/client" {
 			PrivacyPolicySliceDefaultPrimary,
 			PrivacyPolicySliceVariation,
 			PrivacyPolicySliceDefault,
-			PrizeTiersSlice,
-			PrizeTiersSliceDefaultPrimaryTiersItem,
-			PrizeTiersSliceDefaultPrimary,
-			PrizeTiersSliceVariation,
-			PrizeTiersSliceDefault,
 			RichTextSectionSlice,
 			RichTextSectionSliceDefaultPrimary,
 			RichTextSectionSliceVariation,

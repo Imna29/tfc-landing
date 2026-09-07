@@ -191,21 +191,23 @@ describe("Seasons and the Coin ledger", async () => {
       const admin = await signUpAdmin();
       await openSeason(admin.cookie, "Season 1");
 
-      // Both headers carry a Balance, and pages under both of them are stored
-      // at the edge with a key that ignores cookies (ADR-0008): `/contact` is
-      // the marketing site, where the PlayTFC button holds it, and
-      // `/contest-rules` is inside the game, where `FanBalance` does. So the
-      // HTML has to be the same for everyone and the browser has to fill the
-      // Balance in, on both.
-      for (const path of ["/contact", "/contest-rules"]) {
-        const page = await $fetch<string>(path, { headers: { cookie: admin.cookie } });
+      // The marketing site is stored at the edge with a key that ignores
+      // cookies (ADR-0008), and its header carries a Balance in the PlayTFC
+      // button. So the HTML has to be the same for everyone and the browser
+      // has to fill the Balance in.
+      //
+      // One page rather than two since ADR-0018: `/contest-rules` used to be
+      // the other half of this pair — a page inside the game that was also
+      // cached, where `FanBalance` held the Balance instead — and nothing in
+      // the game is edge-cached now. The game's header is still built the same
+      // way, and `app/layouts/play.vue` says why.
+      const page = await $fetch<string>("/contact", { headers: { cookie: admin.cookie } });
 
-        // The header has somewhere for a Balance to go, and no Balance in it.
-        // Without the first of those the second would pass on a site that had
-        // never heard of Coins.
-        expect(page).toContain("data-fan-balance");
-        expect(page).not.toContain(`${STARTING_BALANCE} Coins`);
-      }
+      // The header has somewhere for a Balance to go, and no Balance in it.
+      // Without the first of those the second would pass on a site that had
+      // never heard of Coins.
+      expect(page).toContain("data-fan-balance");
+      expect(page).not.toContain(`${STARTING_BALANCE} Coins`);
 
       expect(await balance(admin.cookie)).toMatchObject({ balance: STARTING_BALANCE });
     });

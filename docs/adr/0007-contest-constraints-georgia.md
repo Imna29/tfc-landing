@@ -1,25 +1,27 @@
 ---
-status: accepted
+status: superseded by ADR-0018
 ---
 
 # Prizes are a manually fulfilled contest under Georgian rules, not a product feature
 
-TFC operates from Georgia (the country). Prizes for top Season finishers are described on a
-Prismic-authored rules page and awarded **by hand, offline, by TFC staff**. The application
-itself has no notion of a prize: no claiming, no shipping details, no prize state machine.
+**Superseded by [[adr-0018]], which removes Prizes from TFC Predictions entirely.** Read that
+record, not this one. Nothing in this record describes what the application does now.
 
-The published constraints are: 18+ only, one account per person, a verified email address
-required before a first Entry, and prizes that are non-transferable and never exchangeable
-for cash. Coins are never purchasable, transferable or redeemable — the moment any of those
-becomes true, this is a different product in a different legal category.
+One paragraph of it still holds, and ADR-0018 restates it: **Coins are never purchasable,
+transferable or redeemable, and have no real-money value. The moment any of those becomes
+true, this is a different product in a different legal category.** That was the load-bearing
+sentence here and it survives the decision that replaced everything around it.
 
-## Consequences
+Everything else this record decided has stopped being true. There are no Prizes, awarded by
+hand or otherwise, so there is no contest for constraints to be the terms of. The four
+published constraints are dealt with one at a time in ADR-0018: the 18+ gate and the
+confirmed-email requirement are retired, one-account-per-person is re-founded on a unique
+phone number instead of on email verification, and the prize terms are moot.
 
-- `date_of_birth` is stored (never a derived age, which rots) because it is the only
-  evidence of the 18+ gate. See [[adr-0003]] for the same audit-trail reasoning applied to
-  Coins.
-- "One account per person" is enforced only by email verification. It is a published rule
-  and a speed bump, not a technical guarantee, and a determined user can defeat it.
-- The rules page, `/terms-of-service` and `/privacy-policy` all need review by counsel in
-  Georgia before the first prize is awarded. The existing legal pages describe a brochure
-  site, not a service holding dates of birth and running a contest.
+Its consequences have gone with it. `date_of_birth` is no longer stored, and neither are the
+real names that were held so a Prize could reach a person — ADR-0018's migration drops all
+three columns. What remains live is the last one, in weaker form: the legal pages still
+describe a brochure site rather than a service holding personal data, and still need review.
+
+`docs/research/prize-games-georgia-legal.md` is the research this record was written from. It
+is kept, and is where a later ticket that reopens any of this should start.

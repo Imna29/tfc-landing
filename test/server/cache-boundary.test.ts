@@ -48,7 +48,7 @@ describe("the cache boundary", async () => {
     // A marketing page is the control, and it is the whole point of the pair:
     // both are anonymous HTML that looks identical to every visitor, both are
     // covered by the same `/**` rule, and only one of them may be kept.
-    const marketing = await fetch("/contest-rules");
+    const marketing = await fetch("/contact");
     const card = await fetch("/predictions");
 
     expect(marketing.headers.get("cache-control")).toMatch(/max-age=[1-9]/);
@@ -139,7 +139,7 @@ describe("the cache boundary", async () => {
 
   it.each([
     ["/account/sign-in", "/ACCOUNT/SIGN-IN"],
-    ["/contest-rules", "/Contest-Rules"],
+    ["/contact", "/Contact"],
   ])("serves %s but not %s", async (served, notServed) => {
     expect((await fetch(served)).status).toBe(200);
     expect((await fetch(notServed)).status).toBe(404);

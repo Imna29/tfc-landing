@@ -1,7 +1,15 @@
-import { CONTEST_TIME_ZONE } from "#shared/signUp";
+/**
+ * Where TFC is, and therefore the zone every moment on the site is read in.
+ *
+ * Here rather than in `shared/`, because only the browser-facing side of the
+ * app formats a moment for a reader: the server stores instants and sends
+ * them, and the choice of how to say one out loud is a rendering decision.
+ * `app/utils/seasonDeadline.ts` is the other reader of this.
+ */
+export const CONTEST_TIME_ZONE = "Asia/Tbilisi";
 
 /**
- * A moment as it is read in Georgia, where the promotion is.
+ * A moment as it is read in Georgia, where TFC is.
  *
  * The time zone is named rather than left to the reader's. These pages are
  * server-rendered and then hydrated, so a format that followed whatever zone

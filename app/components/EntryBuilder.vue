@@ -93,18 +93,6 @@ const returns = computed(() =>
   potentialReward(isAnAmount(amount.value) ? amount.value : 0, props.predictions),
 );
 
-/**
- * What is standing between this fan and an Entry, whatever they have picked.
- *
- * Shown before they press anything rather than after, because an unconfirmed
- * address is not something a fan can fix from this page in the moment — and
- * being told at the last step, having built a Chained Entry, is the worst
- * moment to learn it.
- */
-const blocked = computed(() =>
-  props.fan && !props.fan.emailVerified ? ENTRY_MESSAGES.emailUnverified : "",
-);
-
 /** What to say about the Entry as it stands, if anything. */
 const hint = computed(() => {
   if (props.predictions.length === 0) return ENTRY_MESSAGES.nothingPicked;
@@ -138,8 +126,8 @@ async function submit() {
     return;
   }
 
-  if (blocked.value || hint.value) {
-    problem.value = blocked.value || hint.value;
+  if (hint.value) {
+    problem.value = hint.value;
     return;
   }
 
@@ -296,9 +284,7 @@ async function submit() {
       </div>
 
       <div class="px-5 pb-5">
-        <p v-if="blocked" class="mb-4 text-sm text-error" role="status">{{ blocked }}</p>
-
-        <p v-else-if="hint" class="mb-4 text-sm text-on-surface/70 leading-relaxed">{{ hint }}</p>
+        <p v-if="hint" class="mb-4 text-sm text-on-surface/70 leading-relaxed">{{ hint }}</p>
 
         <button
           type="button"

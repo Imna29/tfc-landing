@@ -9,10 +9,10 @@ import type { Fan } from "#shared/fan";
  * cache (ADR-0008), so a rendered answer is only ever the answer for the fan
  * who asked.
  *
- * The answer is never reused across a navigation. Signing in, signing out,
- * resetting a password and confirming an address all change it, and every one
- * of them is a navigation: asking again on arrival is the one rule that covers
- * them all, rather than a refresh remembered at each.
+ * The answer is never reused across a navigation. Signing in, signing out and
+ * resetting a password all change it, and every one of them is a navigation:
+ * asking again on arrival is the one rule that covers them all, rather than a
+ * refresh remembered at each.
  *
  * Making that rule true takes the explicit refresh below, and not the
  * `getCachedData` beneath it. `useAsyncData` shares one entry per key across

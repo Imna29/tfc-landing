@@ -34,6 +34,14 @@ import {
  * to rank and the last Season's final standings are what somebody actually
  * came for. `/standings/<id>` is that page (`CONTEXT.md` keeps the two words
  * apart: the leaderboard is the Season being played).
+ *
+ * **The Season's deadline is authored in Prismic and read here**, since
+ * ADR-0018 retired the prizes page it used to live on. This is the page a fan
+ * comes to to ask how they are doing, and "when does this stop counting?" is
+ * the same question. `useOptionalSingle` means a deadline nobody has written
+ * yet is simply absent rather than an error, and `SeasonDeadline` renders
+ * nothing at all without one — a fan told a Season exists but not when it ends
+ * is worse off than one told neither.
  */
 const request = useRequestFetch();
 const { data: fan } = await useFan();
@@ -54,6 +62,10 @@ const { data: ended } = await useAsyncData<{ seasons: ClosedSeason[] }>("ended-s
   request<{ seasons: ClosedSeason[] }>("/api/standings"),
 );
 
+// The same for every reader, and unwatched: nothing about signing in changes
+// when the Season closes.
+const { data: deadline } = await useOptionalSingle("season_deadline");
+
 useSeoMeta({
   title: "Leaderboard",
   description:
@@ -64,7 +76,13 @@ useSeoMeta({
 <template>
   <PageHeading text="Leaderboard" />
 
-  <section class="px-6 md:px-20 pb-24">
+  <SeasonDeadline
+    :season-name="deadline?.data.season_name"
+    :ends-at="deadline?.data.season_ends_at"
+    :note="deadline?.data.season_deadline_note"
+  />
+
+  <section class="px-6 md:px-20 pb-24 pt-16">
     <div class="max-w-3xl mx-auto">
       <SeasonStandings
         v-if="leaderboard"

@@ -51,13 +51,11 @@ describe("the play navigation", () => {
     expect(outside).toEqual([]);
   });
 
-  it("carries the card, the board it is climbed on, and what it is played for", () => {
-    expect(PLAY_NAV.map((link) => link.to)).toEqual([
-      "/predictions",
-      "/leaderboard",
-      "/prizes",
-      "/contest-rules",
-    ]);
+  it("carries the card and the board it is climbed on", () => {
+    // Two since ADR-0018 retired the prizes and contest rules pages. The
+    // Season's deadline and the Seasons that have ended are both reachable
+    // from the leaderboard, so neither needs a nav item of its own.
+    expect(PLAY_NAV.map((link) => link.to)).toEqual(["/predictions", "/leaderboard"]);
   });
 
   it("names each of them, because a nav item with no label is not one", () => {
