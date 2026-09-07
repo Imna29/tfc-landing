@@ -86,6 +86,12 @@ jobs:
         run: vercel pull --yes --environment="$VERCEL_TARGET" --token="$VERCEL_TOKEN"
 
       - name: Build
+        env:
+          # Nitro picks its preset from the environment, and the build runs
+          # here rather than on Vercel. Without this it writes the node-server
+          # output to `.output/`, and the CLI then fails looking for a `dist`
+          # the Build Output API was supposed to have replaced.
+          NITRO_PRESET: vercel
         run: vercel build $PROD_FLAG --token="$VERCEL_TOKEN"
 
       # Between the build and the deploy, deliberately. A build that fails must
