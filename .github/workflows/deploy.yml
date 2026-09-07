@@ -104,14 +104,6 @@ jobs:
         id: deploy
         run: echo "url=$(vercel deploy --prebuilt $PROD_FLAG --token="$VERCEL_TOKEN")" >> "$GITHUB_OUTPUT"
 
-      # Every preview deploy gets its own URL, and the links TFC emails are
-      # built from one fixed origin (`BETTER_AUTH_URL`). This is what keeps that
-      # origin pointing at the newest `dev` deploy. No-op until PREVIEW_ALIAS is
-      # set as a repository variable.
-      - name: Point the preview alias at this deployment
-        if: github.ref_name == 'dev' && vars.PREVIEW_ALIAS != ''
-        run: vercel alias set "${{ steps.deploy.outputs.url }}" "${{ vars.PREVIEW_ALIAS }}" --token="$VERCEL_TOKEN"
-
       # `/api/health` answers with a user count rather than a fixed `ok`, so a
       # pass here is the deployed server reaching Postgres, not a cache.
       - name: Prove the deployment can reach Postgres
@@ -135,6 +127,16 @@ jobs:
               exit 1
               ;;
           esac
+
+      # Only ever a deployment the check above passed: the hostname fans reach
+      # and every link TFC emails must not be moved onto something unproven.
+      # Each preview deploy gets its own URL, and those links are built from one
+      # fixed origin (`BETTER_AUTH_URL`), so this is what keeps that origin
+      # pointing at the newest `dev` deploy. No-op until PREVIEW_ALIAS is set as
+      # a repository variable.
+      - name: Point the preview alias at this deployment
+        if: github.ref_name == 'dev' && vars.PREVIEW_ALIAS != ''
+        run: vercel alias set "${{ steps.deploy.outputs.url }}" "${{ vars.PREVIEW_ALIAS }}" --token="$VERCEL_TOKEN"
 
       - name: Say where it went
         run: |
