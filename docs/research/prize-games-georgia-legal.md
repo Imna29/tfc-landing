@@ -1,5 +1,15 @@
 # Free-to-play prediction game with real prizes — Georgian law analysis
 
+> **This research answers a question TFC no longer asks.** [[adr-0018]] removed Prizes from
+> TFC Predictions entirely: nothing of value is awarded for finishing a Season, so none of the
+> permit, classification, age or withholding analysis below applies to the product as it now
+> stands. It is kept because it cost real work and because a later ticket that reopens Prizes
+> should start here rather than from nothing — read it as the answer to "what would it take?",
+> not as a description of what TFC does.
+>
+> One conclusion outlived the decision and is now the whole of the game's fine print: Coins
+> must never become purchasable, transferable or redeemable. See [[adr-0018]].
+
 > **This is research for a legal-risk assessment, not legal advice.** It must be confirmed by a Georgian gaming/regulatory lawyer before launch.
 
 Researched 2026-08-24 against primary sources (matsne.gov.ge consolidated texts, rs.ge). Georgian gambling law was substantially rewritten in Dec 2021 (in force 2022), amended again 09.02.2023 (№2584) and 25.06.2026 (№1822). Data protection supervision changed hands in Nov 2025. Amendment dates are noted per source.

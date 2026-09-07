@@ -82,14 +82,13 @@ custom type under `customtypes/`, one per slice under `app/slices/` — and
 
 The repo is only ever the *local* copy. A model added here does not exist in the
 Prismic repository until it is pushed with the Prismic CLI, and until it is, the
-content team has nothing to edit. `prizes` and `contest_rules` have been pushed
-and have no documents written against them yet, so the pages render their
-built-in content and wait.
+content team has nothing to edit. `season_deadline` is unpushed and has no
+document written against it, so the leaderboard simply shows no deadline yet.
 
 Pages are written to survive that gap rather than to depend on it. A singleton
-that has never been created reads as a missing document, not an error, and
-`/contest-rules` publishes the ADR-0007 eligibility constraints from
-`app/utils/eligibilityRules.ts` until someone authors better wording.
+that has never been created reads as a missing document, not an error, and a
+page renders whatever it can say without Prismic — `SeasonDeadline` renders
+nothing at all rather than half a deadline, which is the shape to copy.
 
 **`prismic.config.json` cannot describe a type the Document API does not
 already know.** Its `routes` are sent to Prismic as a query parameter on
@@ -102,7 +101,7 @@ that ran ahead of the content.
 
 Pushing the model is *not* enough to make that entry safe, and neither is
 writing a document: `cta` and `picture` carry no documents at all and are
-accepted, while `prizes` and `contest_rules` were still rejected long after a
+accepted, while two types added at once were still rejected long after a
 successful push. Prismic keeps more than one view of which types exist and they
 converge at their own pace — the `types` map on `/api/v2` listed both new types
 while the route validator was still refusing them, with its error naming the
@@ -114,15 +113,15 @@ ref=$(curl -s https://tfc-landing.cdn.prismic.io/api/v2 | jq -r '.refs[0].ref')
 curl -s -o /dev/null -w '%{http_code}\n' -G \
   https://tfc-landing.cdn.prismic.io/api/v2/documents/search \
   --data-urlencode "ref=$ref" \
-  --data-urlencode 'routes=[{"type":"prizes","path":"/prizes"}]' \
+  --data-urlencode 'routes=[{"type":"a_new_type","path":"/a-new-type"}]' \
   --data-urlencode 'q=[[at(document.type,"home_page")]]'
 ```
 
 `200` means the entry is safe to add; `400` means it would take the whole site
-down with it. Run it once per type being added. `route-rules.ts` is
-unaffected either way — `/prizes` and `/contest-rules` are real pages under
-`app/pages/`, and the resolver only ever computed `document.url` for links to
-those documents, of which there are none yet.
+down with it. Run it once per type being added. `route-rules.ts` is unaffected
+either way: a type only needs a `routes` entry when something links to its
+documents and needs `document.url` computed, which is why `season_deadline` — a
+singleton the leaderboard reads directly and nothing links to — has none.
 
 Models are edited either in the [Type Builder][type-builder] — Prismic's
 browser UI, which writes straight to the repository — or here with the CLI,
@@ -140,10 +139,11 @@ npx prismic gen types     # regenerate prismicio-types.d.ts
 Each direction makes one side match the other, and neither merges. `push`
 treats the local models as the source of truth and *deletes* remote models the
 repo does not have; `pull` treats the remote as the source of truth and
-*deletes* local ones — which, while `prizes` and `contest_rules` are still
-unpushed, means a `pull` right now would remove them and the two slices they
-were added with. Read `status` first, work from a clean tree, and let git be
-the thing that makes a wrong direction recoverable.
+*deletes* local ones — which, while `season_deadline` is still unpushed, means a
+`pull` right now would remove it. It also means the next `push` is what finally
+removes `prizes`, `contest_rules` and the `prize_tiers` slice from the Prismic
+repository, which ADR-0018 deleted here. Read `status` first, work from a clean
+tree, and let git be the thing that makes a wrong direction recoverable.
 
 A custom type also has to go up together with the slices its slice zone offers,
 or it lands with choices that resolve to nothing.
@@ -210,28 +210,39 @@ fan has is their username.
 
 Two rules are enforced below every route rather than in one:
 
-- **18+** lives in a `user.create.before` database hook, so no route — not
-  `better-auth`'s own sign-up route, not a social login added later — can
-  create an account without it. ADR-0007 is not a rule one form gets to be the
-  enforcement of.
-- **Real names never leave the database.** `firstName` and `lastName` are
-  declared `returned: false`, so no response `better-auth` composes can carry
-  them. They exist only so a Prize can reach a person.
+- **One account per person** takes both halves working together, and the second
+  half is easy to miss. `users_phone_unique` refuses a second account on a
+  number that already has one — but only if the two arrive spelled the same, and
+  an index over whatever a fan happened to type would hold `+995 555 123456`
+  beside `+995555123456` and call them two people. So `normalisePhone`
+  (`shared/signUp.ts`) reduces every spelling to one E.164 string, and a
+  `user.create.before` hook runs it on the way into the database rather than in
+  any one route. That is what makes the rule hold on `better-auth`'s own sign-up
+  route and on a social login added later. ADR-0018 is not a rule one form gets
+  to be the enforcement of.
+- **A phone number never leaves the database.** `phone` is declared
+  `returned: false`, so no response `better-auth` composes can carry it.
 
-A database hook must not query anything: it runs inside a transaction holding
-the process's only connection. See ADR-0010, which is the rule every later
-ticket has to work inside.
+That `user.create.before` hook must not query anything — it runs inside a
+transaction holding the process's only connection, so a query from inside it
+waits for a connection that cannot be returned until the query finishes. Whether
+a number is *taken* needs a query and lives in the route, before the transaction
+opens; the unique index is what refuses it underneath. See ADR-0010, which is
+the rule every later ticket has to work inside.
 
 Signing up has a route of this app's own — `POST /api/accounts/sign-up` — which
 speaks this domain's vocabulary and answers a bad form with every problem at
-once. Confirming an address and resetting a password add two more, for the
-reason given under [Email](#what-is-not-here). Everything else is `better-auth`
-under `/api/auth`, including verifying a link and setting the new password.
+once. Resetting a password adds one more, for the reason given under
+[Email](#what-is-not-here). Everything else is `better-auth` under `/api/auth`,
+including following a reset link and setting the new password.
+
+Nothing is emailed at sign-up. ADR-0018 retired the confirmation link, so a fan
+who signs up is signed in and playing — there is no second step and no state
+where an account exists but cannot be used.
 
 `better-auth` rate-limits its own routes in a built server: three sign-ins or
-sign-ups every ten seconds per IP, and three verification or reset emails a
-minute. A test file that spends those on assertions it could make another way
-runs out of them.
+sign-ups every ten seconds per IP, and three reset emails a minute. A test file
+that spends those on assertions it could make another way runs out of them.
 
 ## Admin
 
@@ -795,9 +806,9 @@ the suite that raises `DATABASE_POOL_MAX`, and that is why.
 
 What a fan is told, and where: `ENTRY_MESSAGES` in `shared/entries.ts` is every
 sentence, so the panel and the API refuse in the same words. A signed-out
-visitor can build an Entry and is asked to sign in when they submit it; a fan
-whose email is not confirmed is told before they start, because being told at
-the last step, having built a Chained Entry, is the worst moment to learn it.
+visitor can build an Entry and is asked to sign in when they submit it. That is
+now the only thing between a fan and an Entry: ADR-0018 retired the confirmed
+address that used to be checked before they started.
 
 How far the tests carry this. Every rule, every refusal and every Coin movement
 is driven through the API against a real Postgres in
@@ -1019,8 +1030,8 @@ would ask for somebody else's. Both routes and the page are exempt from the edge
 cache (ADR-0008), and `/PROFILE` is a 404 rather than a second spelling that
 could miss the exemption (ADR-0012).
 
-Real names never appear. `shared/fan.ts` has no field for one and no endpoint
-returns one — see ADR-0007 and the Accounts section.
+A fan's phone number never appears. `shared/fan.ts` has no field for one and no
+endpoint returns one — see ADR-0018 and the Accounts section.
 
 ### The leaderboard: the top ten, and the row under it
 
@@ -1086,8 +1097,9 @@ stored copy is one fan's Rank served to everybody who follows them onto it.
 `test/server/cache-boundary.test.ts` puts a cache in front of a real server and
 proves the next visitor does not get the last one's row.
 
-Only usernames leave the route. There is no column on the answer a real name
-could travel in, and no endpoint anywhere that would return one (ADR-0007).
+Only usernames leave the route. There is no column on the answer anything more
+identifying could travel in, and no endpoint anywhere that would return one
+(ADR-0018).
 
 ### Closing a Season, and rolling into the next
 
@@ -1095,7 +1107,7 @@ could travel in, and no endpoint anywhere that would return one (ADR-0007).
 highest-consequence button in the admin area after entering a result. It does two things in one
 transaction: marks the Season closed, and **freezes its final standings** into
 `final_standings` — every fan's closing Balance and the Rank it put them at.
-That table is the record TFC awards Prizes from (ADR-0007), so it is write-once:
+That table is the record of what a Season finished as (ADR-0018), so it is write-once:
 a `final_standings_are_frozen` trigger refuses every `update` and `delete`, and
 `a_closed_season_is_never_reopened` refuses the `update` that would put the
 Season back. Both are hand-written in `20260901091906_closing_a_season` for the reason
@@ -1105,8 +1117,9 @@ either goes missing.
 **The Rank is stored rather than re-derived, and that is the point.**
 `freezeFinalStandings` writes it from `BY_STANDING` in the same statement that
 reads the Balances, so the frozen order is the order the leaderboard was
-actually showing. A snapshot ordered by Balance alone would hand a Prize to
-whichever of two tied fans Postgres returned first; one re-derived later would
+actually showing. A snapshot ordered by Balance alone would record whichever of
+two tied fans Postgres returned first as having finished above the other; one
+re-derived later would
 be reading a cache a `rebuildBalanceCache` could have re-dated, since
 `balance_cache.updated_at` is the tie-break. `final_standings_one_fan_per_place`
 is Postgres refusing a record that came out of a window with no tie-break in it.
@@ -1188,10 +1201,13 @@ site down (see the same section).
 
 ## Email
 
-Two messages, and no others: a link that confirms a fan's email address, and a
-link that lets one who is locked out set a new password. Both are `better-auth`
-flows; what this repo supplies is the transport, the copy, and the answer a fan
-gets when a message does not go out.
+One message, and no others: a link that lets a fan who is locked out set a new
+password. It is a `better-auth` flow; what this repo supplies is the transport,
+the copy, and the answer a fan gets when the message does not go out.
+
+There used to be two. ADR-0018 retired the address confirmation along with the
+contest whose published rules required it, which leaves the one email a fan asks
+for rather than one TFC decides to send. Nothing is emailed at sign-up.
 
 - **`shared/emails.ts`** is what the messages say, and how long each link
   lasts. It lives in `shared` because that is the part of the tree
@@ -1237,19 +1253,16 @@ than as a silent success.
 
 ### What is not here
 
-**Rate limiting on the two routes this ticket adds.** `POST
-/api/accounts/verification-email` and `POST /api/accounts/password-reset` exist
-so that a fan hears about a message that did not go out. They reach
-`better-auth` through `auth.api` rather than through its HTTP handler, and so
-do **not** inherit its rate limiting — three of either a minute per IP on the
-routes they wrap.
+**Rate limiting on `POST /api/accounts/password-reset`.** It exists so that a
+fan hears about a message that did not go out. It reaches `better-auth` through
+`auth.api` rather than through its HTTP handler, and so does **not** inherit its
+rate limiting — three a minute per IP on the route it wraps.
 
-What that is worth knowing about: neither is an open relay. The verification
-route needs a session and only ever mails the address on it; the reset route
-sends nothing at all for an address with no account. So the exposure is
-volume — a fan's own inbox filled with TFC's own reset emails, and Resend
-quota spent doing it — not mail to strangers. Rate limiting these belongs at
-the route level, as ADR-0009 says, and has no ticket yet.
+What that is worth knowing about: it is not an open relay. The route sends
+nothing at all for an address with no account, so the exposure is volume — a
+fan's own inbox filled with TFC's own reset emails, and Resend quota spent doing
+it — not mail to strangers. Rate limiting it belongs at the route level, as
+ADR-0009 says, and has no ticket yet.
 
 `/api/accounts/sign-up` has the same gap, and has had it since #4.
 

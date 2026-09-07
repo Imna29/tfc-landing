@@ -13,7 +13,7 @@ import { CLOSE_MESSAGES, SEASON_NAME_LENGTH } from "#shared/seasons";
  *
  * **Closing is the one button on this page that cannot be taken back**, so it
  * says so beside itself and asks first. What it does — freeze what every fan
- * finished on, as the record Prizes are decided from — is argued in
+ * finished on, as the permanent record of the Season — is argued in
  * `server/api/admin/seasons/[id]/close.post.ts`; what an admin needs from this
  * page is to know it is final before they press it, and to be told which Bouts
  * are outstanding when it refuses.

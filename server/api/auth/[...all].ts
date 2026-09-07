@@ -1,11 +1,13 @@
 /**
- * Everything `better-auth` serves: signing in, signing out, verifying an email
- * address and resetting a password, all under `/api/auth`.
+ * Everything `better-auth` serves: signing in, signing out, and resetting a
+ * password, all under `/api/auth`. It no longer verifies an email address —
+ * ADR-0018 retired that flow along with the contest whose rules required it.
  *
  * Signing *up* has a route of its own — `/api/accounts/sign-up` — which speaks
  * this domain's vocabulary and answers with every problem at once. The sign-up
- * route here still works and is still safe: the eligibility rules live in a
- * database hook that no route can go around.
+ * route here still works and is still safe: the phone number every account
+ * needs is normalised in a `user.create.before` database hook that no route
+ * can go around, and `users_phone_unique` refuses a second account on it.
  *
  * The whole handler is watched for email, because `better-auth` composes and
  * sends inside its own routes and swallows what the sending fails with: its

@@ -20,7 +20,6 @@ export const components = defineSliceZoneComponents({
   newsletter: defineAsyncComponent(() => import("./Newsletter/index.vue")),
   our_story: defineAsyncComponent(() => import("./OurStory/index.vue")),
   privacy_policy: defineAsyncComponent(() => import("./PrivacyPolicy/index.vue")),
-  prize_tiers: defineAsyncComponent(() => import("./PrizeTiers/index.vue")),
   rich_text_section: defineAsyncComponent(() => import("./RichTextSection/index.vue")),
   sponsor_logos: defineAsyncComponent(() => import("./SponsorLogos/index.vue")),
   terms_of_service: defineAsyncComponent(() => import("./TermsOfService/index.vue")),

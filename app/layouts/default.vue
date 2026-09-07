@@ -224,11 +224,6 @@ const footer = computed(() => {
               <li v-for="(legalLink, index) in footer.legalLinks" :key="index">
                 <PrismicLink :field="legalLink.link" class="hover:text-primary transition-colors" />
               </li>
-              <li>
-                <NuxtLink to="/contest-rules" class="hover:text-primary transition-colors">
-                  Contest Rules
-                </NuxtLink>
-              </li>
             </ul>
           </div>
 

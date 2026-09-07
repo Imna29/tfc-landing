@@ -8,8 +8,8 @@
  *
  * Closing one is the same shape at the other end: the Season row and the
  * record of what it finished as, together, because a Season marked closed
- * whose standings were never frozen has lost the only evidence a Prize could
- * be argued from and nothing can write it afterwards. The two together are a
+ * whose standings were never frozen has lost the only account of how it went
+ * and nothing can write it afterwards. The two together are a
  * rollover — close, then open — and what happens in between is nothing: no
  * Season is being played, every leaderboard says so in words, and the next
  * {@link openSeason} puts every fan back on the same hundred Coins.
@@ -220,8 +220,8 @@ export type SeasonClosed =
  * with the Season and how many fans its final standings hold.
  *
  * **The freeze and the status are one write on purpose.** A Season marked
- * closed whose standings were never frozen has lost the record a Prize is
- * argued from, and nothing could write it afterwards: the next Season's grants
+ * closed whose standings were never frozen has lost the record of how it
+ * finished, and nothing could write it afterwards: the next Season's grants
  * move every Balance, and `final_standings_are_frozen` means there is no second
  * attempt even if somebody noticed.
  *

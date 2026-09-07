@@ -27,8 +27,8 @@ exempted" the same set, and keeps them the same set for every section a later ti
 ## Consequences
 
 - A URL typed in the wrong case is no longer the page it was aiming at. Nothing in the app links
-  that way, and every uid the content team authors is lower-case, but a hand-typed `/PRIZES` now
-  answers 404 rather than rendering prizes. That is the cost, and it is worth it: the
+  that way, and every uid the content team authors is lower-case, but a hand-typed `/CONTACT` now
+  answers 404 rather than rendering the contact page. That is the cost, and it is worth it: the
   alternative was a page that renders and is then served to the wrong person.
 - `app/pages/[uid].vue` had to start answering 404 for a uid with no document behind it. It
   takes any single segment, so every wrong-case URL lands there; rendering an empty `SliceZone`

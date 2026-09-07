@@ -17,7 +17,6 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
-  date,
   foreignKey,
   index,
   integer,
@@ -61,15 +60,34 @@ export type Role = "fan" | "admin";
 /**
  * A person with an account.
  *
- * `username` is the only column any public page may show. First and last name
- * exist solely so TFC can match a Prize winner to a person, and are never
- * returned by the API at all; `date_of_birth` is the only evidence of the 18+
- * gate, and is stored as the date it is rather than as an age that would be
- * wrong the morning after a birthday. See ADR-0007.
+ * `username` is the only column any public page may show. `phone` is never
+ * returned by the API at all: it is held so TFC can reach a fan about their
+ * account, and — because `users_phone_unique` holds it to one account — it is
+ * the whole of "one account per person" (ADR-0018). It is stored in E.164 and
+ * never as it was typed: `normalisePhone` in `shared/signUp.ts` reduces every
+ * spelling of one number to one string, and a `user.create.before` hook runs it
+ * on the way in so that this index compares like with like whichever route the
+ * account came through. Without that, the uniqueness below means nothing.
  *
- * There is deliberately no avatar column: fans are identified by username
- * (ADR-0009), so `better-auth`'s optional `image` field has nowhere to be
- * written and is never asked for.
+ * **`phone` is nullable, and that is about the past rather than the present.**
+ * Every account created since ADR-0018 carries one — `parseSignUpDetails`
+ * refuses a sign-up without it and `better-auth` has it `required` — but the
+ * accounts that predate the decision have no phone number and there is no
+ * value that would be true for them. Backfilling an invented one would put a
+ * number in this column that reaches nobody, which is worse than admitting the
+ * gap: `where phone is null` is the list of fans TFC still has to ask. Postgres
+ * treats nulls as distinct in a unique index, so those rows neither collide
+ * with each other nor weaken the rule for anybody who does have one.
+ *
+ * `email_verified` is `better-auth`'s column and this application no longer
+ * reads it. Nothing sends a confirmation link and nothing is gated on one
+ * (ADR-0018), so it stays `false` on every row TFC creates. It is here because
+ * `better-auth`'s user model requires it, not because it means anything.
+ *
+ * There is deliberately no avatar column, and deliberately no real name or
+ * date of birth: fans are identified by username (ADR-0009), and ADR-0018
+ * retired the two columns and the gate that were the only reasons TFC ever
+ * held either.
  *
  * `role` is what the admin area checks on every request. It defaults to `fan`,
  * so an account is only ever an admin because someone said so in SQL.
@@ -81,9 +99,7 @@ export const users = pgTable(
     username: text("username").notNull(),
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").notNull().default(false),
-    firstName: text("first_name").notNull(),
-    lastName: text("last_name").notNull(),
-    dateOfBirth: date("date_of_birth", { mode: "string" }).notNull(),
+    phone: text("phone"),
     role: text("role").$type<Role>().notNull().default("fan"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -93,6 +109,11 @@ export const users = pgTable(
     // on a leaderboard and `ironmike` beside `IronMike` is not two people
     // anyone can tell apart.
     uniqueIndex("users_username_unique").on(sql`lower(${table.username})`),
+    // One account per person, and the only enforcement of it there is
+    // (ADR-0018). Plain rather than lower-cased, unlike the username above: a
+    // phone number has no case, and `normalisePhone` has already reduced it to
+    // the one spelling this index can compare.
+    uniqueIndex("users_phone_unique").on(table.phone),
     // Granting the admin role is a hand-written `update` (see the README), and
     // a hand-written `update` can be misspelled. Postgres refuses `'Admin'`
     // here rather than storing a role that quietly matches nothing.
@@ -145,9 +166,9 @@ export const accounts = pgTable(
 );
 
 /**
- * A short-lived token sent to an email address: address verification now,
- * password reset when #5 lands. Rows are consumed on use and expire on their
- * own.
+ * A short-lived token sent to an email address. Since ADR-0018 retired address
+ * verification there is one kind left: a password reset. Rows are consumed on
+ * use and expire on their own.
  */
 export const verifications = pgTable("verifications", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -164,9 +185,9 @@ export const verifications = pgTable("verifications", {
  * The road runs one way. Closing a Season freezes its final standings into
  * {@link finalStandings} and there is no route back — `a_closed_season_is_never_reopened`
  * refuses the `update` that would try, for the reason ADR-0006 makes a Lock
- * final: the frozen standings are the evidence behind every Prize awarded
- * under ADR-0007, and a Season that could be reopened is a record that could
- * be made to say something else afterwards.
+ * final: the frozen standings are the permanent record of how a Season went
+ * (ADR-0018), and a Season that could be reopened is a record that could be
+ * made to say something else afterwards.
  *
  * `seasons_one_open` below is what makes "the current Season" a fact rather
  * than whichever row happens to sort last, and closing is what lets the next
@@ -189,8 +210,8 @@ export type SeasonStatus = "open" | "closed";
  * they are recorded because "who did this, and when" is the question a Season
  * nobody remembers opening will be asked, and it cannot be answered later if
  * it was not written down at the time. Closing is the higher-consequence of
- * the two — it is what freezes the standings a Prize is decided on — which is
- * why `seasons_closing_is_recorded` holds the admin and the date to the status
+ * the two — it is what freezes a Season's standings for good — which is why
+ * `seasons_closing_is_recorded` holds the admin and the date to the status
  * together rather than leaving either optional.
  */
 export const seasons = pgTable(
@@ -229,7 +250,7 @@ export const seasons = pgTable(
     ),
     // And carries the admin who closed it, for the same reason. A Season that
     // froze its standings with nobody's name against the decision is the one
-    // row a disputed Prize cannot be traced back through.
+    // row a disputed result cannot be traced back through.
     check(
       "seasons_closing_is_recorded",
       sql`(${table.status} = 'closed') = (${table.closedBy} is not null)`,
@@ -505,16 +526,16 @@ export const balanceCache = pgTable(
  * thrown away and rebuilt; this is a record of a moment, and the moment does
  * not come back. `final_standings_are_frozen` refuses every `update` and
  * `delete`, the way `coin_transactions_are_append_only` does, because this is
- * the evidence behind every Prize awarded under ADR-0007 — and evidence that
- * can be edited afterwards is not evidence.
+ * the permanent record of how a Season went (ADR-0018) — and a record that can
+ * be edited afterwards is not one.
  *
  * **The Rank is stored rather than derived, and that is the whole point.** It
  * could be worked out again from `balance_cache` — the rows are still there
  * after a Season closes — but only as long as that cache still holds what it
  * held on the day. A Rank breaks a tie by `updated_at` (`BY_STANDING` in
  * `server/utils/standings.ts`), a correction on a closed Season's Bout would
- * move both columns, and a Prize decided on second place would then be a Prize
- * the standings no longer explain. `freezeFinalStandings` writes this in the
+ * move both columns, and a fan recorded as finishing second would then be
+ * sitting somewhere the standings no longer explain. `freezeFinalStandings` writes this in the
  * same statement it reads the order in, so the Rank here is that reading and
  * not a later one.
  *
@@ -552,8 +573,8 @@ export const finalStandings = pgTable(
     // refusing to store a record that did not.
     uniqueIndex("final_standings_one_fan_per_place").on(table.seasonId, table.rank),
     // 1 is the top and there is no 0th place. A rank of zero would be an
-    // off-by-one in the window that wrote it, silently handing somebody a
-    // Prize a place early.
+    // off-by-one in the window that wrote it, silently recording everybody a
+    // place higher than they finished.
     check("final_standings_rank_is_a_place", sql`${table.rank} >= 1`),
     check("final_standings_entries_played_is_counted", sql`${table.entriesPlayed} >= 0`),
   ],

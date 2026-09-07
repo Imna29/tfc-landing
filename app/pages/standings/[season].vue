@@ -14,7 +14,7 @@ import {
  * apart — the leaderboard is the Season being played, a Season that has ended
  * has final standings — and the difference is real: these rows were frozen
  * when the Season closed and nothing since has moved them, which is what makes
- * them the record TFC awards Prizes from (ADR-0007).
+ * them the permanent record of it (ADR-0018).
  *
  * The table is `SeasonStandings`, the same component the leaderboard uses, and
  * everything that differs is the vocabulary handed to it: nothing here fills

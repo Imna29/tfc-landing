@@ -73,7 +73,9 @@ describe("the content surface", () => {
   });
 
   it("covers the modules that hold copy of their own", () => {
-    expect(files.map((file) => file.path)).toContain("app/utils/eligibilityRules.ts");
+    // The fine print every page of the game carries, and the sentences a
+    // rejected sign-up answers with.
+    expect(files.map((file) => file.path)).toContain("app/utils/navigation.ts");
     expect(files.map((file) => file.path)).toContain("shared/signUp.ts");
   });
 

@@ -1,0 +1,32 @@
+{
+  "format": "custom",
+  "id": "season_deadline",
+  "json": {
+    "Main": {
+      "season_name": {
+        "config": {
+          "label": "Season name",
+          "placeholder": "Season 1"
+        },
+        "type": "Text"
+      },
+      "season_ends_at": {
+        "config": {
+          "label": "Season ends at",
+          "placeholder": "The deadline fans are playing against, in Tbilisi time"
+        },
+        "type": "Timestamp"
+      },
+      "season_deadline_note": {
+        "config": {
+          "label": "Season deadline note",
+          "placeholder": "One line under the date, about what the deadline means"
+        },
+        "type": "Text"
+      }
+    }
+  },
+  "label": "Season Deadline",
+  "repeatable": false,
+  "status": true
+}

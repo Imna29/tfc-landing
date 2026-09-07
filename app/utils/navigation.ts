@@ -9,8 +9,8 @@
  *
  * Keeping them apart is a decision about what the marketing site is for. A
  * header carrying Predictions and Leaderboard beside Events and Fighters
- * offers a visitor seven things at once and says nothing about which of them
- * is the game; one button that visibly is the game says it in one word. So the
+ * offers a visitor six things at once and says nothing about which of them is
+ * the game; one button that visibly is the game says it in one word. So the
  * game appears on the marketing site exactly once, as {@link PLAY_TFC}, and
  * everything the game needs in a header lives in the game's own — see
  * `app/layouts/play.vue`.
@@ -35,16 +35,20 @@ export interface NavLink {
  *
  * Not the same list as the edge-cache exemptions in `route-rules.ts`, and
  * deliberately so. That list is about what may be stored; this one is about
- * what the page looks like. `/prizes` and `/contest-rules` are the plainest
- * case of the difference: identical for every reader and happily cached, and
- * about nothing but the game.
+ * what the page looks like, and neither answer follows from the other.
+ *
+ * The two lists happen to agree on every page today — since ADR-0018 removed
+ * `/prizes` and `/contest-rules`, nothing in the section is edge-cached — but
+ * the exemption list also carries `/api`, `/admin` and `/slice-simulator`,
+ * which are not pages a fan plays on and must never appear here. A page that
+ * is identical for every reader and about nothing but the game is a page this
+ * list should still carry and that one should not, which is the shape the two
+ * had before and will have again the moment such a page is written.
  */
 export const PLAY_SECTION = [
   "/predictions",
   "/leaderboard",
   "/standings",
-  "/prizes",
-  "/contest-rules",
   "/profile",
   "/account",
 ] as const;
@@ -72,8 +76,13 @@ export const MARKETING_NAV: readonly NavLink[] = [
 ];
 
 /**
- * The game's own navigation: the card, the board it is climbed on, and the two
- * pages that say what climbing it is worth and who may.
+ * The game's own navigation: the card, and the board it is climbed on.
+ *
+ * Two items since ADR-0018 retired the prizes and contest rules pages, and it
+ * is deliberately not padded back to four. What a fan can do here is answer
+ * the card and see where that leaves them; the Season's deadline and the
+ * Seasons that have ended are both on the leaderboard, which is where somebody
+ * asking either question is already going.
  *
  * The card is first and is where the button lands, so the section opens on the
  * thing it is for.
@@ -81,8 +90,6 @@ export const MARKETING_NAV: readonly NavLink[] = [
 export const PLAY_NAV: readonly NavLink[] = [
   { to: "/predictions", label: "The Card" },
   { to: "/leaderboard", label: "Leaderboard" },
-  { to: "/prizes", label: "Prizes" },
-  { to: "/contest-rules", label: "Rules" },
 ];
 
 /**
@@ -91,10 +98,14 @@ export const PLAY_NAV: readonly NavLink[] = [
  * Chrome rather than content, which is why it is here beside the navigation
  * and not in Prismic: a free-to-play game has to say it is one wherever it is
  * played, and a page that reached production with the line unwritten would be
- * a prediction game that looks like something else. The wording is the
- * published prize term in `app/utils/eligibilityRules.ts`, said shorter — the
- * page that states it in full is a nav item away.
+ * a prediction game that looks like something else.
+ *
+ * **This is now the only place the app says it at all.** It used to be the
+ * short version of a published term on a rules page a nav item away, and
+ * ADR-0018 removed that page — so the line that survived it carries the whole
+ * claim rather than a summary of one, and says what Coins are instead of what
+ * they are not worth relative to something TFC no longer awards.
  */
 export const PLAY_FINE_PRINT =
-  "TFC Predictions is free to play. Coins have no real-money value and cannot be " +
-  "bought, transferred or redeemed, and prizes are never exchangeable for cash.";
+  "TFC Predictions is free to play. Coins are worth nothing outside the game: they have no " +
+  "real-money value and cannot be bought, transferred or redeemed.";

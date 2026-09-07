@@ -3,8 +3,12 @@ import type { SignUpDetails } from "../../shared/signUp";
 import { grantAdmin, nextFanNumber } from "./users";
 
 /**
- * A fan who can sign up: old enough, unique, and unremarkable in every way a
- * test is not about.
+ * A fan who can sign up: unique in every column that has to be, and
+ * unremarkable in every way a test is not about.
+ *
+ * The phone number is minted from the same sequence as the username and the
+ * email, because `users_phone_unique` makes it the third column two fans in
+ * one test cannot share (ADR-0018).
  *
  * Pass only what the test is asserting on, so what it is about stays visible.
  */
@@ -15,9 +19,7 @@ export function fanDetails(overrides: Partial<SignUpDetails> = {}): SignUpDetail
     username: `fan-${sequence}`,
     email: `fan-${sequence}@example.com`,
     password: "a long enough password",
-    firstName: "Nino",
-    lastName: "Beridze",
-    dateOfBirth: "1994-03-02",
+    phone: `+99555${String(sequence).padStart(7, "0")}`,
     ...overrides,
   };
 }

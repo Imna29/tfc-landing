@@ -331,18 +331,18 @@ describe("the Season leaderboard", async () => {
       expect(board.top.map((place) => place.username)).toEqual([...usernames, expect.any(String)]);
     });
 
-    it("never says another fan's real name", async () => {
+    it("says nothing about another fan but their username", async () => {
       const { usernames } = await seasonOf([300, 200]);
 
-      // `createUser` names every fan Nino Beridze. The columns exist so TFC
-      // can match a Prize to a person and never leave the database (ADR-0007),
-      // and this is the page they would leave on.
-      expect(JSON.stringify(await leaderboardFor())).not.toMatch(/Nino|Beridze/);
+      // `createUser` gives every fan a phone number on the `+995…` prefix. It
+      // is the one private thing an account holds, it never leaves the database
+      // (ADR-0018), and this is the page it would leave on.
+      expect(JSON.stringify(await leaderboardFor())).not.toMatch(/\+995/);
 
       const page = await $fetch<string>("/leaderboard");
 
       expect(page).toContain(usernames[0]);
-      expect(page).not.toMatch(/Nino|Beridze/);
+      expect(page).not.toMatch(/\+995/);
     });
   });
 

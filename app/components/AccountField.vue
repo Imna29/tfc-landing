@@ -13,7 +13,6 @@ defineProps<{
   type: string;
   autocomplete: string;
   hint?: string;
-  max?: string;
   problem?: string;
 }>();
 
@@ -31,7 +30,6 @@ const value = defineModel<string>({ required: true });
       v-model="value"
       :type="type"
       :autocomplete="autocomplete"
-      :max="max"
       :aria-describedby="hint ? `${name}-hint` : undefined"
       :aria-invalid="Boolean(problem)"
       class="bg-surface-container-low border border-outline-variant/40 px-4 py-3 focus:outline-none focus:border-primary"

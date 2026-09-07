@@ -65,11 +65,10 @@ export const STANDING_MESSAGES = {
 /**
  * How many places the Season's leaderboard lists before the fan's own row.
  *
- * Ten because that is what the Season is played for — a Prize is decided on
- * the top of it — and because a scoreboard a fan has to scroll is one they
- * read once. Every fan below it reads their own place instead:
- * {@link whereYouStand} is what pins it there, and the profile answers the
- * same question at length.
+ * Ten because the top of the board is what the Season is played for, and
+ * because a scoreboard a fan has to scroll is one they read once. Every fan
+ * below it reads their own place instead: {@link whereYouStand} is what pins it
+ * there, and the profile answers the same question at length.
  *
  * {@link LEADERBOARD_MESSAGES}`.what` says this number in words, because copy
  * that reads "the 10 fans" is copy nobody wrote. Moving it means moving that
@@ -212,8 +211,8 @@ export interface FinalStandings extends Leaderboard {
 export const FINAL_STANDINGS_MESSAGES = {
   what:
     "How this Season finished. These standings were frozen the moment it " +
-    "closed and have not changed since — they are the record TFC awards " +
-    "Prizes from, and every Balance has started over on a new Season.",
+    "closed and have not changed since — they are the permanent record of it, " +
+    "and every Balance has started over on a new Season.",
   nobodyYet: "Nobody held Coins in this Season, so it closed with nothing in its " + "standings.",
   signedOut:
     "Sign in to see where you finished. Every fan who played has a place in " +

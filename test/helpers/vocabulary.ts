@@ -111,8 +111,9 @@ const REPO_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 /**
  * Everything that carries words a fan can read: components and pages, the
  * Prismic models whose labels and placeholders the content team writes
- * against, and the modules that hold copy of their own — the fallback
- * eligibility rules and the sentences sign-up answers with among them.
+ * against, and the modules that hold copy of their own — the game's fine print
+ * in `app/utils/navigation.ts` and the sentences sign-up answers with among
+ * them.
  *
  * `.ts` files elsewhere are deliberately out of scope. `void` is both banned
  * vocabulary and a TypeScript keyword, and a guard that fires on

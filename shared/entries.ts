@@ -462,10 +462,6 @@ export const ENTRY_MESSAGES = {
   signIn:
     "Sign in to commit Coins to an Entry. Reading the card and picking your " +
     "way through it needs no account; committing Coins to what you picked does.",
-  emailUnverified:
-    "Confirm your email address before your first Entry. The link is in the " +
-    "message TFC sent when you signed up, and your account page will send " +
-    "another one.",
   noSeasonOpen:
     "No Season is being played, so there are no Coins to commit. Every fan " +
     "starts the next one on the same hundred.",

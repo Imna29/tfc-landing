@@ -5,8 +5,9 @@ import type { RichTextField } from "@prismicio/client";
  * Prose as the content team writes it, in the site's voice.
  *
  * The styling lives here rather than in each slice because every page that
- * publishes a wall of authored text — the legal pages, the contest rules —
- * has to look like the same document to a reader comparing them.
+ * publishes a wall of authored text — the legal pages, and whatever a
+ * `rich_text_section` is dropped onto — has to look like the same document to
+ * a reader comparing them.
  */
 defineProps<{ field: RichTextField }>();
 </script>

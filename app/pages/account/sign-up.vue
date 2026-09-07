@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  MINIMUM_AGE,
-  MINIMUM_PASSWORD_LENGTH,
-  USERNAME_LENGTH,
-  contestDateOn,
-  type SignUpField,
-} from "#shared/signUp";
+import { MINIMUM_PASSWORD_LENGTH, USERNAME_LENGTH, type SignUpField } from "#shared/signUp";
 
 /**
  * The sign-up form.
@@ -32,9 +26,7 @@ const form = reactive({
   username: "",
   email: "",
   password: "",
-  firstName: "",
-  lastName: "",
-  dateOfBirth: "",
+  phone: "",
 });
 
 interface AccountFormField {
@@ -43,8 +35,6 @@ interface AccountFormField {
   type: string;
   autocomplete: string;
   hint: string;
-  /** The latest date the picker will offer, where that makes sense. */
-  max?: string;
 }
 
 // Signing up signs the fan in and grants them the Season's Coins, so the
@@ -68,7 +58,9 @@ const fields: AccountFormField[] = [
     label: "Email address",
     type: "email",
     autocomplete: "email",
-    hint: "TFC sends a link here to confirm your account.",
+    hint:
+      "How TFC reaches you about your account, and how you get back in if you " +
+      "forget your password.",
   },
   {
     name: "password",
@@ -78,28 +70,13 @@ const fields: AccountFormField[] = [
     hint: `At least ${MINIMUM_PASSWORD_LENGTH} characters.`,
   },
   {
-    name: "firstName",
-    label: "First name",
-    type: "text",
-    autocomplete: "given-name",
-    hint: "Kept private. Used only to send you a Prize.",
-  },
-  {
-    name: "lastName",
-    label: "Last name",
-    type: "text",
-    autocomplete: "family-name",
-    hint: "Kept private, for the same reason.",
-  },
-  {
-    name: "dateOfBirth",
-    label: "Date of birth",
-    type: "date",
-    autocomplete: "bday",
-    // The server decides eligibility; this only stops the date picker
-    // offering days that have not happened.
-    max: contestDateOn(new Date()),
-    hint: `TFC Predictions is for fans aged ${MINIMUM_AGE} and over.`,
+    name: "phone",
+    label: "Phone number",
+    type: "tel",
+    autocomplete: "tel",
+    hint:
+      "Starting with its country code, like +995 555 12 34 56. Kept private — other " +
+      "fans never see it, and TFC Predictions is played on one account per number.",
   },
 ];
 
@@ -109,19 +86,13 @@ async function submit() {
   failure.value = "";
 
   try {
-    const created = await $fetch("/api/accounts/sign-up", { method: "POST", body: { ...form } });
-
-    // The route answers with problems or with an account; a rejection arrives
-    // as a thrown 422, so only the second shape ever gets here. TypeScript
-    // sees both, and the check is how it is told which one this is.
-    const emailSent = "verificationEmailSent" in created && created.verificationEmailSent;
+    await $fetch("/api/accounts/sign-up", { method: "POST", body: { ...form } });
 
     await refreshBalance();
 
-    // The account exists either way. A verification email that did not go out
-    // is carried across so the profile page can say so and offer another,
-    // rather than leaving a fan watching an inbox nothing was sent to.
-    await navigateTo(emailSent ? "/profile" : "/profile?verification=unsent");
+    // Straight to the profile: signing up signs the fan in and there is no
+    // second step to wait on (ADR-0018).
+    await navigateTo("/profile");
   } catch (error) {
     const reported = (error as { data?: { problems?: { field: SignUpField; message: string }[] } })
       .data?.problems;
@@ -143,8 +114,9 @@ async function submit() {
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-xl mx-auto">
       <p class="text-on-surface/80 leading-relaxed mb-10">
-        Your username is the only thing other fans ever see. Your name and date of birth stay
-        private — TFC holds them to confirm you can take part, and to send a Prize to a winner.
+        Your username is the only thing other fans ever see. Your email address and phone number
+        stay private — TFC holds them to reach you about your account, and plays TFC Predictions on
+        one account per person.
       </p>
 
       <form class="grid gap-8" novalidate @submit.prevent="submit">
@@ -156,7 +128,6 @@ async function submit() {
           :label="field.label"
           :type="field.type"
           :autocomplete="field.autocomplete"
-          :max="field.max"
           :hint="field.hint"
           :problem="problems[field.name]"
         />
@@ -175,11 +146,6 @@ async function submit() {
       <p class="mt-10 text-on-surface/70">
         Already have an account?
         <NuxtLink to="/account/sign-in" class="text-primary underline">Sign in</NuxtLink>.
-      </p>
-
-      <p class="mt-4 text-on-surface/70">
-        <NuxtLink to="/contest-rules" class="text-primary underline">The contest rules</NuxtLink>
-        say who can take part.
       </p>
     </div>
   </section>

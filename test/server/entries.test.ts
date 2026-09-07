@@ -48,7 +48,7 @@ import {
 import { testDatabase } from "../helpers/database";
 import { cancel, winnerOn } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
-import { confirmEmail, fanId } from "../helpers/users";
+import { fanId } from "../helpers/users";
 
 /**
  * Submitting an Entry and cancelling one: the core of the product, and where
@@ -70,11 +70,9 @@ import { confirmEmail, fanId } from "../helpers/users";
 describe("the Entry a fan commits, and takes back", async () => {
   await setupTestServer();
 
-  /** A fan who can play: a Season's Coins, and a confirmed address. */
+  /** A fan who can play, which since ADR-0018 is any fan with a Season's Coins. */
   async function fanWithCoins() {
     const signedUp = await signUp();
-
-    await confirmEmail(signedUp.details.email);
 
     return { ...signedUp, id: await fanId(signedUp.details.email) };
   }
@@ -1037,19 +1035,18 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(await testDatabase().select().from(entries)).toEqual([]);
     });
 
-    it("tells a fan with an unconfirmed address exactly what is blocking them", async () => {
-      // The published contest rules promise a confirmed address before a first
-      // Entry (ADR-0007), and it is the whole of "one account per person".
+    it("lets a fan play the moment they have signed up", async () => {
+      // ADR-0018 retired the email confirmation that used to stand between
+      // signing up and a first Entry. Nothing replaced it as a gate: a fan who
+      // has an account and the Season's Coins can commit them, and this is the
+      // test that would fail if a second step were reintroduced by accident.
       const card = await upcomingCard();
       const signedUp = await signUp();
 
       const response = await submit({ amount: 10, predictions: [winner(card)] }, signedUp.cookie);
 
-      const { message } = await response.json();
-
-      expect(response.status).toBe(403);
-      expect(message).toBe(ENTRY_MESSAGES.emailUnverified);
-      expect(message).toMatch(/confirm your email/i);
+      expect(response.status).toBe(201);
+      expect(await testDatabase().select().from(entries)).toHaveLength(1);
     });
 
     it("refuses an Entry while no Season is being played", async () => {
@@ -1644,11 +1641,14 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(rendered).not.toMatch(/deepen/i);
     });
 
-    it("tells a fan with an unconfirmed address before they try", async () => {
+    it("puts nothing between a fan who has just signed up and the panel", async () => {
+      // The other half of "lets a fan play the moment they have signed up":
+      // the card must not be telling them to go and confirm something either
+      // (ADR-0018).
       await upcomingCard();
       const signedUp = await signUp();
 
-      expect(await page(signedUp.cookie)).toContain(ENTRY_MESSAGES.emailUnverified);
+      expect(await page(signedUp.cookie)).not.toMatch(/confirm your email/i);
     });
 
     it("still shows the whole card to a visitor with no account", async () => {

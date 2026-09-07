@@ -15,10 +15,13 @@ import { PLAY_FINE_PRINT, PLAY_NAV, PLAY_TFC } from "~/utils/navigation";
  * `app/middleware/play-section.global.ts`, so the two navigations cannot come
  * to disagree about which site a page belongs to.
  *
- * **Nothing here is rendered from a session.** Two pages in the section are
- * edge-cached — `/prizes` and `/contest-rules` are the same page for every
- * reader — so this header ships the same HTML to everybody and the Balance is
- * filled in afterwards by the browser (ADR-0008, and `FanBalance`).
+ * **Nothing here is rendered from a session.** No page in the section is
+ * edge-cached any more — ADR-0018 removed the two that were — so this is no
+ * longer what stands between a fan's Balance and the CDN. It stays because the
+ * Balance is `useBalance`, shared with the marketing header, which *is* on
+ * cached pages: one arrangement that is safe on a stored page and a
+ * server-rendered one alike, without either header having to know which it is
+ * on (ADR-0008, and `FanBalance`).
  */
 const isMenuOpen = ref(false);
 
@@ -136,11 +139,6 @@ const closeMenu = () => {
         <ul
           class="flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold uppercase tracking-widest text-on-surface/60"
         >
-          <li>
-            <NuxtLink to="/contest-rules" class="hover:text-primary transition-colors">
-              Contest Rules
-            </NuxtLink>
-          </li>
           <li>
             <NuxtLink to="/privacy-policy" class="hover:text-primary transition-colors">
               Privacy

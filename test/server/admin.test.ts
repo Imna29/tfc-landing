@@ -81,7 +81,7 @@ describe("the admin area", async () => {
 
       // Closing a Season is #19's, and what it does lives in
       // `test/server/seasons.test.ts`. A fan who reached it could end the
-      // competition and freeze the standings every Prize is decided on.
+      // competition and freeze its standings for good.
       expect((await postJson(`/api/admin/seasons/${anyId}/close`, {}, cookie)).status).toBe(403);
       expect((await postJson(`/api/admin/seasons/${anyId}/close`, {})).status).toBe(401);
 

@@ -1,14 +1,14 @@
 /**
  * A signed-in fan, as any page is allowed to see them.
  *
- * There is no first or last name here, and no endpoint that would provide one:
- * the columns exist so TFC can match a Prize to a person, and never leave the
- * database (ADR-0007). See `server/utils/auth.ts`.
+ * Two fields, and that is the whole of what an account is now. ADR-0018
+ * retired the real names and the date of birth this used to sit beside, and
+ * the phone number that replaced them is deliberately not here: it is
+ * `returned: false` in `server/utils/auth.ts`, so no endpoint could put it
+ * here even if one wanted to.
  */
 export interface Fan {
   /** The only identifier TFC ever shows publicly. */
   username: string;
   email: string;
-  /** Confirming this is what unlocks a first Entry. */
-  emailVerified: boolean;
 }

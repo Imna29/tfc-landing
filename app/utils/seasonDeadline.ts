@@ -1,19 +1,21 @@
 import { asDate } from "@prismicio/client";
 import type { TimestampField } from "@prismicio/client";
+import { CONTEST_TIME_ZONE } from "./moments";
 
 /**
- * TFC runs the contest from Georgia (ADR-0007), so the Season closes at a
- * Tbilisi wall-clock time and every fan is held to that one instant.
+ * TFC runs from Georgia, so a Season closes at a Tbilisi wall-clock time and
+ * every fan is held to that one instant.
  *
- * Pinning it also keeps the page correct in the edge cache. The prizes page is
- * anonymous marketing HTML and is cached for ten minutes (ADR-0008), so
- * whatever time zone the rendering machine happened to be in would be baked in
- * and served to everyone — and the same string re-rendered in the browser
- * would disagree with it, which is a hydration mismatch as well as a wrong
- * deadline.
+ * Naming the zone is also what keeps the string stable between the server and
+ * the browser. The leaderboard this appears on is server-rendered and then
+ * hydrated (ADR-0008), so a format that followed whatever zone the rendering
+ * process happened to be in would render one deadline on the server and a
+ * different one in the browser — a hydration mismatch as well as a wrong
+ * answer to the only question the panel exists to answer.
+ *
+ * The same reasoning as {@link inTbilisi}, which is why the zone is shared with
+ * it rather than written down twice.
  */
-const CONTEST_TIME_ZONE = "Asia/Tbilisi";
-
 const deadlineFormat = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "long",

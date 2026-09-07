@@ -222,11 +222,12 @@ export async function leaderboardOf(
  *
  * **The Rank comes from {@link BY_STANDING} in the same statement that reads
  * the Balances.** That is the whole reason this function is here rather than
- * beside `closeSeason`: a snapshot ordered by Balance alone would hand a Prize
- * to whichever of two tied fans Postgres returned first, and one that
- * re-derived the order later would be reading a cache a `rebuildBalanceCache`
- * could have re-dated. `final_standings_one_fan_per_place` is Postgres
- * refusing a record that came out of a window with no tie-break in it.
+ * beside `closeSeason`: a snapshot ordered by Balance alone would record
+ * whichever of two tied fans Postgres returned first as having finished above
+ * the other, and one that re-derived the order later would be reading a cache
+ * a `rebuildBalanceCache` could have re-dated.
+ * `final_standings_one_fan_per_place` is Postgres refusing a record that came
+ * out of a window with no tie-break in it.
  *
  * One `insert ... select` rather than a row per fan, for the reason
  * `grantStartingCoins` is one: a Season closes on every fan in it at once, and
