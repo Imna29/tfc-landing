@@ -70,7 +70,7 @@ const { data: deadline } = await useOptionalSingle("season_deadline");
 useSeoMeta({
   title: "Leaderboard",
   description:
-    "The top ten fans of the TFC Predictions Season, by the Coins they hold, and where you stand among them.",
+    "The top ten fans of the TFC Predictions Event, by the Coins they hold, and where you stand among them.",
 });
 </script>
 
@@ -93,7 +93,7 @@ useSeoMeta({
       />
 
       <section class="mt-16 border-t border-outline-variant/20 pt-10">
-        <h2 class="font-headline text-2xl font-black italic uppercase">
+        <h2 class="font-headline text-sm font-black uppercase tracking-widest text-on-surface/60">
           {{ PAST_SEASONS_MESSAGES.heading }}
         </h2>
 
@@ -112,10 +112,6 @@ useSeoMeta({
             </NuxtLink>
           </li>
         </ul>
-
-        <p v-else class="mt-6 max-w-xl text-sm text-on-surface/70 leading-relaxed">
-          {{ PAST_SEASONS_MESSAGES.none }}
-        </p>
       </section>
     </div>
   </section>

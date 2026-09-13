@@ -49,15 +49,22 @@ export function rankLabel(rank: number): string {
   return `${rank}${suffix}`;
 }
 
-/** Everything a fan's own standing says to them. */
+/**
+ * Everything a fan's own standing says to them.
+ *
+ * **Said in "Event" where the model says Season.** The copy is ahead of the
+ * vocabulary: a fan reads Event, and every identifier, table and decision
+ * record behind it still says Season. Said in one place so that the profile
+ * and the leaderboard cannot be caught a rename apart.
+ */
 export const STANDING_MESSAGES = {
   ranked: (rank: number, fans: number) =>
-    `${rankLabel(rank)} of ${fans} ${fans === 1 ? "fan" : "fans"} this Season.`,
+    `${rankLabel(rank)} of ${fans} ${fans === 1 ? "fan" : "fans"} this Event.`,
   unranked:
-    "You are not in this Season's standings yet. Every fan starts a Season " +
+    "You are not in this Event's standings yet. Every fan starts an Event " +
     "on the same hundred Coins, and yours arrive the moment TFC grants them.",
   noSeason:
-    "No Season is being played, so there is nothing to rank. Every fan starts " +
+    "No Event is being played, so there is nothing to rank. Every fan starts " +
     "the next one on the same hundred Coins.",
   balance: (coins: number) => `${coinsLabel(coins)} to commit to an Entry.`,
 } as const;
@@ -148,19 +155,24 @@ export interface StandingsWords {
   unranked: string;
 }
 
-/** Everything the leaderboard says beside the names on it. */
+/**
+ * Everything the leaderboard says beside the names on it.
+ *
+ * In "Event", for the reason {@link STANDING_MESSAGES} is: the word a fan
+ * reads is ahead of the word the model is written in.
+ */
 export const LEADERBOARD_MESSAGES = {
   what:
-    "The ten fans holding the most Coins this Season. Where two hold the " +
+    "The ten fans holding the most Coins this Event. Where two hold the " +
     "same, the one who got there first is ahead — so nobody moves down a " +
     "place without somebody's Coins moving.",
   signedOut:
-    "Sign in to see where you stand. Every fan has a place in the Season, " +
+    "Sign in to see where you stand. Every fan has a place in the Event, " +
     "however far down it they are.",
   nobodyYet:
-    "Nobody holds Coins in this Season yet. The standings fill up as fans " +
+    "Nobody holds Coins in this Event yet. The standings fill up as fans " +
     "join and Bouts settle.",
-  yourRow: "Your place in the Season",
+  yourRow: "Your place in the Event",
   // The two the profile says as well, said here in the same words: a fan
   // reading "12th of 340" on one page and something else on the other would be
   // reading two answers to one question.
@@ -234,14 +246,14 @@ export const FINAL_STANDINGS_MESSAGES = {
  * page around it: a heading, a list, and a refusal.
  */
 export const PAST_SEASONS_MESSAGES = {
-  heading: "Seasons that have ended",
+  heading: "Events that have ended",
   what:
-    "Every Season before this one, with the standings it finished on. " +
-    "Nothing is ever removed: a Season played four years ago still says who " +
+    "Every Event before this one, with the standings it finished on. " +
+    "Nothing is ever removed: an Event played four years ago still says who " +
     "came where in it.",
-  none:
-    "No Season has ended yet. The first set of final standings is frozen the " +
-    "moment this one closes.",
+  // Still in the old word, with the rest of `/standings/<id>`: the heading and
+  // the sentence above are read on the leaderboard and the refusal is not, and
+  // one page reading half in each would be worse than either.
   notFound:
     "No Season has final standings under that link. A Season has them from " +
     "the moment it closes, and never before.",
