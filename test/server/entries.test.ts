@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { COIN_REASONS, STARTING_BALANCE } from "../../shared/coins";
 import {
   CANCELLATION_MESSAGES,
-  COMBINED_MULTIPLIER_CAP,
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   potentialReward,
@@ -171,7 +170,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       );
 
       // The winner Outcome pays ×2, so 20 Coins return 40.
-      expect(entry).toMatchObject({ amount: 20, multiplier: 2, capped: false, reward: 40 });
+      expect(entry).toMatchObject({ amount: 20, multiplier: 2, reward: 40 });
       expect(entry.predictions).toEqual([
         {
           boutId: card.bouts[0]!.id,
@@ -245,7 +244,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       );
 
       // The method Outcome pays ×2.50, so 20 Coins return 50.
-      expect(entry).toMatchObject({ amount: 20, multiplier: 2.5, capped: false, reward: 50 });
+      expect(entry).toMatchObject({ amount: 20, multiplier: 2.5, reward: 50 });
       expect(entry.predictions).toEqual([
         {
           boutId: card.bouts[0]!.id,
@@ -420,7 +419,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 25 });
     });
 
-    it("caps the combined Multiplier at ×100, and says the cap is what decided it", async () => {
+    it("returns what the chain multiplies out to, with nothing capping it", async () => {
       const card = await upcomingCard({
         multipliers: { winner: 5, method: 2.5 },
         bouts: [
@@ -438,13 +437,9 @@ describe("the Entry a fan commits, and takes back", async () => {
         ),
       );
 
-      // 5 × 5 × 5 is 125, and no Entry pays past the cap however far it is
-      // chained (ADR-0002: it bounds what a mispriced Outcome can cost).
-      expect(entry).toMatchObject({
-        multiplier: COMBINED_MULTIPLIER_CAP,
-        capped: true,
-        reward: 2 * COMBINED_MULTIPLIER_CAP,
-      });
+      // 5 × 5 × 5 is 125, and that is what the Entry returns: ADR-0020 removed
+      // the ×100 cap that used to stop this at 2 × 100.
+      expect(entry).toMatchObject({ multiplier: 125, reward: 250 });
     });
 
     it("leaves the materialised Balance saying what the ledger says", async () => {

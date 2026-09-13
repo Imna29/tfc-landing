@@ -5,6 +5,7 @@ import {
   type ClosedSeason,
   type Leaderboard,
 } from "#shared/standings";
+import { THE_CARD } from "~/utils/navigation";
 
 /**
  * The public scoreboard: the top ten of the Season, and where the fan reading
@@ -119,5 +120,5 @@ useSeoMeta({
     </div>
   </section>
 
-  <PageCrossLink to="/predictions" heading="Climb it from the card" label="Make a Prediction" />
+  <PageCrossLink :to="THE_CARD" heading="Climb it from the card" label="Make a Prediction" />
 </template>

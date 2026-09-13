@@ -59,13 +59,28 @@ export function inPlaySection(path: string): boolean {
 }
 
 /**
+ * The card itself, named once because everything that links to it links here.
+ *
+ * PlayTFC lands here, the game's own navigation opens here, the leaderboard
+ * sends a fan back here, and the sign-in prompt a visitor is shown on it asks to
+ * be returned here once they have an account. Five spellings of one path is four
+ * chances to get it wrong.
+ *
+ * {@link PLAY_SECTION} keeps its own literal deliberately, and is the one place
+ * that should. This is an address to navigate to; that is a prefix every path
+ * underneath it is matched against, and they are only the same string by
+ * coincidence — `/predictions/something` is in the section and is not the card.
+ */
+export const THE_CARD = "/predictions";
+
+/**
  * The one way in.
  *
  * It lands on the card rather than on a landing page about the card: a fan who
  * presses PlayTFC came to answer Bouts, and a page explaining that they could
  * is a step between them and the thing.
  */
-export const PLAY_TFC: NavLink = { to: "/predictions", label: "PlayTFC" };
+export const PLAY_TFC: NavLink = { to: THE_CARD, label: "PlayTFC" };
 
 /** The marketing site's own sections, in the header and in the mobile menu. */
 export const MARKETING_NAV: readonly NavLink[] = [
@@ -88,7 +103,7 @@ export const MARKETING_NAV: readonly NavLink[] = [
  * thing it is for.
  */
 export const PLAY_NAV: readonly NavLink[] = [
-  { to: "/predictions", label: "The Card" },
+  { to: THE_CARD, label: "The Card" },
   { to: "/leaderboard", label: "Leaderboard" },
 ];
 
@@ -109,3 +124,70 @@ export const PLAY_NAV: readonly NavLink[] = [
 export const PLAY_FINE_PRINT =
   "TFC Predictions is free to play. Coins are worth nothing outside the game: they have no " +
   "real-money value and cannot be bought, transferred or redeemed.";
+
+/**
+ * The query parameter a page puts its own path in to be returned to.
+ *
+ * One name, used by the page that writes the link and the form that reads it,
+ * because the two agreeing is the whole of the mechanism.
+ */
+export const RETURN_QUERY = "next";
+
+/**
+ * Where a fan lands after signing in when nothing asked for them back.
+ *
+ * Their own account, which is what signing in used to do unconditionally and is
+ * still the right answer for a fan who went to the form under their own steam.
+ */
+export const SIGNED_IN_LANDING = "/profile";
+
+/**
+ * Where signing in should land, given what the page asked for.
+ *
+ * The card asks a visitor to sign in **before** they answer a Bout, and that is
+ * only advice worth taking if signing in brings them back to the card. So a
+ * page may name where it wants the fan returned — and the moment a path arrives
+ * in a URL it is somewhere anybody can write, so what comes back from here is
+ * an allow-list rather than a sanitised version of what arrived.
+ *
+ * Inside the game and outside `/account`. The first is narrow because nothing
+ * on the marketing site ever asks a fan to sign in, so nothing there has a
+ * reason to be returned to; the second is because the account pages are where
+ * the fan already is, and returning them there is a loop. Anything else — an
+ * absolute URL, a protocol-relative one, a backslash a browser may read as the
+ * other slash, a path carrying a query of its own, a second spelling of a real
+ * path (ADR-0012) — is the profile.
+ */
+export function returnTo(asked: unknown): string {
+  if (typeof asked !== "string" || !asked.startsWith("/") || asked.startsWith("//")) {
+    return SIGNED_IN_LANDING;
+  }
+
+  // `inPlaySection` refuses all three of these already, by matching a path a
+  // segment at a time. They are named anyway: this is the guard somebody will
+  // read when they widen that matcher, and what it must keep refusing is worth
+  // saying here rather than inferring from somewhere else.
+  if (asked.includes("\\") || asked.includes("://") || asked.includes("?")) {
+    return SIGNED_IN_LANDING;
+  }
+
+  if (!inPlaySection(asked) || inAccountSection(asked)) return SIGNED_IN_LANDING;
+
+  return asked;
+}
+
+/** Whether a path is one of the forms an account is created or entered on. */
+function inAccountSection(path: string): boolean {
+  return path === "/account" || path.startsWith("/account/");
+}
+
+/**
+ * The way to an account from a page that wants the fan back afterwards.
+ *
+ * Written here rather than at each link so that {@link RETURN_QUERY} has one
+ * speller, and so that a link this builds is one {@link returnTo} accepts —
+ * `test/unit/navigation.test.ts` holds the two halves to each other.
+ */
+export function accountPath(page: "sign-in" | "sign-up", returningTo: string): string {
+  return `/account/${page}?${RETURN_QUERY}=${encodeURIComponent(returningTo)}`;
+}

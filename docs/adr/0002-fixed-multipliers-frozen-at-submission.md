@@ -18,12 +18,14 @@ to win 240", legibility beat self-balancing.
 
 - A mispriced Outcome is exploitable and nothing self-corrects it. Hence the ×100 combined
   Multiplier cap and the ten-Prediction limit: they bound the damage of a pricing mistake
-  rather than preventing it.
+  rather than preventing it. **[[adr-0020]] later removed the cap**, leaving the
+  ten-Prediction limit as the whole of that bound.
 - Someone at TFC must price every card before it opens. That is an ongoing operational
   commitment, not a one-off setup task.
 - A Prediction stores its Multiplier as a value, never a reference to the Outcome's current
   Multiplier.
-- Those values are the whole of what is frozen. The combined Multiplier they multiply out to,
-  the cap on it and the Reward are worked out wherever one is needed rather than written down
-  — see [[adr-0013]], which decides that the cap is a rule of the game rather than part of
-  what a fan was offered.
+- Those values are the whole of what is frozen. The combined Multiplier they multiply out to
+  and the Reward are worked out wherever one is needed rather than written down — see
+  [[adr-0013]], which decided that the cap on the combined Multiplier was a rule of the game
+  rather than part of what a fan was offered, and [[adr-0020]], which removes the cap and
+  keeps the deriving.

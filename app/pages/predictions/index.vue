@@ -6,7 +6,7 @@ import {
   type DraftPrediction,
 } from "#shared/entries";
 import { boutState, PREDICTION_MESSAGES } from "#shared/predictions";
-import type { OutcomeAnswer } from "#shared/pricing";
+import { signInPrompt } from "#shared/signIn";
 
 /**
  * The card, and the Entry a fan builds on it.
@@ -74,26 +74,24 @@ const { data: committed, refresh: refreshCommitted } = await useAsyncData<Commit
  *
  * One answer per Bout, because that is what an Entry may hold (ADR-0014) —
  * answering a second Question on a Bout replaces what is here rather than
- * standing beside it.
+ * standing beside it. Keyed by Bout id rather than by place on the card, because
+ * that is what an Entry is submitted against — and a Bout keeps its id when a
+ * card is re-imported into a different order.
  *
- * Keyed by Bout id rather than by place on the card, because that is what an
- * Entry is submitted against — and a Bout keeps its id when a card is
- * re-imported into a different order.
+ * **No longer this page's own state**, which is what the sign-in prompt below
+ * costs. Telling a visitor to sign in before they answer anything is only advice
+ * worth taking if it is free, so {@link useCardPicks} carries the answers across
+ * the trip to the form and back — and across a reload of either page. This page
+ * is still the only thing that reads them, and `keep()` is it saying so.
+ *
+ * Nothing personal is rendered from this. The server has no idea what a fan has
+ * answered — the answers are made in the browser and stay there until an Entry
+ * is submitted — so the state this page serialises into its HTML is always an
+ * empty card, whoever asked for it (ADR-0008, and `route-rules.ts`).
  */
-const picks = ref<Record<string, OutcomeAnswer>>({});
+const { picks, answer, clear, keep } = useCardPicks();
 
-/** Takes the answer the card just gave, or drops the Bout from the Entry. */
-function answer(boutId: string, pick: OutcomeAnswer | null) {
-  const answered = { ...picks.value };
-
-  if (pick === null) {
-    delete answered[boutId];
-  } else {
-    answered[boutId] = pick;
-  }
-
-  picks.value = answered;
-}
+keep();
 
 /** Every Bout the game is offering answers on, with what they pay. */
 const boutsInTheGame = computed(() =>
@@ -139,6 +137,25 @@ const draft = computed<DraftPrediction[]>(() =>
 );
 
 /**
+ * Whether there is an account behind the answers being given.
+ *
+ * Read once here and handed to everything that needs it — the prompt, and the
+ * card that repeats it on each Bout a visitor answers — rather than each of them
+ * deciding for itself. Ten Bouts with ten views on who is looking is the failure
+ * this prevents.
+ */
+const signedIn = computed(() => Boolean(fan.value));
+
+/**
+ * What to say to whoever is holding the card without an account, if anything.
+ *
+ * Counted off the priced draft rather than off `picks`, so the number it names
+ * is the number the panel shows: an answer the card no longer offers is not in
+ * the Entry, and has no business being in the sentence either.
+ */
+const prompt = computed(() => signInPrompt(signedIn.value, draft.value.length));
+
+/**
  * How far through the card the fan is, for the strip at the top of it.
  *
  * Counted against the Bouts that can actually be answered — open, and priced
@@ -159,14 +176,9 @@ const progress = computed(() => {
   );
 });
 
-/** Takes every answer back, for a fan starting the card again. */
-function clear() {
-  picks.value = {};
-}
-
 /** Clears the card the Entry was built on, and lists the Entry it became. */
 async function submitted() {
-  picks.value = {};
+  clear();
   await refreshCommitted();
 }
 
@@ -192,12 +204,15 @@ useSeoMeta({
           commit your Coins, and a Bout stops taking Predictions the moment it locks.
         </p>
 
+        <SignInToPlay v-if="prompt" :prompt="prompt" class="mt-8" />
+
         <div class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <FightCard
             :card="card"
             :predictions="predictions"
             :picks="picks"
             :now="now"
+            :needs-account="!signedIn"
             @pick="answer"
           />
 

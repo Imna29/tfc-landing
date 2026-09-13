@@ -21,7 +21,7 @@ import { boutState, PREDICTION_MESSAGES } from "./predictions";
 // Type-only, and so erased before anything runs: `shared/results.ts` reads the
 // Prediction types from here, and this reads the one type it adds.
 import type { BoutEnding } from "./results";
-import { isMethod, isQuestion, MULTIPLIER, outcomeKey, type OutcomeAnswer } from "./pricing";
+import { MULTIPLIER, outcomeKey, readAnswer, type OutcomeAnswer } from "./pricing";
 
 /**
  * How many Predictions one Entry holds.
@@ -29,8 +29,13 @@ import { isMethod, isQuestion, MULTIPLIER, outcomeKey, type OutcomeAnswer } from
  * The floor is what an Entry is: a fan committing Coins to nothing has not
  * predicted anything. The ceiling is a bound on what a mispriced Outcome can
  * cost, not a rule about how a fan should play — ADR-0002 has no pool that
- * self-corrects a price nobody looked at, so the damage is bounded by the ten
- * links here and by {@link COMBINED_MULTIPLIER_CAP} rather than prevented.
+ * self-corrects a price nobody looked at, so the damage is bounded rather than
+ * prevented.
+ *
+ * These ten links are the whole of that bound. They used to share it with a cap
+ * on the combined Multiplier, and ADR-0020 removed it: a chain now pays what it
+ * multiplies out to, so ten wrong Multipliers multiply out in full. That is the
+ * thing to weigh before anybody widens this number.
  *
  * Spelled out again in the `entries_hold_one_to_ten_predictions` trigger.
  */
@@ -45,30 +50,6 @@ export const ENTRY_PREDICTIONS = { minimum: 1, maximum: 10 } as const;
  * `entries_amount_is_committed` check constraint.
  */
 export const AMOUNT = { minimum: 1 } as const;
-
-/**
- * The most an Entry's combined Multiplier can reach.
- *
- * The other half of ADR-0002's bill. A Multiplier set by hand can be wrong,
- * and ten wrong ones multiplied together is a Reward nobody meant to offer, so
- * the chain stops paying more at ×100 however far it is taken. The cap is
- * shown to the fan the moment it starts deciding their Reward: a number that
- * quietly stopped growing would read as a game that had stopped working.
- *
- * **The cap is a rule of the game, not a term of the offer** (ADR-0013). An
- * Entry freezes what each of its answers paid (ADR-0002) and nothing else, so
- * the cap and the rounding are applied wherever a Reward is worked out —
- * here, in the panel a fan confirms in, and in the settlement that pays. There
- * is no capped number written onto an Entry for settlement to read back,
- * because settlement could not pay it in any case: a No Result contributes
- * ×1.0 (ADR-0005), and the Reward is worked out from the answers that survived.
- *
- * The consequence is worth saying plainly: **changing this number changes what
- * every unsettled Entry pays.** That is a decision to take between Seasons
- * rather than during one, and the reason it is a constant somebody edits in a
- * reviewed change rather than a setting somebody can type.
- */
-export const COMBINED_MULTIPLIER_CAP = 100;
 
 /**
  * Where an Entry is.
@@ -244,10 +225,8 @@ export type Cancellation =
 
 /** What an Entry returns if every Prediction in it lands. */
 export interface PotentialReward {
-  /** The combined Multiplier, after the cap and as a fan is shown it. */
+  /** The combined Multiplier, as a fan is shown it. */
   multiplier: number;
-  /** Whether the cap is what decided that number. */
-  capped: boolean;
   /** The Coins a winning Entry returns: the Amount at that Multiplier. */
   reward: number;
 }
@@ -324,19 +303,20 @@ export function priceOf(answer: OutcomeAnswer, offered: readonly OfferedAnswer[]
  * Predictions, which is what it is. Nothing shows that — a fan who has
  * answered nothing is shown no Reward — and it is the honest answer for the
  * moment between clearing an Entry and starting the next one.
+ *
+ * Nothing bounds the number at the other end (ADR-0020). A chain of ten returns
+ * what its ten Multipliers multiply out to, and the only thing standing between
+ * a mispriced Outcome and a Reward nobody meant to offer is
+ * {@link ENTRY_PREDICTIONS} and the pricing being done before the Bout opens.
  */
 export function potentialReward(
   amount: number,
   predictions: readonly PricedPrediction[],
 ): PotentialReward {
   const combined = predictions.reduce((product, prediction) => product * prediction.multiplier, 1);
+  const multiplier = Number(combined.toFixed(MULTIPLIER.decimals));
 
-  const capped = combined > COMBINED_MULTIPLIER_CAP;
-  const multiplier = capped
-    ? COMBINED_MULTIPLIER_CAP
-    : Number(combined.toFixed(MULTIPLIER.decimals));
-
-  return { multiplier, capped, reward: Math.round(amount * multiplier) };
+  return { multiplier, reward: Math.round(amount * multiplier) };
 }
 
 /** How far through the open Bouts of a card an Entry has been built. */
@@ -459,6 +439,14 @@ export const CANCELLATION_MESSAGES = {
 
 /** Everything submitting an Entry says to the fan submitting it. */
 export const ENTRY_MESSAGES = {
+  /**
+   * What a submission with no session behind it is refused with.
+   *
+   * The rule stated to somebody who has already run into it, which is why it is
+   * here rather than in `shared/signIn.ts`: that module is the same rule said
+   * *before* a visitor answers anything, and the card now says it there instead
+   * of leaving this one to arrive under a pressed button.
+   */
   signIn:
     "Sign in to commit Coins to an Entry. Reading the card and picking your " +
     "way through it needs no account; committing Coins to what you picked does.",
@@ -499,10 +487,6 @@ export const ENTRY_MESSAGES = {
     "One of those answers is not offered on that Bout. Reload the card — the " +
     "answers a Bout offers, and what each of them pays, are set before it " +
     "opens.",
-  capped:
-    `Chained this far, the combined Multiplier has reached its cap of ` +
-    `×${COMBINED_MULTIPLIER_CAP}. Another Prediction lengthens the Entry ` +
-    "without increasing what it returns.",
   accepted: (amount: number, reward: number) =>
     `Entry accepted. ${coinsLabel(amount)} committed, returning ` +
     `${coinsLabel(reward)} if every Prediction in it lands.`,
@@ -563,36 +547,24 @@ export function parseEntry(value: unknown): ParsedEntry {
 /**
  * One answered Bout as it arrives, or null if it is not one.
  *
- * **A corner always, plus a method exactly where the Question names one.**
- * Every answer is about a fighter (ADR-0015), so a Prediction naming a method
- * and no corner is not an answer the card ever offered — and a winner answer
- * carrying a method is refused here rather than resolved, because nothing
- * downstream could say which of the two the fan gave.
- * `predictions_answers_its_question` refuses the same row underneath, the way
- * `outcomes_answers_its_question` refuses it of the Outcome this is a copy of.
+ * The Bout is this function's own business; what a valid answer to it looks like
+ * is `readAnswer`'s, in `shared/pricing.ts`. That rule — a corner always, plus a
+ * method exactly where the Question names one (ADR-0015), and no Question the
+ * game does not ask (ADR-0016) — is read the same way here and out of the
+ * browser's own storage on the card (`useCardPicks`), which is why it is stated
+ * once over there rather than twice.
  *
- * A Prediction naming the round of victory arrives as a Question the game does
- * not ask, and `isQuestion` is what turns it away (ADR-0016): a card left open
- * in a tab from before the change is refused whole rather than committed in
- * part.
+ * An Entry arriving with a Prediction this refuses is refused whole: there is no
+ * reading of a submission where nine of ten are what the fan meant.
  */
 function readPrediction(value: unknown): PredictionAnswer | null {
-  const answered = (value ?? {}) as Record<string, unknown>;
-  const { boutId, question, corner = null, method = null } = answered;
+  const { boutId } = (value ?? {}) as Record<string, unknown>;
 
   if (typeof boutId !== "string" || boutId === "") return null;
-  if (!isQuestion(question)) return null;
-  if (corner !== "red" && corner !== "blue") return null;
 
-  if (question === "winner") {
-    if (method !== null) return null;
+  const answer = readAnswer(value);
 
-    return { boutId, question, corner, method: null };
-  }
-
-  if (!isMethod(method)) return null;
-
-  return { boutId, question, corner, method };
+  return answer === null ? null : { boutId, ...answer };
 }
 
 /** Whether this is a number of Coins that can be committed. */

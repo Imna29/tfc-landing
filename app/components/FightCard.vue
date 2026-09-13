@@ -30,6 +30,20 @@ const props = defineProps<{
    * the card shown anywhere that is not counting anything.
    */
   now?: number;
+  /**
+   * Whether answering this card needs an account the reader has not got.
+   *
+   * A fourth layer, optional like the two before it, and the only one that is
+   * about the reader rather than about the card: with it, each Bout a visitor
+   * answers says so where they answered it. Left off — which is every card
+   * shown outside the game, and the card a signed-in fan is playing — nothing
+   * about an account appears anywhere on it.
+   *
+   * It carries no session and cannot read one. The page it is played on works
+   * out the answer once and hands it down, so that ten Bouts cannot come to
+   * ten different views of who is looking.
+   */
+  needsAccount?: boolean;
 }>();
 
 const emit = defineEmits<{ pick: [boutId: string, pick: OutcomeAnswer | null] }>();
@@ -69,6 +83,7 @@ const shown = computed(() =>
         :now="now"
         :picking="picks !== undefined && boutId !== null"
         :pick="boutId === null ? null : (picks?.[boutId] ?? null)"
+        :needs-account="needsAccount"
         @update:pick="boutId && emit('pick', boutId, $event)"
       />
     </li>

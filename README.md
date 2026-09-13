@@ -538,8 +538,9 @@ A Multiplier is above 1 and no higher than 100, to two decimal places
 (`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
 correct Prediction returns exactly the Coins committed and below it a fan is
 worse off for being right; the ceiling is the stuck key — 190 where 1.90 was
-meant — and nothing above it could be paid anyway, since a combined Multiplier
-is capped at ×100.
+meant. It carries more weight than it used to: ADR-0020 removed the cap on the
+combined Multiplier, so a number typed wrong here is multiplied out in full
+rather than absorbed by a ceiling further down.
 
 Two consequences worth knowing:
 
@@ -745,8 +746,8 @@ card rather than a card that cannot be imported.
 The same page is where a fan plays. Picking an answer turns the card
 interactive — every Outcome on an open Bout is a button — and
 `app/components/EntryBuilder.vue` holds the Entry being built: the Predictions
-in it, the combined Multiplier, whether the ×100 cap has decided it, the Amount,
-and the Coins it returns if it lands. `POST /api/predictions/entries` commits
+in it, the combined Multiplier, the Amount, and the Coins it returns if it
+lands. `POST /api/predictions/entries` commits
 it.
 
 **A Prediction is one answer to one Question on one Bout** (ADR-0014): a winner
@@ -844,13 +845,14 @@ answer paid at submission (ADR-0002) — one number for one answer. The Entry
 stores neither the combined Multiplier nor the Reward: both are the product of
 what is on its Predictions, and a stored copy would be a second answer to a
 question that already has one. `potentialReward` in `shared/entries.ts` is where they
-become a Reward, capped at ×100 and rounded to whole Coins, said once for the
-panel, the API and the settlement that will eventually pay it. The cost of that
-is worth stating: the cap and the rounding are *rules*, applied wherever a
-Reward is worked out, rather than numbers frozen onto the Entry — so changing
-either changes what every unsettled Entry pays. That is a decision to take
-between Seasons rather than during one, and `COMBINED_MULTIPLIER_CAP` says so
-where somebody would change it.
+become a Reward, rounded to whole Coins, said once for the panel, the API and
+the settlement that will eventually pay it. **Nothing caps it** (ADR-0020): a
+chain of ten answers at ×3 returns ×59049, and the ten-Prediction limit is the
+only thing bounding what a mispriced Outcome can cost. The cost of deriving is
+worth stating: the rounding is a *rule*, applied wherever a Reward is worked
+out, rather than a number frozen onto the Entry — so changing it changes what
+every unsettled Entry pays, which is a decision to take between Seasons rather
+than during one.
 
 **The Coins leave at submission**, as one `entry_commitment` row in the ledger
 written in the same transaction as the Entry (ADR-0003). The route reads the
@@ -872,7 +874,7 @@ is driven through the API against a real Postgres in
 `test/server/entries.test.ts`, and the rules Postgres holds are also written by
 hand there so that a passing route is not the only evidence for them. What a
 fan clicks is held by the unit tests over `shared/entries.ts` — building a
-Prediction, the cap, the Reward — plus the server-rendered shell of the page;
+Prediction, the chain, the Reward — plus the server-rendered shell of the page;
 the reactivity between them is held by `vue-tsc` and by those functions being
 the same ones the server uses, because this repo still has no component-test
 setup (see the card display section above).
@@ -1032,7 +1034,7 @@ about that page.
 
 **Nothing on this page is stored.** The combined Multiplier, the Reward and each
 Prediction's own grade are worked out from the Predictions and the Results every
-time the page is read. That is ADR-0013 applied to a whole page: a history that
+time the page is read. That is ADR-0020 applied to a whole page: a history that
 quoted a Reward written down beside the Entry would be a second answer to a
 question settlement has already answered, and the day they differed nothing
 could say which was right.

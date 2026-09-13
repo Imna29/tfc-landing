@@ -16,8 +16,9 @@
  * doing. Whether a Prediction landed, where an Entry now stands and what each
  * of its Predictions ended up paying is `shared/results.ts`, and what a winning
  * Entry returns is `potentialReward` in `shared/entries.ts` — the same function
- * that priced the panel the fan confirmed in, which is what ADR-0013 means by
- * the cap being a rule rather than a number anybody was quoted.
+ * that priced the panel the fan confirmed in, which is what ADR-0020 means by
+ * the Reward being worked out wherever one is needed rather than read back from
+ * a number written at submission.
  *
  * A Bout that produced nothing gradable settles through exactly this path
  * (ADR-0005). It is not a lesser kind of settlement: it locks the Bout, records
@@ -402,11 +403,11 @@ export interface SettlingEntry {
  * What a winning Entry returns, worked out by the function that told the fan
  * what it would.
  *
- * ADR-0013 and ADR-0005 in three lines: the combined Multiplier and the ×100
- * cap are worked out here from the Multipliers on the Predictions rather than
- * read back from a number written at submission, and each Prediction is priced
- * at what it *ended up* paying — a No Result at ×1.0, a disqualification at its
- * winner alone. There is nothing to disagree with.
+ * ADR-0020 and ADR-0005 in three lines: the combined Multiplier is worked out
+ * here from the Multipliers on the Predictions rather than read back from a
+ * number written at submission, and each Prediction is priced at what it
+ * *ended up* paying — a No Result at ×1.0, a disqualification at its winner
+ * alone. There is nothing to disagree with.
  *
  * `saying` is handed the Multiplier it came to and writes the ledger's reason
  * from it, because the Coins are the same movement whether this is the first

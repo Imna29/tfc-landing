@@ -16,7 +16,9 @@ import {
   type OfferedOutcome,
 } from "#shared/predictions";
 import { CORNERS, outcomeLabel, QUESTION_LABELS, type OutcomeAnswer } from "#shared/pricing";
+import { SIGN_IN_MESSAGES } from "#shared/signIn";
 import { CORNER_COLOURS } from "~/utils/corners";
+import { accountPath, THE_CARD } from "~/utils/navigation";
 
 /**
  * One Bout on a card: the two fighters facing each other, and — only when it
@@ -62,6 +64,15 @@ const props = defineProps<{
   picking?: boolean;
   /** The one answer the fan has given on this Bout, or null for none. */
   pick?: OutcomeAnswer | null;
+  /**
+   * Whether answering here needs an account the reader has not got.
+   *
+   * Only the card being played sets it, and only for a visitor who is not
+   * signed in — see `app/pages/predictions/index.vue`, which works the answer
+   * out once for the whole card. Which is also why the way to the form below
+   * returns the fan to the card: that is the one page this is ever true on.
+   */
+  needsAccount?: boolean;
 }>();
 
 const emit = defineEmits<{ "update:pick": [OutcomeAnswer | null] }>();
@@ -110,11 +121,36 @@ const lockNote = computed(() => {
 /**
  * Whether a fan can answer this Bout right now.
  *
- * Picking is offered to a signed-out visitor as well: they can build an Entry
- * and are asked to sign in when they submit it, which is a better path into
- * the game than a card that does nothing until they have an account.
+ * Picking is offered to a signed-out visitor as well, and that has not changed:
+ * a card that did nothing until a visitor had an account is a worse way into
+ * the game than one they can play with straight away. What changed is when they
+ * are told an account is needed. It used to be the moment they pressed Submit,
+ * with a card's worth of answers already given; it is now said before they
+ * answer anything and again on each Bout they answer — see
+ * {@link needsAnAccount} and `shared/signIn.ts`.
  */
 const answering = computed(() => props.picking === true && state.value === "open");
+
+/**
+ * Whether this Bout is one a visitor has answered without an account.
+ *
+ * The requirement is said here, on the Bout, because this is where they are
+ * looking. `SignInToPlay` says it at length above the card, and above the card
+ * is off screen by the third Bout of ten — a fan working down the card would
+ * answer all of it before reading a word. One clause where they pressed reaches
+ * them; a paragraph at the top does not.
+ *
+ * Only while the Bout is still open. A locked Bout has its own note saying so,
+ * and nothing about an account changes what a fan can do with it.
+ *
+ * What it renders is deliberately not a live region. `SignInToPlay` above the
+ * card is the one on this page, and it is already saying this the moment a first
+ * answer is given — ten Bouts each announcing it again would be the same
+ * sentence read out on every press.
+ */
+const needsAnAccount = computed(
+  () => props.needsAccount === true && answering.value && Boolean(props.pick),
+);
 
 /** The two names this Bout is fought under, which names a winner Outcome. */
 const corners = computed(() => ({ red: props.bout.red.name, blue: props.bout.blue.name }));
@@ -403,6 +439,19 @@ function wrapperFor(
       class="border-t border-outline-variant/15 px-4 py-3 text-sm text-on-surface/60"
     >
       {{ lockNote }}
+    </p>
+
+    <p
+      v-if="needsAnAccount"
+      class="flex flex-wrap items-baseline gap-x-2 border-t border-primary-container/50 bg-primary-container/10 px-4 py-3 text-sm"
+    >
+      <span class="text-on-surface/75">{{ SIGN_IN_MESSAGES.onTheBout }}</span>
+      <NuxtLink
+        :to="accountPath('sign-in', THE_CARD)"
+        class="font-bold uppercase tracking-widest text-primary underline"
+      >
+        {{ SIGN_IN_MESSAGES.signIn }}
+      </NuxtLink>
     </p>
   </article>
 </template>

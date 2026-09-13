@@ -1,8 +1,18 @@
 ---
-status: accepted
+status: superseded by ADR-0020
 ---
 
 # The combined Multiplier cap is a rule of the game, not a term of the offer
+
+**Superseded by [[adr-0020]], which removes the cap entirely.** Read that record, not this
+one. There is no ×100 ceiling on a combined Multiplier and no `COMBINED_MULTIPLIER_CAP`
+constant; an Entry pays what its Predictions multiply out to.
+
+The half of this record that does not concern the cap still holds, and [[adr-0020]] restates
+all of it: the combined Multiplier and the Reward are **derived wherever one is needed and
+never written onto the Entry**, because settlement recomputes from the answers that survived
+and could never pay a promised number anyway. Read the rest of this record as the reasoning
+behind that, with every mention of a cap struck out.
 
 An Entry freezes what each of its answers paid ([[adr-0002]]) and nothing else. The combined
 Multiplier, the ×100 cap on it and the rounding to whole Coins are worked out from the

@@ -344,12 +344,13 @@ at submission, not at settlement. Never a "stake".
 
 ### Reward
 
-Coins returned by a winning Entry: Amount × the Entry's combined Multiplier, which is capped
-at ×100. A losing Entry has no Reward; it is not a "negative reward". Never a "payout".
+Coins returned by a winning Entry: Amount × the Entry's combined Multiplier, which is
+**uncapped** — a chain returns what its Multipliers multiply out to, however long it is. A
+losing Entry has no Reward; it is not a "negative reward". Never a "payout".
 
-The cap is a rule of the game rather than a number frozen on the Entry, so a Reward is
-worked out from the Predictions every time one is needed and never read back from a promise.
-See [[adr-0013]].
+A Reward is worked out from the Predictions every time one is needed and never read back from
+a number frozen on the Entry. See [[adr-0020]], which removed the ×100 cap [[adr-0013]] had
+put on the combined Multiplier and kept the deriving.
 
 ### Prize — retired
 

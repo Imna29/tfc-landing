@@ -102,10 +102,8 @@ export interface SubmittedPrediction extends OutcomeAnswer {
 export interface SubmittedEntry {
   id: string;
   amount: number;
-  /** The combined Multiplier, after the ×100 cap. */
+  /** The combined Multiplier: what its Predictions multiply out to. */
   multiplier: number;
-  /** Whether the cap is what decided that number. */
-  capped: boolean;
   /** The Coins it returns if every Prediction in it lands. */
   reward: number;
   submittedAt: string;
@@ -277,14 +275,13 @@ export async function submitEntry(submission: {
         reason: COIN_REASONS.entryCommitted(submission.predictions.length),
       });
 
-      const { multiplier, capped, reward } = potentialReward(amount, submission.predictions);
+      const { multiplier, reward } = potentialReward(amount, submission.predictions);
 
       return {
         entry: {
           id: entry.id,
           amount,
           multiplier,
-          capped,
           reward,
           submittedAt: entry.submittedAt.toISOString(),
           predictions: submission.predictions.map((prediction) => ({

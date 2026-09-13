@@ -196,7 +196,7 @@ export interface ReadPrediction {
 export interface ReadEntry {
   entry: HistoricEntry;
   predictions: ReadPrediction[];
-  /** The combined Multiplier after the cap, and the Coins at it. */
+  /** The combined Multiplier, and the Coins at it. */
   returns: PotentialReward;
   /** What became of the Coins it committed. */
   reward: EntryReward;

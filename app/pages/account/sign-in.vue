@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { EMAIL_MESSAGES } from "#shared/emails";
+import { SIGN_IN_MESSAGES } from "#shared/signIn";
+import { accountPath, returnTo, RETURN_QUERY, THE_CARD } from "~/utils/navigation";
 
 /**
  * The sign-in form.
@@ -13,16 +15,32 @@ useSeoMeta({
   robots: "noindex",
 });
 
+const route = useRoute();
+
+/**
+ * Where signing in puts the fan down.
+ *
+ * Their own account unless a page asked for them back, which the card does: it
+ * asks a visitor to sign in *before* they answer a Bout, and that is only
+ * advice worth taking if it costs them nothing. `returnTo` has the final say on
+ * what a URL is allowed to ask for — see `app/utils/navigation.ts`.
+ */
+const landing = computed(() => returnTo(route.query[RETURN_QUERY]));
+
+// Carrying where the fan was headed, so switching to the other form does not
+// lose it: a visitor sent here by the card who turns out to need an account
+// should still land back on the card once they have one.
+const signUpLink = computed(() => accountPath("sign-up", landing.value));
+
 // A fan who is already signed in has nothing to do here.
 const { data: signedIn } = await useFan();
 
 if (signedIn.value) {
-  await navigateTo("/profile");
+  await navigateTo(landing.value);
 }
 
 // Setting a new password signs every session out, so a fan arrives here from
 // the reset form rather than at their account, and deserves to be told why.
-const route = useRoute();
 const justResetPassword = computed(() => route.query.reset === "done");
 
 // The header is mounted once and outlives every page, so it only learns a fan
@@ -40,7 +58,7 @@ async function submit() {
   try {
     await $fetch("/api/auth/sign-in/email", { method: "POST", body: { ...form } });
     await refreshBalance();
-    await navigateTo("/profile");
+    await navigateTo(landing.value);
   } catch {
     failure.value = "Those details do not match an account.";
   } finally {
@@ -56,6 +74,14 @@ async function submit() {
     <div class="max-w-xl mx-auto">
       <p v-if="justResetPassword" class="text-on-surface/80 leading-relaxed mb-10" role="status">
         {{ EMAIL_MESSAGES.passwordChanged }}
+      </p>
+
+      <p
+        v-else-if="landing === THE_CARD"
+        class="text-on-surface/80 leading-relaxed mb-10"
+        role="status"
+      >
+        {{ SIGN_IN_MESSAGES.backToTheCard }}
       </p>
 
       <form class="grid gap-8" novalidate @submit.prevent="submit">
@@ -94,7 +120,7 @@ async function submit() {
 
       <p class="mt-4 text-on-surface/70">
         New here?
-        <NuxtLink to="/account/sign-up" class="text-primary underline">Create an account</NuxtLink>.
+        <NuxtLink :to="signUpLink" class="text-primary underline">Create an account</NuxtLink>.
       </p>
     </div>
   </section>

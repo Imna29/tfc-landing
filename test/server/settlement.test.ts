@@ -1,7 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { STARTING_BALANCE } from "../../shared/coins";
-import { COMBINED_MULTIPLIER_CAP } from "../../shared/entries";
 import { DISCIPLINES } from "../../shared/fightCard";
 import { METHODS } from "../../shared/pricing";
 import {
@@ -323,7 +322,7 @@ describe("entering a result", async () => {
       ]);
     });
 
-    it("returns no more than the cap however far it is chained", async () => {
+    it("pays what a long chain multiplies out to, with nothing capping it", async () => {
       const card = await upcomingCard(8);
       const fan = await fanWithCoins();
 
@@ -339,22 +338,24 @@ describe("entering a result", async () => {
         paid = (await settle(card, place, { winner: "red" })).settlement.paid;
       }
 
-      // Eight winner picks at ×2 multiply out to ×256, which is well past the
-      // cap: 10 Coins return 1000 rather than 2560.
-      expect(TEST_MULTIPLIERS.winner ** card.bouts.length).toBeGreaterThan(COMBINED_MULTIPLIER_CAP);
-      expect(paid).toBe(10 * COMBINED_MULTIPLIER_CAP);
+      // Eight winner picks at ×2 multiply out to ×256, and ADR-0020 pays all of
+      // it: 10 Coins return 2560 where the ×100 cap used to hold them to 1000.
+      const chained = TEST_MULTIPLIERS.winner ** card.bouts.length;
+
+      expect(chained).toBe(256);
+      expect(paid).toBe(10 * chained);
       expect(await statusOf(entry.id)).toBe("won");
 
-      // Read back out of the ledger rather than taken from the answer: the cap
-      // is the number this whole rule exists for, and what settlement said it
-      // returned is not evidence that it wrote it.
+      // Read back out of the ledger rather than taken from the answer: an
+      // uncapped chain is the number this whole rule exists for, and what
+      // settlement said it returned is not evidence that it wrote it.
       expect(
         (await ledgerFor(fan.id))
           .filter((row) => row.kind === "entry_reward")
           .map((row) => row.amount),
-      ).toEqual([10 * COMBINED_MULTIPLIER_CAP]);
+      ).toEqual([10 * chained]);
       expect(await balance(fan.cookie)).toMatchObject({
-        balance: STARTING_BALANCE - 10 + 10 * COMBINED_MULTIPLIER_CAP,
+        balance: STARTING_BALANCE - 10 + 10 * chained,
       });
     });
   });

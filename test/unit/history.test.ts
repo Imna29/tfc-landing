@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { coinsLabel } from "../../shared/coins";
-import { COMBINED_MULTIPLIER_CAP, ENTRY_STATUSES, ENTRY_STATUS_LABELS } from "../../shared/entries";
+import { ENTRY_STATUSES, ENTRY_STATUS_LABELS } from "../../shared/entries";
 import {
   HISTORY_MESSAGES,
   bySeason,
@@ -97,7 +97,7 @@ describe("which Entries a fan is looking at", () => {
 });
 
 describe("the Coins beside an Entry", () => {
-  const returns = { multiplier: 4, capped: false, reward: 80 };
+  const returns = { multiplier: 4, reward: 80 };
 
   it("is what an Open Entry stands to return", () => {
     expect(rewardOf(entry({ status: "open" }), returns)).toEqual({
@@ -239,11 +239,11 @@ describe("reading one Entry back", () => {
     // ADR-0005: the cancelled Bout contributes ×1.0 rather than the ×2 it was
     // priced at, and the chain plays on at what is left of it.
     expect(read.predictions.map((one) => one.multiplier)).toEqual([1, 3]);
-    expect(read.returns).toEqual({ multiplier: 3, capped: false, reward: 30 });
+    expect(read.returns).toEqual({ multiplier: 3, reward: 30 });
     expect(read.predictions[0]?.note).toContain("Bout cancelled");
   });
 
-  it("says what a chain returns at the ×100 cap, and that the cap decided it", () => {
+  it("says what a long chain returns, with nothing capping it", () => {
     const read = readEntry(
       entry({
         amount: 5,
@@ -253,11 +253,9 @@ describe("reading one Entry back", () => {
       }),
     );
 
-    expect(read.returns).toEqual({
-      multiplier: COMBINED_MULTIPLIER_CAP,
-      capped: true,
-      reward: 5 * COMBINED_MULTIPLIER_CAP,
-    });
+    // ADR-0020: 4^8 is 65536, and the history reads back what the chain came
+    // to rather than a number that stopped at ×100.
+    expect(read.returns).toEqual({ multiplier: 65536, reward: 327680 });
   });
 
   it("carries the Entry it was read from, so nothing has to be paired up again", () => {

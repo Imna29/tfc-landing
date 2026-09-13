@@ -28,6 +28,9 @@ import type { FanStanding as Standing } from "#shared/standings";
 const route = useRoute();
 const { data: fan, refresh } = await useFan();
 const { forget: forgetBalance } = useBalance();
+// And the answers half-built on the card, which are this fan's and not the next
+// person's to find on the same browser. See `app/composables/useCardPicks.ts`.
+const { forget: forgetPicks } = useCardPicks();
 
 /**
  * Through `useRequestFetch` for the reason `useFan` uses it: these run during
@@ -94,6 +97,7 @@ async function signOut() {
     // serialise. Sign-out is the only call here with nothing to send.
     await $fetch("/api/auth/sign-out", { method: "POST", body: {} });
     forgetBalance();
+    forgetPicks();
     await refresh();
     await navigateTo("/account/sign-in");
   } finally {
