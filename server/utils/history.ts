@@ -6,7 +6,7 @@
  * Entries a fan can still do something about, beside the card they were
  * committed on; this goes back through every Season and adds the one thing
  * that turns an Entry into history — how each of its Bouts actually went, so
- * that every Prediction in a chain can be graded where a fan reads it.
+ * that every Prediction in a chain can be graded on My Predictions.
  *
  * Nothing here decides what any of it *means*. Whether a Prediction landed,
  * what a chain came to and what it returned are `shared/history.ts` and the
@@ -28,7 +28,7 @@
  * else that reads where a Bout is (`CONTEXT.md`, the sweep). Nothing on this
  * page turns on a Lock: an Entry cannot be cancelled from it, and a Prediction
  * is graded against the Result its Bout produced rather than against the
- * moment it stopped taking answers. A profile that wrote Lock rows would be
+ * moment it stopped taking answers. A listing that wrote Lock rows would be
  * paying for a fact it does not show.
  */
 import type { HistoricEntry, HistoryFilter, PlayedSeason } from "#shared/history";

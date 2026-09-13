@@ -3,6 +3,7 @@ import {
   accountPath,
   inPlaySection,
   MARKETING_NAV,
+  MY_PREDICTIONS,
   PLAY_NAV,
   PLAY_SECTION,
   PLAY_TFC,
@@ -55,11 +56,24 @@ describe("the play navigation", () => {
     expect(outside).toEqual([]);
   });
 
-  it("carries the card and the board it is climbed on", () => {
-    // Two since ADR-0018 retired the prizes and contest rules pages. The
-    // Season's deadline and the Seasons that have ended are both reachable
-    // from the leaderboard, so neither needs a nav item of its own.
-    expect(PLAY_NAV.map((link) => link.to)).toEqual(["/predictions", "/leaderboard"]);
+  it("carries the card, what a fan has committed to it, and the board", () => {
+    // Three, and each is a different thing a fan came to do: answer the card,
+    // read what they are riding on, or see where that leaves them. ADR-0018
+    // retired the prizes and contest rules pages and this is deliberately not
+    // padded back out — the Season's deadline and the Seasons that have ended
+    // are both reachable from the leaderboard.
+    expect(PLAY_NAV.map((link) => link.to)).toEqual([
+      "/predictions",
+      "/predictions/mine",
+      "/leaderboard",
+    ]);
+  });
+
+  it("opens on the card, because that is what a fan came to play", () => {
+    // My Predictions sits second rather than first for the same reason the
+    // button lands on the card: a fan with nothing committed yet has nothing
+    // to read there.
+    expect(PLAY_NAV[0]?.to).toBe(THE_CARD);
   });
 
   it("names each of them, because a nav item with no label is not one", () => {
@@ -112,6 +126,13 @@ describe("coming back after signing in", () => {
     expect(returnTo(THE_CARD)).toBe(THE_CARD);
     expect(returnTo("/leaderboard")).toBe("/leaderboard");
     expect(returnTo("/standings/a-season")).toBe("/standings/a-season");
+  });
+
+  it("comes back to My Predictions, which is a page only a fan has one of", () => {
+    // The whole page is behind a session, so a visitor who lands on it is sent
+    // to the form — and dropping them on their profile afterwards would lose
+    // the page they were actually asking for.
+    expect(returnTo(MY_PREDICTIONS)).toBe(MY_PREDICTIONS);
   });
 
   it("refuses somewhere that is not this site at all", () => {

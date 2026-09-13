@@ -85,7 +85,7 @@ export interface PlayedSeason {
  * Which of a fan's Entries they are looking at.
  *
  * Null is every one of them on both fields, which is where the page starts:
- * "every Entry the fan has submitted is listed" is what the profile is for,
+ * "every Entry the fan has submitted is listed" is what the page is for,
  * and {@link bySeason} is what stops the old ones drowning the current ones.
  * Narrowing is the fan's move, not the page's opening position — and a status
  * filter that searched only one Season would answer "find my wins" with some
@@ -103,7 +103,7 @@ export interface HistoryFilter {
  * actually played.
  *
  * Said once for both sides, like every other parse in this directory: the
- * profile puts these two values in the URL and the route reads them back out,
+ * page puts these two values in the URL and the route reads them back out,
  * and two readings of the same query string would be a page whose controls
  * disagreed with the listing under them.
  *
@@ -267,7 +267,56 @@ export function bySeason(entries: readonly HistoricEntry[]): SeasonHistory[] {
   return [...seasons.values()];
 }
 
-/** The whole of a fan's history, as their profile asks for it. */
+/**
+ * A fan's own Entries, split by whether any of one is still to be decided.
+ *
+ * What My Predictions is laid out from. A fan opening that page during a card
+ * is looking for one thing — the chains that can still go either way — and a
+ * single list newest-first buries them under whatever settled last week the
+ * moment they have played more than a few cards.
+ *
+ * The two halves are shaped differently on purpose. What is still riding is a
+ * flat list, because every Open Entry is in the Season being played: a Season
+ * will not close while a Bout on one of its Events is still open or still
+ * waiting on a Result, so there is never a second Season to group. What is
+ * done with goes back through every Season a fan has played, which is what
+ * {@link bySeason} is for.
+ */
+export interface FanEntries {
+  /** The Entries still riding on a Bout that has not been decided. */
+  open: ReadEntry[];
+  /** Everything done with, grouped by the Season it was committed in. */
+  finished: SeasonHistory[];
+}
+
+/**
+ * The Entries a fan is still riding on, and everything that is done with.
+ *
+ * One rule decides it, and it is the status. `CONTEXT.md`: an Open Entry is
+ * one with Predictions still unresolved, and the other four are all decisions
+ * already taken — two the game made against a Result, one the fan made by
+ * taking the Entry back, and one the game made because nothing in it turned
+ * out to be gradable. "Still open" and "finished" is that line drawn once,
+ * rather than four statuses each page decides about for itself.
+ *
+ * An Entry appears on exactly one side. Listing an Open Entry in both halves
+ * would be a fan reading one chain and counting two, which is the specific
+ * mistake a page with a "current" section above a full history makes.
+ *
+ * The order inside each half is the order the Entries arrive in — newest
+ * first, as `entryHistory` reads them — so neither half has an opinion about
+ * sorting that the other could disagree with.
+ */
+export function openAndFinished(entries: readonly HistoricEntry[]): FanEntries {
+  const open: HistoricEntry[] = [];
+  const finished: HistoricEntry[] = [];
+
+  for (const entry of entries) (entry.status === "open" ? open : finished).push(entry);
+
+  return { open: open.map(readEntry), finished: bySeason(finished) };
+}
+
+/** The whole of a fan's history, as My Predictions asks for it. */
 export interface FanHistory {
   /** Every Season this fan has committed an Entry in, newest first. */
   seasons: PlayedSeason[];
@@ -305,7 +354,29 @@ export const HISTORY_MESSAGES = {
   everySeason: "Every Season",
   everyStatus: "Every status",
   kept:
-    "Every Entry you have ever committed, newest first, grouped by the Season " +
-    "you committed it in. Nothing here is ever removed — narrow it by Season " +
-    "or by status to find one.",
+    "Every Entry you have ever committed: the ones still riding first, then " +
+    "everything finished, grouped by the Season you committed it in. Nothing " +
+    "here is ever removed — narrow it by Season or by status to find one.",
+  /**
+   * The two headings My Predictions is laid out under.
+   *
+   * "Still open" is the Entry status a fan already reads beside each one, said
+   * once over the group rather than invented as a second word for it — and
+   * "Finished" covers the four that are over without claiming they went the
+   * same way, which each Entry says for itself.
+   */
+  stillOpen: "Still open",
+  finished: "Finished",
+  /**
+   * Said to a fan holding nothing open, whatever else they hold.
+   *
+   * Deliberately not {@link HISTORY_MESSAGES.noneYet}, which is a fan who has
+   * never committed an Entry at all. A fan whose last chain settled this
+   * morning has a record below this line and nothing riding above it, and
+   * telling them they have not committed an Entry yet would be wrong about
+   * them in the one place they can see it is.
+   */
+  noneOpen:
+    "Nothing of yours is still open. Answer a Bout on the card and the Entry " +
+    "you commit is here until the last Bout in it has been decided.",
 } as const;

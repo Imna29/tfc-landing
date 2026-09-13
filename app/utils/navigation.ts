@@ -74,6 +74,21 @@ export function inPlaySection(path: string): boolean {
 export const THE_CARD = "/predictions";
 
 /**
+ * Everything a fan has committed, named once for the same reason the card is.
+ *
+ * Under the card's own path rather than beside it, because that is what it is
+ * about: `/predictions` is the card being offered and this is what this fan has
+ * made of it. It also means the page inherits `/predictions`' exemption from
+ * the edge cache in `route-rules.ts` — which matters more here than there, as
+ * this page is nothing *but* one fan's own answers, and a stored copy would be
+ * served to whoever asked next (ADR-0008).
+ *
+ * The profile used to carry this listing and now links to it. One page owns a
+ * fan's Entries, so two of them cannot come to show it differently.
+ */
+export const MY_PREDICTIONS = "/predictions/mine";
+
+/**
  * The one way in.
  *
  * It lands on the card rather than on a landing page about the card: a fan who
@@ -91,19 +106,23 @@ export const MARKETING_NAV: readonly NavLink[] = [
 ];
 
 /**
- * The game's own navigation: the card, and the board it is climbed on.
+ * The game's own navigation: the card, what this fan has committed to it, and
+ * the board it is climbed on.
  *
- * Two items since ADR-0018 retired the prizes and contest rules pages, and it
- * is deliberately not padded back to four. What a fan can do here is answer
- * the card and see where that leaves them; the Season's deadline and the
- * Seasons that have ended are both on the leaderboard, which is where somebody
- * asking either question is already going.
+ * Three things a fan comes here to do, and no fourth. ADR-0018 retired the
+ * prizes and contest rules pages and this is deliberately not padded back out
+ * to where it was: the Season's deadline and the Seasons that have ended are
+ * both on the leaderboard, which is where somebody asking either question is
+ * already going.
  *
  * The card is first and is where the button lands, so the section opens on the
- * thing it is for.
+ * thing it is for. My Predictions sits behind it for the same reason — a fan
+ * who has never committed an Entry has nothing to read there, and the way to
+ * get something on it is the page in front of it.
  */
 export const PLAY_NAV: readonly NavLink[] = [
   { to: THE_CARD, label: "The Card" },
+  { to: MY_PREDICTIONS, label: "My Predictions" },
   { to: "/leaderboard", label: "Leaderboard" },
 ];
 

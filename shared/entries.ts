@@ -69,7 +69,7 @@ export const AMOUNT = { minimum: 1 } as const;
  *
  * Shared rather than kept in the schema for the reason `BoutStatus` is: this
  * is what `gradeEntry` in `shared/results.ts` answers with, and what the
- * profile history reads back. Spelled out again in the check constraint, for
+ * record on My Predictions reads back. Spelled out again in the check constraint, for
  * the reason given on `Role` in `server/db/schema.ts`.
  */
 export type EntryStatus = "open" | "won" | "lost" | "cancelled" | "refunded";

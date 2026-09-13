@@ -31,9 +31,13 @@ product name too.
 ### PlayTFC
 
 The part of the site TFC Predictions is played in, and the name on the one button that
-leads there from the marketing site. A section rather than a page: the card, the
-[[leaderboard]], what a [[season]] is played for and the account behind them, under a
+leads there from the marketing site. A section rather than a page: the card, everything a
+fan has committed to it, the [[leaderboard]], and the account behind them, under a
 navigation of their own.
+
+Its navigation is three items — the card, **My Predictions**, and the leaderboard — and
+they are three different things a fan comes to do: answer the card, read what they are
+riding on, and see where that leaves them.
 
 The game is still **TFC Predictions** wherever it is described — this is what a fan
 presses and where they end up, not a second name for the feature. Written as one word,
@@ -95,9 +99,9 @@ submitted or cancelled, the listing a fan reads the Entries they can still cance
 the admin area. A card nobody is looking at locks the moment somebody looks, and the
 [[lock]] is still dated at the moment it fell due.
 
-Not the Entry history on the profile, which is the one listing of Entries that does not
-apply it: nothing there can be cancelled, and a Prediction is graded against what its
-Bout produced rather than against the moment it stopped taking answers.
+Not [[my-predictions]], which is the one listing of Entries that does not apply it:
+nothing there can be cancelled, and a Prediction is graded against what its Bout produced
+rather than against the moment it stopped taking answers.
 
 ### Result
 
@@ -295,7 +299,7 @@ Bout whose [[discipline]] asks no method Question there is no such Prediction to
 ### Entry
 
 The committed unit: between one and ten Predictions plus an Amount of Coins. An Entry is
-what a user *submits*, and what the profile history lists.
+what a user *submits*, and what [[my-predictions]] lists.
 
 An Entry with more than one Prediction is a **Chained Entry**. Never a "slip", never a
 "parlay" or "accumulator".
@@ -310,6 +314,26 @@ Prediction was No Result, Amount returned).
 The last two both return the Amount in full and are not the same thing. A Cancellation is
 the fan's decision, taken while every Bout in the Entry was still open; a Refund is the
 game's, because nothing in the Entry turned out to be gradable ([[adr-0005]]).
+
+### My Predictions
+
+The page a fan reads their own [[entry]]s on, at `/predictions/mine`, and the second item
+in the PlayTFC navigation. Two halves: the Entries **still open**, which is what a fan
+opening it mid-card came for, and everything **finished** — Won, Lost, Cancelled or
+Refunded — grouped by the [[season]] it was committed in and kept forever.
+
+An Entry is in one half or the other, never both. Every Open Entry is in the Season being
+played, because a Season will not close while a Bout on one of its Events is still open,
+which is why only the finished half is grouped by Season at all.
+
+It is in the game's own section rather than on the profile, where it used to be: a fan
+checking whether their chain survived Bout 3 is playing rather than administering an
+account. The profile keeps the [[balance]], the [[rank]] and the account itself, and links
+here. Nothing on this page can be cancelled — that is the listing beside the card, which is
+where the reason to cancel one is.
+
+Not the "Entry history", which was the old name for it on the profile, and not a "prediction
+card": a card is an [[event]], and what a fan makes of one is an Entry.
 
 ### Cancellation
 

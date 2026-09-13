@@ -1,38 +1,35 @@
 <script setup lang="ts">
-import { coinsLabel } from "#shared/coins";
 import { ENTRY_STATUSES, ENTRY_STATUS_LABELS } from "#shared/entries";
-import { HISTORY_MESSAGES, bySeason, type FanHistory, type RewardState } from "#shared/history";
-import { multiplierLabel } from "#shared/predictions";
-import { outcomeLabel } from "#shared/pricing";
-import { PREDICTION_GRADE_LABELS } from "#shared/results";
+import { HISTORY_MESSAGES, openAndFinished, type FanHistory } from "#shared/history";
 
 /**
- * Everything a fan has ever committed, and how each part of it went.
+ * Everything a fan has ever committed, in the two halves they came for.
  *
- * The thing a fan comes to their profile for. `SubmittedEntries` on the card
- * is the Entries they can still do something about; this is the record — back
- * through every Season, kept forever, with every Prediction of every chain
- * graded against how its Bout actually ended.
+ * The listing My Predictions is made of. Above the line is what a fan is still
+ * riding on — the chains that can still go either way, which is what somebody
+ * opening this page mid-card is looking for; below it is the record, back
+ * through every Season, with every Prediction of every chain graded against how
+ * its Bout actually ended. `openAndFinished` in `shared/history.ts` draws the
+ * line, and it draws it once: an Entry is on one side or the other, never both,
+ * because a fan reading one chain in two places is a fan counting it twice.
  *
- * **Every Prediction says where it stands, whatever the Entry did.** A chain
- * that is already Lost still shows the Bouts it has left and how the ones
- * already fought went, which is #14's promise kept where a fan can see it: "I
- * was one Bout away" is the most engaging sentence on this page, and an Entry
- * that collapsed to a single word would throw it away. It is also why the
- * grade beside each answer is a different word from the Entry's status where
- * it can be — "Still open" under a Lost Entry is exactly the state that would
- * otherwise look like the game having lost track.
+ * `SubmittedEntries` beside the card is the other listing of a fan's Entries
+ * and is deliberately still there. It answers a different question — which of
+ * these can I still take back — and it can only be asked where the reason to
+ * ask it is, which is the card a fighter just withdrew from. Nothing here can
+ * be cancelled, so nothing here reads a Lock.
  *
- * None of the numbers here are read back from anything stored. What the chain
+ * None of the numbers here are read back from anything stored. What each chain
  * came to and what it returned are worked out from the Predictions and the
  * Results by `readEntry`, which reaches the same functions settlement pays on
- * (ADR-0013) — so a Reward shown here is the Reward that was credited, not a
- * second opinion about it.
+ * (ADR-0020) — so a Reward shown here is the Reward that was credited, not a
+ * second opinion about it. Each Entry is drawn by `ReadEntry`, once, so the two
+ * listings cannot come to draw the same Entry differently.
  *
  * The filter is the page's, not this component's: it is in the URL, so it
  * survives a reload and the back button, and the server renders the filtered
- * page rather than the browser filtering one it was already sent. This asks
- * for a change and the page navigates.
+ * page rather than the browser filtering one it was already sent. This asks for
+ * a change and the page navigates.
  *
  * Which is why the two controls say what they are showing with `selected` on
  * the options rather than a `value` on the select. A `value` is set by the
@@ -45,8 +42,8 @@ const props = defineProps<{ history: FanHistory }>();
 
 const emit = defineEmits<{ ask: [{ season: string; status: string }] }>();
 
-/** The Entries, grouped under the Season they were committed in. */
-const seasons = computed(() => bySeason(props.history.entries));
+/** The Entries in the two halves the page is laid out in. */
+const entries = computed(() => openAndFinished(props.history.entries));
 
 /**
  * What the two controls are showing now, read back from what was answered.
@@ -84,20 +81,20 @@ const nothingToShow = computed(() => {
   return HISTORY_MESSAGES.noneAtAll;
 });
 
-/** How the Coins beside an Entry are coloured: paid, promised, or gone. */
-const REWARD_TONE = {
-  paid: "text-primary",
-  returned: "text-on-surface",
-  potential: "text-on-surface",
-  none: "text-on-surface/60",
-} as const satisfies Record<RewardState, string>;
+/**
+ * Whether to say that nothing is still open, rather than leave the half out.
+ *
+ * Only where the emptiness is a fact about the fan. A status filter is the fan
+ * having asked for one kind of Entry, and answering "nothing of yours is still
+ * open" under a listing of their wins would be the page blaming them for their
+ * own filter — so the half is simply not drawn.
+ */
+const noneOpen = computed(() => nothingToShow.value === "" && props.history.filter.status === null);
 </script>
 
 <template>
   <section>
-    <h2 class="font-headline text-lg font-black italic uppercase">Entry history</h2>
-
-    <p class="mt-2 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
+    <p class="max-w-2xl text-sm text-on-surface/70 leading-relaxed">
       {{ HISTORY_MESSAGES.kept }}
     </p>
 
@@ -151,64 +148,44 @@ const REWARD_TONE = {
       {{ nothingToShow }}
     </p>
 
-    <div v-for="group in seasons" :key="group.season.id" class="mt-10">
-      <h3 class="font-headline text-sm font-black uppercase tracking-widest text-on-surface/60">
-        {{ group.season.name }}
-      </h3>
+    <!--
+      What the fan is still riding on, first and on its own. Flat rather than
+      grouped by Season because every Open Entry is in the Season being played:
+      a Season will not close while a Bout on one of its Events is still open.
+    -->
+    <section v-if="entries.open.length > 0 || noneOpen" class="mt-10">
+      <h2 class="font-headline text-lg font-black italic uppercase">
+        {{ HISTORY_MESSAGES.stillOpen }}
+      </h2>
 
-      <ol class="mt-4 flex flex-col gap-4">
-        <li
-          v-for="{ entry, predictions, returns, reward } in group.entries"
-          :key="entry.id"
-          class="border border-outline-variant/20 bg-surface-container-low p-6"
-        >
-          <div class="flex flex-wrap items-baseline justify-between gap-3">
-            <p class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
-              {{ ENTRY_STATUS_LABELS[entry.status] }} ·
-              <time :datetime="entry.submittedAt">{{ inTbilisi(entry.submittedAt) }}</time>
-            </p>
+      <p v-if="entries.open.length === 0" class="mt-4 max-w-2xl text-sm text-on-surface/70">
+        {{ HISTORY_MESSAGES.noneOpen }}
+      </p>
 
-            <p class="text-sm font-bold tabular-nums">
-              {{ coinsLabel(entry.amount) }} at {{ multiplierLabel(returns.multiplier) }}
-            </p>
-          </div>
-
-          <ol class="mt-4 flex flex-col gap-3">
-            <li
-              v-for="{ prediction, grade, multiplier, ending, note } in predictions"
-              :key="prediction.boutId"
-            >
-              <div class="flex items-baseline justify-between gap-3 text-sm">
-                <span>
-                  <span class="text-xs font-bold uppercase tracking-widest text-on-surface/60">
-                    {{ prediction.eventTitle }} · Bout {{ prediction.cardOrder }}
-                  </span>
-                  — {{ outcomeLabel(prediction, prediction.corners) }}
-                </span>
-                <span class="shrink-0 font-bold tabular-nums">{{
-                  multiplierLabel(multiplier)
-                }}</span>
-              </div>
-
-              <p class="mt-1 flex flex-wrap items-baseline gap-2 text-xs">
-                <span
-                  class="font-headline font-black uppercase tracking-widest"
-                  :class="grade === 'correct' ? 'text-primary' : 'text-on-surface/60'"
-                >
-                  {{ PREDICTION_GRADE_LABELS[grade] }}
-                </span>
-                <span v-if="ending" class="text-on-surface/70">{{ ending }}</span>
-              </p>
-
-              <p v-if="note" class="mt-1 text-xs text-on-surface/70 leading-relaxed">{{ note }}</p>
-            </li>
-          </ol>
-
-          <p class="mt-4 text-sm leading-relaxed" :class="REWARD_TONE[reward.state]">
-            {{ reward.note }}
-          </p>
-        </li>
+      <ol v-else class="mt-4 flex flex-col gap-4">
+        <ReadEntry v-for="read in entries.open" :key="read.entry.id" :read="read" />
       </ol>
-    </div>
+    </section>
+
+    <!--
+      And the record underneath, which is kept forever. Grouped by Season so
+      that four Seasons of Entries are four headings rather than one listing
+      the current one is somewhere inside.
+    -->
+    <section v-if="entries.finished.length > 0" class="mt-12">
+      <h2 class="font-headline text-lg font-black italic uppercase">
+        {{ HISTORY_MESSAGES.finished }}
+      </h2>
+
+      <div v-for="group in entries.finished" :key="group.season.id" class="mt-8">
+        <h3 class="font-headline text-sm font-black uppercase tracking-widest text-on-surface/60">
+          {{ group.season.name }}
+        </h3>
+
+        <ol class="mt-4 flex flex-col gap-4">
+          <ReadEntry v-for="read in group.entries" :key="read.entry.id" :read="read" />
+        </ol>
+      </div>
+    </section>
   </section>
 </template>

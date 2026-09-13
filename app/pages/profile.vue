@@ -1,31 +1,29 @@
 <script setup lang="ts">
-import type { FanHistory } from "#shared/history";
 // Aliased because `FanStanding` is also the component that renders one, and
 // this file uses both: the auto-imported component in the template, and the
 // shape it takes here.
 import type { FanStanding as Standing } from "#shared/standings";
+import { MY_PREDICTIONS } from "~/utils/navigation";
 
 /**
- * What a fan sees of their own: where they stand, everything they have ever
- * predicted, and the account underneath it.
+ * What a fan sees of their own: where they stand, and the account underneath
+ * it.
  *
- * Three answers rather than one, because they change at different moments and
+ * Two answers rather than one, because they change at different moments and
  * cost different things. The account is `useFan`, shared with every page that
- * asks who is signed in; the standing is one Balance and one Rank; the history
- * is re-read every time the fan moves a filter, and re-reading their Rank
- * alongside it would be asking the Season to be ordered again to answer a
- * question nobody asked.
+ * asks who is signed in; the standing is one Balance and one Rank.
  *
- * **The filter lives in the URL.** A fan who reloads, or presses back, is
- * looking at the same page they left, and the server renders the filtered
- * history rather than sending all of it for the browser to hide most of. That
- * matters more every Season: history is kept forever.
+ * **Everything a fan has predicted is no longer here.** It is My Predictions,
+ * at {@link MY_PREDICTIONS}, and this page links to it: a fan checking whether
+ * their chain survived Bout 3 is playing the game rather than administering an
+ * account, and the listing belongs in the section the card is in. Drawing it in
+ * both places would be one Entry on two pages that could come to disagree, so
+ * this page names where it went instead.
  *
- * Never edge-cached and server-rendered per request (ADR-0008). It is the most
- * personal page in the application — and `/PROFILE` is a 404 rather than a
- * second spelling that could miss that rule (ADR-0012).
+ * Never edge-cached and server-rendered per request (ADR-0008). It is one of
+ * the most personal pages in the application — and `/PROFILE` is a 404 rather
+ * than a second spelling that could miss that rule (ADR-0012).
  */
-const route = useRoute();
 const { data: fan, refresh } = await useFan();
 const { forget: forgetBalance } = useBalance();
 // And the answers half-built on the card, which are this fan's and not the next
@@ -33,9 +31,9 @@ const { forget: forgetBalance } = useBalance();
 const { forget: forgetPicks } = useCardPicks();
 
 /**
- * Through `useRequestFetch` for the reason `useFan` uses it: these run during
- * server rendering too, and a plain `$fetch` there carries no cookie — both
- * routes would answer 401 and the page would fail to render for exactly the
+ * Through `useRequestFetch` for the reason `useFan` uses it: this runs during
+ * server rendering too, and a plain `$fetch` there carries no cookie — the
+ * route would answer 401 and the page would fail to render for exactly the
  * fans it is for.
  */
 const request = useRequestFetch();
@@ -46,43 +44,9 @@ const { data: standing } = await useAsyncData<Standing | null>(
   { watch: [fan] },
 );
 
-/** What the fan is asking to see, as the two controls put it in the URL. */
-const asked = computed(() => ({
-  season: typeof route.query.season === "string" ? route.query.season : undefined,
-  status: typeof route.query.status === "string" ? route.query.status : undefined,
-}));
-
-const { data: history } = await useAsyncData<FanHistory | null>(
-  "entry-history",
-  async () =>
-    fan.value
-      ? await request<FanHistory>("/api/predictions/history", { query: asked.value })
-      : null,
-  { watch: [fan, asked] },
-);
-
-/**
- * Moves the filter, which is a navigation.
- *
- * The rest of the query string is kept rather than replaced, so that filtering
- * a history never silently drops something else a page was carrying.
- */
-function ask(filter: { season: string; status: string }) {
-  return navigateTo({
-    query: {
-      ...route.query,
-      // Dropped rather than sent empty, so that the whole history — which is
-      // where the page starts — is the plain URL a fan arrives at rather than
-      // one spelling "every" out in two parameters.
-      season: filter.season === "" ? undefined : filter.season,
-      status: filter.status === "" ? undefined : filter.status,
-    },
-  });
-}
-
 useSeoMeta({
   title: "Your account",
-  description: "Your TFC Predictions Balance, Rank and Entry history.",
+  description: "Your TFC Predictions Balance and Rank, and the account behind them.",
   robots: "noindex",
 });
 
@@ -114,7 +78,27 @@ async function signOut() {
       <template v-if="fan">
         <FanStanding :standing="standing ?? null" class="mb-10" />
 
-        <EntryHistory v-if="history" :history="history" class="mb-16" @ask="ask" />
+        <!--
+          Where everything this fan has predicted went. A link rather than the
+          listing, so that one page owns a fan's Entries — and it is worth a
+          block of its own rather than a line in the footer, because it is the
+          thing a fan came to the profile for before it moved.
+        -->
+        <NuxtLink
+          :to="MY_PREDICTIONS"
+          class="mb-16 flex flex-wrap items-baseline justify-between gap-3 border border-outline-variant/20 bg-surface-container-low p-8 hover:border-primary transition-colors"
+        >
+          <span>
+            <span class="font-headline text-xl font-black italic uppercase">My Predictions</span>
+            <span class="mt-2 block max-w-md text-sm text-on-surface/70 leading-relaxed">
+              Every Entry you have committed — what you are still riding on, and everything that is
+              done with, kept through every Season.
+            </span>
+          </span>
+          <span class="font-headline text-xs font-black uppercase tracking-widest text-primary">
+            Read them
+          </span>
+        </NuxtLink>
 
         <dl class="grid gap-px bg-outline-variant/20 border border-outline-variant/20">
           <div class="bg-surface-container-low p-8">
