@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ENTRY_STATUSES, ENTRY_STATUS_LABELS } from "#shared/entries";
 import { HISTORY_MESSAGES, openAndFinished, type FanHistory } from "#shared/history";
 
 /**
@@ -40,27 +39,8 @@ import { HISTORY_MESSAGES, openAndFinished, type FanHistory } from "#shared/hist
  */
 const props = defineProps<{ history: FanHistory }>();
 
-const emit = defineEmits<{ ask: [{ season: string; status: string }] }>();
-
 /** The Entries in the two halves the page is laid out in. */
 const entries = computed(() => openAndFinished(props.history.entries));
-
-/**
- * What the two controls are showing now, read back from what was answered.
- *
- * An empty string is "all of them" on both, because that is what the absence
- * of a query parameter reads as: the page drops an empty one rather than
- * spelling "every" out in the URL a fan arrives at.
- */
-const showing = computed(() => ({
-  season: props.history.filter.seasonId ?? "",
-  status: props.history.filter.status ?? "",
-}));
-
-/** Asks for one control moved, leaving the other where the fan left it. */
-function ask(change: { season?: string; status?: string }) {
-  emit("ask", { ...showing.value, ...change });
-}
 
 /**
  * Why there is nothing to show, which is never the same reason twice.
@@ -85,13 +65,16 @@ const nothingToShow = computed(() => {
  * Whether to say that nothing is still open, rather than leave the half out.
  *
  * Only where the emptiness is a fact about the fan, which means **neither**
- * control has been moved. Either one narrows the listing to something an Open
- * Entry can be absent from for reasons that have nothing to do with the fan: a
- * status filter is them asking for one kind of Entry, and a Season filter is
- * them asking about a Season that may well be over. Saying "nothing of yours is
- * still open" under either would be the page blaming them for their own filter
+ * half of the filter is set. Either one narrows the listing to something an
+ * Open Entry can be absent from for reasons that have nothing to do with the
+ * fan: a status filter is one kind of Entry asked for, and a Season filter is
+ * a Season that may well be over. Saying "nothing of yours is still open"
+ * under either would be the page blaming them for a narrowing they did not do
  * — and under a finished Season it is also false, because the Entry they are
  * riding on is in the Season being played and was filtered out to get here.
+ *
+ * There are no controls on the page any more, so the only filter that reaches
+ * here is one typed into the URL. The guard stays because the filter does.
  *
  * So the half is simply not drawn, and the listing under it is the answer.
  */
@@ -105,57 +88,7 @@ const saysNothingIsOpen = computed(
 
 <template>
   <section>
-    <p class="max-w-2xl text-sm text-on-surface/70 leading-relaxed">
-      {{ HISTORY_MESSAGES.kept }}
-    </p>
-
-    <div v-if="history.seasons.length > 0" class="mt-6 flex flex-wrap gap-4">
-      <label class="flex flex-col gap-1">
-        <span class="font-headline text-xs font-black uppercase tracking-widest text-on-surface/60">
-          Season
-        </span>
-        <select
-          class="border border-outline-variant/40 bg-surface-container-low px-4 py-3 text-sm"
-          @change="ask({ season: ($event.target as HTMLSelectElement).value })"
-        >
-          <option value="" :selected="showing.season === ''">
-            {{ HISTORY_MESSAGES.everySeason }}
-          </option>
-          <option
-            v-for="season in history.seasons"
-            :key="season.id"
-            :value="season.id"
-            :selected="season.id === showing.season"
-          >
-            {{ season.name }}
-          </option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-1">
-        <span class="font-headline text-xs font-black uppercase tracking-widest text-on-surface/60">
-          Status
-        </span>
-        <select
-          class="border border-outline-variant/40 bg-surface-container-low px-4 py-3 text-sm"
-          @change="ask({ status: ($event.target as HTMLSelectElement).value })"
-        >
-          <option value="" :selected="showing.status === ''">
-            {{ HISTORY_MESSAGES.everyStatus }}
-          </option>
-          <option
-            v-for="status in ENTRY_STATUSES"
-            :key="status"
-            :value="status"
-            :selected="status === showing.status"
-          >
-            {{ ENTRY_STATUS_LABELS[status] }}
-          </option>
-        </select>
-      </label>
-    </div>
-
-    <p v-if="nothingToShow" class="mt-6 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
+    <p v-if="nothingToShow" class="max-w-2xl text-sm text-on-surface/70 leading-relaxed">
       {{ nothingToShow }}
     </p>
 
@@ -164,7 +97,7 @@ const saysNothingIsOpen = computed(
       grouped by Season because every Open Entry is in the Season being played:
       a Season will not close while a Bout on one of its Events is still open.
     -->
-    <section v-if="entries.open.length > 0 || saysNothingIsOpen" class="mt-10">
+    <section v-if="entries.open.length > 0 || saysNothingIsOpen" class="mt-10 first:mt-0">
       <h2 class="font-headline text-lg font-black italic uppercase">
         {{ HISTORY_MESSAGES.stillOpen }}
       </h2>
@@ -183,7 +116,7 @@ const saysNothingIsOpen = computed(
       that four Seasons of Entries are four headings rather than one listing
       the current one is somewhere inside.
     -->
-    <section v-if="entries.finished.length > 0" class="mt-12">
+    <section v-if="entries.finished.length > 0" class="mt-12 first:mt-0">
       <h2 class="font-headline text-lg font-black italic uppercase">
         {{ HISTORY_MESSAGES.finished }}
       </h2>

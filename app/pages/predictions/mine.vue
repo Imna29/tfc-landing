@@ -19,10 +19,11 @@ import { accountPath, MY_PREDICTIONS, THE_CARD } from "~/utils/navigation";
  * profile links here rather than drawing it again, so one page owns a fan's
  * Entries and two of them cannot come to show it differently.
  *
- * **The filter lives in the URL.** A fan who reloads, or presses back, is
- * looking at the same page they left, and the server renders the filtered
- * history rather than sending all of it for the browser to hide most of. That
- * matters more every Season: history is kept forever.
+ * **The filter lives in the URL, and nothing on the page moves it.** The two
+ * controls that used to are gone; `?season=` and `?status=` are still read and
+ * still narrow what the server renders, so a link somebody kept goes on
+ * working and the page never sends a whole history for the browser to hide
+ * most of. That matters more every Season: history is kept forever.
  *
  * A visitor is shown the way to an account rather than an empty page, and both
  * ways back here — `returnTo` accepts this path because it is inside the
@@ -61,25 +62,6 @@ const { data: history } = await useAsyncData<FanHistory | null>(
   { watch: [fan, asked] },
 );
 
-/**
- * Moves the filter, which is a navigation.
- *
- * The rest of the query string is kept rather than replaced, so that filtering
- * a history never silently drops something else a page was carrying.
- */
-function ask(filter: { season: string; status: string }) {
-  return navigateTo({
-    query: {
-      ...route.query,
-      // Dropped rather than sent empty, so that the whole history — which is
-      // where the page starts — is the plain URL a fan arrives at rather than
-      // one spelling "every" out in two parameters.
-      season: filter.season === "" ? undefined : filter.season,
-      status: filter.status === "" ? undefined : filter.status,
-    },
-  });
-}
-
 useSeoMeta({
   title: "My Predictions",
   description:
@@ -94,7 +76,7 @@ useSeoMeta({
 
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-3xl mx-auto">
-      <EntryHistory v-if="fan && history" :history="history" @ask="ask" />
+      <EntryHistory v-if="fan && history" :history="history" />
 
       <template v-else-if="!fan">
         <p class="text-on-surface/80 leading-relaxed">

@@ -127,20 +127,22 @@ describe("the Coins beside an Entry", () => {
     expect(lost.note).toContain("No Reward");
   });
 
-  it("is the Amount in full for an Entry the fan took back", () => {
+  it("says nothing at all about an Entry the fan took back", () => {
+    // Its Coins came back in full the moment they took it and they were told
+    // so then. The status beside it is the rest of the answer.
     expect(rewardOf(entry({ status: "cancelled", amount: 20 }), returns)).toEqual({
       state: "returned",
-      note: HISTORY_MESSAGES.cancelled(20),
+      note: null,
     });
   });
 
   it("is the Amount in full for an Entry that had nothing gradable in it", () => {
-    // The same Coins as a cancellation and a different sentence, because they
-    // are different things: one is the fan's decision, one is the game's.
+    // The same Coins as a cancellation and a sentence where that one has
+    // none, because they are different things: one is the fan's decision,
+    // one is the game's.
     const refunded = rewardOf(entry({ status: "refunded", amount: 20 }), returns);
 
     expect(refunded).toEqual({ state: "returned", note: HISTORY_MESSAGES.refunded(20) });
-    expect(refunded.note).not.toBe(HISTORY_MESSAGES.cancelled(20));
   });
 
   it("says the Coins the way a fan reads them", () => {

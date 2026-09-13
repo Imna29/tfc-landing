@@ -494,7 +494,7 @@ describe("a fan's own record", async () => {
       expect(page).toContain(HISTORY_MESSAGES.lost(80));
     });
 
-    it("renders the filter it was asked for, and the listing under it", async () => {
+    it("renders the listing the URL asked for, with no control to say so", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
@@ -507,11 +507,11 @@ describe("a fan's own record", async () => {
         headers: { cookie: fan.cookie },
       });
 
-      // In the HTML rather than set by the browser afterwards: a control that
-      // said "Every status" over a listing of Lost Entries until the page
-      // hydrated — and forever without JavaScript — is a page contradicting
-      // itself about what a fan is looking at.
-      expect(page).toMatch(/<option value="lost"[^>]*\bselected\b/);
+      // The two controls are gone from the page and the filter behind them is
+      // not: a link somebody kept to a narrowed history still narrows it, and
+      // the server still renders only what was asked for rather than sending
+      // a whole history for the browser to hide most of.
+      expect(page).not.toContain("<option");
       expect(page).toContain(coinsLabel(22));
       expect(page).not.toContain(coinsLabel(11));
     });
@@ -574,7 +574,7 @@ describe("a fan's own record", async () => {
       const page = await $fetch<string>(MY_PREDICTIONS);
 
       expect(page).toContain("Sign in");
-      expect(page).not.toContain(HISTORY_MESSAGES.kept);
+      expect(page).not.toContain(HISTORY_MESSAGES.noneYet);
     });
 
     it("brings a visitor who signs in back to the page they asked for", async () => {

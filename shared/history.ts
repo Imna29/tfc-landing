@@ -135,8 +135,15 @@ export type RewardState = "potential" | "paid" | "returned" | "none";
 /** What became of the Coins an Entry committed, and how a fan is told. */
 export interface EntryReward {
   state: RewardState;
-  /** The sentence beside the Entry, which is where the number is. */
-  note: string;
+  /**
+   * The sentence beside the Entry, which is where the number is, or null
+   * where there is nothing to say.
+   *
+   * Null for an Entry the fan took back: its Coins were returned in full the
+   * moment they took it, they were told so then, and the status beside it
+   * already says which of the two returns this was.
+   */
+  note: string | null;
 }
 
 /**
@@ -146,8 +153,9 @@ export interface EntryReward {
  * mean, and telling them apart is the whole of what "potential or actual
  * Reward" asks for. A Won Entry's Reward has been paid; an Open one's has not
  * and may never be; a Cancelled or Refunded Entry returned its Amount rather
- * than any Reward at all, and the two say so differently because they are
- * different decisions — the fan's and the game's.
+ * than any Reward at all. Only the Refunded one says so: a refund is the game
+ * deciding something on the fan's behalf and owes them the reason, where a
+ * cancellation is the fan's own decision, already answered when they made it.
  *
  * A Lost Entry returned nothing, and its sentence is the one that has to work
  * hardest. The combined Multiplier is still on the screen beside it, worked
@@ -169,7 +177,7 @@ export function rewardOf(
   }
 
   if (entry.status === "cancelled") {
-    return { state: "returned", note: HISTORY_MESSAGES.cancelled(entry.amount) };
+    return { state: "returned", note: null };
   }
 
   if (entry.status === "refunded") {
@@ -196,7 +204,7 @@ export interface ReadPrediction {
 export interface ReadEntry {
   entry: HistoricEntry;
   predictions: ReadPrediction[];
-  /** The combined Multiplier, and the Coins at it. */
+  /** The combined Multiplier after the cap, and the Coins at it. */
   returns: PotentialReward;
   /** What became of the Coins it committed. */
   reward: EntryReward;
@@ -333,9 +341,6 @@ export const HISTORY_MESSAGES = {
   lost: (coins: number) =>
     `No Reward. This Entry was going for ${coinsLabel(coins)} and a Prediction ` +
     "in it did not land; its Amount left your Balance when you committed it.",
-  cancelled: (coins: number) =>
-    `${coinsLabel(coins)} returned in full. You took this Entry back while ` +
-    "every Bout in it was still open.",
   refunded: (coins: number) =>
     `${coinsLabel(coins)} returned in full. No Bout in this Entry produced a ` +
     "result to grade, so there was nothing for it to be right or wrong about.",
@@ -351,12 +356,6 @@ export const HISTORY_MESSAGES = {
   noneAtAll:
     "None of your Entries match that. Every Entry you have ever committed is " +
     "still here — widen the filter to find it.",
-  everySeason: "Every Season",
-  everyStatus: "Every status",
-  kept:
-    "Every Entry you have ever committed: the ones still riding first, then " +
-    "everything finished, grouped by the Season you committed it in. Nothing " +
-    "here is ever removed — narrow it by Season or by status to find one.",
   /**
    * The two headings My Predictions is laid out under.
    *
