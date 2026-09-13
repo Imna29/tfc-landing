@@ -1,5 +1,5 @@
 /**
- * The Entry history a fan reads on their profile: everything they have ever
+ * The Entry history a fan reads on My Predictions: everything they have ever
  * committed, and how each part of it went.
  *
  * The other end of `shared/entries.ts`. That module is what a fan may build

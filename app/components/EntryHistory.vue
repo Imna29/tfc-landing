@@ -84,12 +84,23 @@ const nothingToShow = computed(() => {
 /**
  * Whether to say that nothing is still open, rather than leave the half out.
  *
- * Only where the emptiness is a fact about the fan. A status filter is the fan
- * having asked for one kind of Entry, and answering "nothing of yours is still
- * open" under a listing of their wins would be the page blaming them for their
- * own filter — so the half is simply not drawn.
+ * Only where the emptiness is a fact about the fan, which means **neither**
+ * control has been moved. Either one narrows the listing to something an Open
+ * Entry can be absent from for reasons that have nothing to do with the fan: a
+ * status filter is them asking for one kind of Entry, and a Season filter is
+ * them asking about a Season that may well be over. Saying "nothing of yours is
+ * still open" under either would be the page blaming them for their own filter
+ * — and under a finished Season it is also false, because the Entry they are
+ * riding on is in the Season being played and was filtered out to get here.
+ *
+ * So the half is simply not drawn, and the listing under it is the answer.
  */
-const noneOpen = computed(() => nothingToShow.value === "" && props.history.filter.status === null);
+const saysNothingIsOpen = computed(
+  () =>
+    nothingToShow.value === "" &&
+    props.history.filter.status === null &&
+    props.history.filter.seasonId === null,
+);
 </script>
 
 <template>
@@ -153,7 +164,7 @@ const noneOpen = computed(() => nothingToShow.value === "" && props.history.filt
       grouped by Season because every Open Entry is in the Season being played:
       a Season will not close while a Bout on one of its Events is still open.
     -->
-    <section v-if="entries.open.length > 0 || noneOpen" class="mt-10">
+    <section v-if="entries.open.length > 0 || saysNothingIsOpen" class="mt-10">
       <h2 class="font-headline text-lg font-black italic uppercase">
         {{ HISTORY_MESSAGES.stillOpen }}
       </h2>

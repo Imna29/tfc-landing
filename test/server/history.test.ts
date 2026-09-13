@@ -533,6 +533,36 @@ describe("a fan's own record", async () => {
       expect(page).not.toContain(HISTORY_MESSAGES.noneOpen);
     });
 
+    it("leaves it out for a fan who narrowed to a Season they have finished", async () => {
+      // The same rule as the status filter, and the case that catches it: this
+      // fan holds an open Entry — in the *other* Season — so "nothing of yours
+      // is still open" would be false about them as well as about the filter.
+      const first = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 11, [winnerOn(first.bouts[0]!.id, "red")]);
+      await settle(first, 0, { winner: "red" });
+      await nextSeason(first.admin, "Season 2");
+
+      const second = await upcomingCard(1, {
+        admin: first.admin,
+        card: { prismicId: "event-tfc-13", title: "TFC 13" },
+      });
+
+      await submit(fan, 22, [winnerOn(second.bouts[0]!.id, "red")]);
+
+      const seasonOne = (await historyFor(fan.cookie)).seasons.find(
+        (season) => season.name === "Season 1",
+      );
+
+      const page = await $fetch<string>(`${MY_PREDICTIONS}?season=${seasonOne?.id}`, {
+        headers: { cookie: fan.cookie },
+      });
+
+      expect(page).toContain(coinsLabel(11));
+      expect(page).not.toContain(HISTORY_MESSAGES.noneOpen);
+    });
+
     it("says so to a fan who has not committed an Entry yet", async () => {
       const fan = await fanWithCoins();
       const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
