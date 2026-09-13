@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { coinsLabel } from "#shared/coins";
-import {
-  AMOUNT,
-  ENTRY_MESSAGES,
-  ENTRY_PREDICTIONS,
-  potentialReward,
-  type DraftPrediction,
-} from "#shared/entries";
+import { AMOUNT, ENTRY_MESSAGES, potentialReward, type DraftPrediction } from "#shared/entries";
 import type { Fan } from "#shared/fan";
 import { multiplierLabel } from "#shared/predictions";
 import { outcomeLabel } from "#shared/pricing";
@@ -32,6 +26,12 @@ import { accountPath, THE_CARD } from "~/utils/navigation";
  * The Balance comes from {@link useBalance} rather than from a prop, so that
  * the number here and the number in the game's header are the same number:
  * this is one of the places the header learns its answer has changed.
+ *
+ * **Nothing counts the Predictions off against the ten an Entry may hold.** The
+ * cap is a bound on what a mispriced Outcome can cost (`ENTRY_PREDICTIONS`), not
+ * a target a fan is working towards, and a running "3 of 10" beside the Entry
+ * read as the latter — the Predictions are listed below it, and a fan who ever
+ * reaches the eleventh is told so by name in {@link problem}.
  *
  * **A visitor with no account is sent to the form rather than refused at it.**
  * The panel's own action is the sign-in link for as long as `fan` is null, and
@@ -186,10 +186,6 @@ async function submit() {
     >
       <h2 class="font-headline text-lg font-black italic uppercase">Your Entry</h2>
 
-      <p class="text-xs uppercase tracking-widest text-on-surface/60">
-        {{ predictions.length }} of {{ ENTRY_PREDICTIONS.maximum }}
-      </p>
-
       <div class="ml-auto flex items-center gap-3 lg:hidden">
         <p v-if="predictions.length > 0" class="flex items-center gap-2">
           <TfcCoin class="w-4 h-4" />
@@ -286,7 +282,7 @@ async function submit() {
           </div>
           <div class="text-right">
             <dt class="text-xs uppercase tracking-widest text-on-surface/50">Returns</dt>
-            <dd class="mt-1 font-headline text-2xl font-black tabular-nums text-primary">
+            <dd class="mt-1 font-headline text-2xl font-black tabular-nums text-white">
               {{ coinsLabel(returns.reward) }}
             </dd>
           </div>

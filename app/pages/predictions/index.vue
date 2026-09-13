@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import {
-  entryProgress,
-  priceOf,
-  type CommittedEntries,
-  type DraftPrediction,
-} from "#shared/entries";
+import { priceOf, type CommittedEntries, type DraftPrediction } from "#shared/entries";
 import { boutState, PREDICTION_MESSAGES } from "#shared/predictions";
 import { signInPrompt } from "#shared/signIn";
 
@@ -13,9 +8,9 @@ import { signInPrompt } from "#shared/signIn";
  *
  * The page PlayTFC opens on, and the only page of the game a fan needs open
  * while a card is being fought. Three parts, in the order they are read: the
- * strip that says which card this is and how long there is left, the card
- * itself, and the panel holding what has been answered so far. Between them is
- * this page, which owns the one piece of state they share — what the fan has
+ * strip that says which card this is and where it is fought, the card itself,
+ * and the panel holding what has been answered so far. Between them is this
+ * page, which owns the one piece of state they share — what the fan has
  * answered, by Bout — because the card is where answers are given and the
  * panel is where they are committed.
  *
@@ -40,11 +35,11 @@ const card = computed(() => data.value?.card ?? null);
 const predictions = computed(() => data.value?.predictions ?? null);
 
 /**
- * The one clock on this page, held here rather than in either half of it.
+ * The one clock on this page, held here rather than inside the card.
  *
- * The strip counts down to the first Lock and the card counts down inside each
- * Bout, and two clocks started a moment apart are two answers to "has this
- * locked". Seeded from the moment the server answered — see {@link useNow}.
+ * Every Lock on the card is read against it, and two clocks started a moment
+ * apart are two answers to "has this locked". Seeded from the moment the server
+ * answered — see {@link useNow}.
  */
 const now = useNow(predictions.value?.answeredAt);
 
@@ -155,27 +150,6 @@ const signedIn = computed(() => Boolean(fan.value));
  */
 const prompt = computed(() => signInPrompt(signedIn.value, draft.value.length));
 
-/**
- * How far through the card the fan is, for the strip at the top of it.
- *
- * Counted against the Bouts that can actually be answered — open, and priced
- * — rather than against every Bout on the card, so the bar fills as a fan
- * works through what is in front of them rather than stopping short at
- * whatever an admin has not opened yet. Both halves are counted over the same
- * Bouts, so an Entry holding answers on Bouts that have since locked cannot
- * read as more answered than there is to answer.
- */
-const progress = computed(() => {
-  const answerable = boutsInTheGame.value.filter(
-    (bout) => bout.state === "open" && bout.outcomes.length > 0,
-  );
-
-  return entryProgress(
-    answerable.filter((bout) => picks.value[bout.id] !== undefined).length,
-    answerable.length,
-  );
-});
-
 /** Clears the card the Entry was built on, and lists the Entry it became. */
 async function submitted() {
   clear();
@@ -192,21 +166,21 @@ useSeoMeta({
 </script>
 
 <template>
-  <FightCardHeader v-if="card" :card="card" :now="now" :progress="progress" />
+  <FightCardHeader v-if="card" :card="card" />
   <PageHeading v-else text="TFC Predictions" />
 
   <section class="px-6 md:px-20 pt-10 pb-28 lg:pb-24">
     <div class="max-w-[1440px] mx-auto">
       <template v-if="card">
-        <p class="max-w-3xl text-on-surface/80 leading-relaxed">
-          Answer any Bout — which fighter wins, or how they win — and that one answer is a whole
-          Prediction at the Multiplier beside it. Chain Predictions across Bouts into one Entry,
-          commit your Coins, and a Bout stops taking Predictions the moment it locks.
-        </p>
+        <!--
+          Straight to the card. What the game is for is said in the strip above
+          it, and what an Entry is made of is said by the card itself — a fan who
+          presses a fighter has learnt more from it than any paragraph here was
+          telling them.
+        -->
+        <SignInToPlay v-if="prompt" :prompt="prompt" class="mb-8" />
 
-        <SignInToPlay v-if="prompt" :prompt="prompt" class="mt-8" />
-
-        <div class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <FightCard
             :card="card"
             :predictions="predictions"

@@ -1,96 +1,57 @@
 <script setup lang="ts">
-import type { EntryProgress } from "#shared/entries";
 import type { FightCard } from "#shared/fightCard";
-import { PREDICTION_MESSAGES } from "#shared/predictions";
 
 /**
- * The card a fan has arrived to play, across the top of the page: which Event
- * it is, when and where it is fought, how long there is left, and how far
- * through it they are.
+ * The card a fan has arrived to play, across the top of the page: what the game
+ * is for, which Event it is, and when and where it is fought.
  *
- * The two numbers on the right are the whole reason this is a strip rather
- * than a heading. A card is a long page and a fan scrolls away from the top of
- * it, so the two things that change while they read — the clock running down
- * to the first Lock, and the Bouts they have answered — are the two things
- * stated before the card starts. Everything else here is a fact about the
- * Event and does not move.
+ * The line above the Event's name says what a fan gets out of playing rather
+ * than naming the section they are already in — they arrived through PlayTFC and
+ * the header above still says so, and a strip that spends its first line
+ * repeating that is a strip with nothing to tell them. It is the one sentence on
+ * the page about the point of the thing, which is why it is up here in red and
+ * not a paragraph further down that nobody reaches.
  *
- * The countdown is to the card's scheduled start, which is the moment the Bout
- * fought first locks by itself (ADR-0006). The rest of the card is locked by
- * an admin as it progresses, so once that moment passes there is no single
- * moment left to count down to and the strip says what is happening instead.
+ * Everything under it is a fact about the Event, and nothing in the strip moves.
+ * It used to carry two numbers that did — a countdown to the first Lock, and how
+ * many Bouts had been answered — and both are gone: a fan reads a card to weigh
+ * up answers, and a clock they cannot act on plus a bar counting their own
+ * clicks are two things standing between them and the first Bout. Where a Bout
+ * stands is said on the Bout, which is where they are looking.
  */
-const props = defineProps<{
-  card: FightCard;
-  /** The clock to read the Lock against — `useNow`, held by the page. */
-  now: number;
-  /** How much of what is open has been answered. */
-  progress: EntryProgress;
-}>();
-
-const countdown = computed(() => {
-  const remaining = remainingUntil(props.card.scheduledStart, props.now);
-
-  return remaining && remainingLabel(remaining);
-});
+defineProps<{ card: FightCard }>();
 </script>
 
 <template>
   <header class="border-b border-outline-variant/15 bg-surface-container-lowest">
-    <div
-      class="max-w-[1440px] mx-auto px-6 md:px-20 py-8 md:py-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
-    >
-      <div class="min-w-0">
-        <p class="font-headline text-xs font-black uppercase tracking-[0.2em] text-primary">
-          TFC Predictions
-        </p>
-
-        <h1
-          class="mt-2 font-headline text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none"
-        >
-          {{ card.title }}
-        </h1>
-
-        <p
-          class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm font-bold uppercase tracking-widest text-on-surface/60"
-        >
-          <time :datetime="card.scheduledStart" class="text-on-surface">
-            {{ inTbilisi(card.scheduledStart) }}
-          </time>
-          <span>{{ card.venue }}</span>
-          <span>{{ card.bouts.length }} {{ card.bouts.length === 1 ? "Bout" : "Bouts" }}</span>
-        </p>
-      </div>
-
-      <div class="shrink-0 lg:text-right">
-        <p v-if="countdown" class="font-headline text-3xl md:text-4xl font-black tabular-nums">
-          {{ countdown }}
-        </p>
-        <p v-if="countdown" class="mt-1 text-xs uppercase tracking-widest text-on-surface/50">
-          until the first Bout locks
-        </p>
-        <p v-else class="max-w-xs text-sm text-on-surface/60 leading-relaxed">
-          {{ PREDICTION_MESSAGES.cardUnderway }}
-        </p>
-      </div>
-    </div>
-
-    <div class="max-w-[1440px] mx-auto px-6 md:px-20 pb-6 flex items-center gap-4">
-      <p class="text-xs font-bold uppercase tracking-widest text-on-surface/60 whitespace-nowrap">
-        {{ progress.label }}
+    <div class="max-w-[1440px] mx-auto px-6 md:px-20 py-8 md:py-10">
+      <p class="font-headline text-xs font-black uppercase tracking-[0.2em] text-primary">
+        Collect Coins &amp; Climb Leaderboard
       </p>
-      <!--
-        Decoration, and marked as such: the sentence beside it says the same
-        thing in words, and a progressbar labelled with that sentence would be
-        a screen reader reading it twice.
-      -->
-      <div
-        v-if="progress.offered > 0"
-        class="h-[3px] flex-1 overflow-hidden bg-outline-variant/20"
-        aria-hidden="true"
+
+      <h1
+        class="mt-2 font-headline text-4xl md:text-6xl font-black italic uppercase tracking-tighter leading-none"
       >
-        <div class="h-full bg-coin transition-all" :style="{ width: `${progress.percent}%` }" />
-      </div>
+        {{ card.title }}
+      </h1>
+
+      <!--
+        Three facts in one line, and the rules between them are what make it
+        one line rather than three things that happen to be near each other.
+        They are decoration: a screen reader reads the three in turn either
+        way, and "pipe" between each pair is noise.
+      -->
+      <p
+        class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-bold uppercase tracking-widest text-on-surface/60"
+      >
+        <time :datetime="card.scheduledStart" class="text-on-surface">
+          {{ inTbilisi(card.scheduledStart) }}
+        </time>
+        <span class="text-on-surface/25" aria-hidden="true">|</span>
+        <span>{{ card.venue }}</span>
+        <span class="text-on-surface/25" aria-hidden="true">|</span>
+        <span>{{ card.bouts.length }} {{ card.bouts.length === 1 ? "Bout" : "Bouts" }}</span>
+      </p>
     </div>
   </header>
 </template>

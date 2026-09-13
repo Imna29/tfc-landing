@@ -54,7 +54,7 @@ import { endingNote, entryAsItStands } from "#shared/results";
 const props = defineProps<{
   /** Every Entry this fan holds this Season, newest first. */
   entries: CommittedEntry[];
-  /** The server's clock when it answered, which the countdowns start from. */
+  /** The server's clock when it answered, which the clock here starts from. */
   answeredAt: string | null;
 }>();
 

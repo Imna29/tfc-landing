@@ -90,30 +90,17 @@ function answer(outcome: OutcomeAnswer) {
   emit("update:pick", pickAnswered(props.pick ?? null, outcome));
 }
 
-/** How long until this Bout locks, while there is a Lock to count down to. */
-const countdown = computed(() => {
-  const locksAt = props.predictions?.locksAt;
-
-  if (!locksAt || state.value !== "open") return null;
-
-  const remaining = remainingUntil(locksAt, props.now);
-
-  return remaining && remainingLabel(remaining);
-});
-
 /**
- * What to say about the Lock when there is no countdown to show instead.
+ * What to say about a Bout that is no longer taking answers.
  *
- * There is deliberately nothing here for an open Bout that locks by itself:
- * that one always has a countdown, because {@link boutState} only calls it
- * open while its Lock is still ahead.
+ * Nothing for an open one, deliberately. An open Bout's news is the answers on
+ * it and what they pay; a Lock it is still short of is not news, and the card
+ * used to spend a line of every Bout saying so. What a fan needs to know is
+ * that a Bout has stopped taking answers, and that is said the moment it has.
  */
 const lockNote = computed(() => {
   if (state.value === "settled") return PREDICTION_MESSAGES.settled;
   if (state.value === "locked") return PREDICTION_MESSAGES.locked;
-  if (state.value === "open" && !props.predictions?.locksAt) {
-    return PREDICTION_MESSAGES.locksWhenReached;
-  }
 
   return null;
 });
@@ -270,10 +257,6 @@ function wrapperFor(
     <header
       class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-outline-variant/15 px-4 py-3 text-xs"
     >
-      <span class="font-headline text-sm font-black tabular-nums text-on-surface/40">
-        <span class="sr-only">Bout </span>{{ String(bout.cardOrder).padStart(2, "0") }}
-      </span>
-
       <span
         v-if="bout.mainEvent"
         class="border border-primary-container px-2 py-0.5 font-bold uppercase tracking-widest text-primary"
@@ -304,17 +287,11 @@ function wrapperFor(
         Everything from here down is the game. A card shown anywhere else is
         given no `predictions` and stops at the fight.
       -->
-      <span v-if="predictions && state" class="ml-auto flex items-center gap-3">
-        <span v-if="countdown" class="font-bold tabular-nums">
-          Locks in
-          <time :datetime="predictions.locksAt ?? undefined">{{ countdown }}</time>
-        </span>
-        <span
-          class="font-headline font-black uppercase tracking-widest"
-          :class="state === 'open' ? 'text-primary' : 'text-on-surface/50'"
-        >
-          {{ BOUT_STATE_LABELS[state] }}
-        </span>
+      <span
+        v-if="state && state !== 'open'"
+        class="ml-auto font-headline font-black uppercase tracking-widest text-on-surface/50"
+      >
+        {{ BOUT_STATE_LABELS[state] }}
       </span>
     </header>
 
@@ -372,11 +349,19 @@ function wrapperFor(
           class="px-4 pb-4 md:px-5"
           :class="side.corner === 'blue' ? 'text-right' : ''"
         >
+          <!--
+            The name is dropped from the label but kept in the accessible one:
+            both corners carry one of these, and a reader listing the links on
+            a Bout would otherwise hear "profile" twice with no way to tell
+            which fighter either one leads to.
+          -->
           <NuxtLink
             :to="side.profile"
-            class="text-xs font-bold uppercase tracking-widest text-on-surface/50 hover:text-primary transition-colors"
+            :aria-label="`${side.fighter.name}'s profile`"
+            class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-on-surface/50 hover:text-primary transition-colors"
           >
-            {{ side.fighter.name }}'s profile
+            <Icon name="material-symbols:person" aria-hidden="true" />
+            profile
           </NuxtLink>
         </p>
       </div>
@@ -384,7 +369,7 @@ function wrapperFor(
 
     <div v-if="asksMethod" class="border-t border-outline-variant/15 bg-surface-container-lowest">
       <p class="px-4 pt-3 text-xs font-bold uppercase tracking-widest text-on-surface/50">
-        {{ QUESTION_LABELS.method }} — answered on its own terms, at its own Multiplier
+        {{ QUESTION_LABELS.method }}
       </p>
 
       <div class="grid grid-cols-1 md:grid-cols-2">
