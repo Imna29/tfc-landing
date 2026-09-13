@@ -422,9 +422,10 @@ export function defaultOutcomes(discipline: Discipline): SeededOutcome[] {
  * it they are punished for it. Neither is a price anybody meant to type.
  *
  * The ceiling is not a rule about pricing but a guard against a stuck key —
- * 190 where 1.90 was meant. It carries more weight than it used to: ADR-0020
- * removed the cap on the combined Multiplier, so a price typed wrong here is
- * multiplied out in full rather than absorbed by a ceiling further down.
+ * 190 where 1.90 was meant. A combined Multiplier stops at ×10000 whatever it
+ * multiplies out to (ADR-0021), which is above what two prices typed wrong here
+ * can reach between them — so this guard, not the cap, is what catches a stuck
+ * key on a short Entry.
  *
  * Spelled out again in the `outcomes_multiplier_pays` check constraint and in
  * the `numeric(5, 2)` the column is stored as.

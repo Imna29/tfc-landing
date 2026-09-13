@@ -18,10 +18,10 @@ import { accountPath, THE_CARD } from "~/utils/navigation";
  * The Entry a fan is building, and the button that commits it.
  *
  * Everything a fan needs before they can press it is here and updates as they
- * pick: the Predictions in the Entry, the combined Multiplier, and the Coins it
- * returns if it lands. Nobody should have to work out what they stand to win —
- * ADR-0002 chose fixed Multipliers over a self-balancing pool precisely so that
- * they do not have to.
+ * pick: the Predictions in the Entry, the combined Multiplier, whether the cap
+ * has decided it, and the Coins it returns if it lands. Nobody should have to
+ * work out what they stand to win — ADR-0002 chose fixed Multipliers over a
+ * self-balancing pool precisely so that they do not have to.
  *
  * **It follows the fan down the card.** Beside it on a wide window, and along
  * the bottom edge of a narrow one, where it shows what the Entry holds and
@@ -291,6 +291,10 @@ async function submit() {
             </dd>
           </div>
         </dl>
+
+        <p v-if="returns.capped" class="mt-3 text-xs text-on-surface/70 leading-relaxed">
+          {{ ENTRY_MESSAGES.capped }}
+        </p>
       </div>
 
       <div class="px-5 pb-5">

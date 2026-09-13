@@ -29,13 +29,12 @@ import { MULTIPLIER, outcomeKey, readAnswer, type OutcomeAnswer } from "./pricin
  * The floor is what an Entry is: a fan committing Coins to nothing has not
  * predicted anything. The ceiling is a bound on what a mispriced Outcome can
  * cost, not a rule about how a fan should play — ADR-0002 has no pool that
- * self-corrects a price nobody looked at, so the damage is bounded rather than
- * prevented.
+ * self-corrects a price nobody looked at, so the damage is bounded by the ten
+ * links here and by {@link COMBINED_MULTIPLIER_CAP} rather than prevented.
  *
- * These ten links are the whole of that bound. They used to share it with a cap
- * on the combined Multiplier, and ADR-0020 removed it: a chain now pays what it
- * multiplies out to, so ten wrong Multipliers multiply out in full. That is the
- * thing to weigh before anybody widens this number.
+ * The two bounds are worth telling apart. This one is a bound on how long a
+ * chain can be, and it bites on every Entry that reaches it; the cap is a bound
+ * on what a chain can pay, and at ×10000 it bites on very few (ADR-0021).
  *
  * Spelled out again in the `entries_hold_one_to_ten_predictions` trigger.
  */
@@ -50,6 +49,41 @@ export const ENTRY_PREDICTIONS = { minimum: 1, maximum: 10 } as const;
  * `entries_amount_is_committed` check constraint.
  */
 export const AMOUNT = { minimum: 1 } as const;
+
+/**
+ * The most an Entry's combined Multiplier can reach.
+ *
+ * The other half of ADR-0002's bill. A Multiplier set by hand can be wrong, and
+ * ten wrong ones multiplied together is a Reward nobody meant to offer, so the
+ * chain stops paying more at ×10000 however far it is taken. The cap is shown to
+ * the fan the moment it starts deciding their Reward: a number that quietly
+ * stopped growing would read as a game that had stopped working.
+ *
+ * **×10000 is set clear of the chain a fan actually builds** (ADR-0021). Ten
+ * answers at ×2 multiply out to ×1024 and ten at ×2.5 to ×9537, so a full Entry
+ * at ordinary prices does not reach the cap at all — the ×100 of ADR-0013 stopped
+ * the number at the fourth or fifth Prediction, and this one is not met by the
+ * longest Entry the game allows at the prices it is usually offered at. What is
+ * left above it is the tail: the mispriced Outcome, and the Entry built to find
+ * one. **So the cap is rarely the number a fan sees.** That is the point of
+ * putting it here rather than lower, and it is also why a fan reporting that it
+ * never bites is reporting the design working.
+ *
+ * **The cap is a rule of the game, not a term of the offer** (ADR-0013, whose
+ * reasoning ADR-0021 keeps). An Entry freezes what each of its answers paid
+ * (ADR-0002) and nothing else, so the cap and the rounding are applied wherever
+ * a Reward is worked out — here, in the panel a fan confirms in, and in the
+ * settlement that pays. There is no capped number written onto an Entry for
+ * settlement to read back, because settlement could not pay it in any case: a
+ * No Result contributes ×1.0 (ADR-0005), and the Reward is worked out from the
+ * answers that survived.
+ *
+ * The consequence is worth saying plainly: **changing this number changes what
+ * every unsettled Entry pays.** That is a decision to take between Seasons
+ * rather than during one, and the reason it is a constant somebody edits in a
+ * reviewed change rather than a setting somebody can type.
+ */
+export const COMBINED_MULTIPLIER_CAP = 10000;
 
 /**
  * Where an Entry is.
@@ -187,7 +221,8 @@ export interface CommittedPrediction extends DraftPrediction, PredictedBout {
  *
  * Carries no combined Multiplier and no Reward, for the reason the `entries`
  * table carries neither: both are the product of what is on the Predictions,
- * and `potentialReward` below is where they are worked out (ADR-0013).
+ * and `potentialReward` below is where they are worked out, cap and all
+ * (ADR-0013, ADR-0021).
  */
 export interface CommittedEntry {
   id: string;
@@ -225,8 +260,10 @@ export type Cancellation =
 
 /** What an Entry returns if every Prediction in it lands. */
 export interface PotentialReward {
-  /** The combined Multiplier, as a fan is shown it. */
+  /** The combined Multiplier, after the cap and as a fan is shown it. */
   multiplier: number;
+  /** Whether the cap is what decided that number. */
+  capped: boolean;
   /** The Coins a winning Entry returns: the Amount at that Multiplier. */
   reward: number;
 }
@@ -304,19 +341,28 @@ export function priceOf(answer: OutcomeAnswer, offered: readonly OfferedAnswer[]
  * answered nothing is shown no Reward — and it is the honest answer for the
  * moment between clearing an Entry and starting the next one.
  *
- * Nothing bounds the number at the other end (ADR-0020). A chain of ten returns
- * what its ten Multipliers multiply out to, and the only thing standing between
- * a mispriced Outcome and a Reward nobody meant to offer is
- * {@link ENTRY_PREDICTIONS} and the pricing being done before the Bout opens.
+ * At the other end the number stops at {@link COMBINED_MULTIPLIER_CAP}
+ * (ADR-0021). A chain taken past ×10000 lengthens the Entry without increasing
+ * what it returns, and `capped` is what says so — the panel reads it and tells
+ * the fan, because a Multiplier that had quietly stopped moving as they kept
+ * answering would read as a broken page rather than a rule.
+ *
+ * Ordinary prices do not get there: ten answers at ×2.5 come to ×9537, so the
+ * cap decides nothing on almost every Entry, and `capped` is false on almost
+ * every answer this returns.
  */
 export function potentialReward(
   amount: number,
   predictions: readonly PricedPrediction[],
 ): PotentialReward {
   const combined = predictions.reduce((product, prediction) => product * prediction.multiplier, 1);
-  const multiplier = Number(combined.toFixed(MULTIPLIER.decimals));
 
-  return { multiplier, reward: Math.round(amount * multiplier) };
+  const capped = combined > COMBINED_MULTIPLIER_CAP;
+  const multiplier = capped
+    ? COMBINED_MULTIPLIER_CAP
+    : Number(combined.toFixed(MULTIPLIER.decimals));
+
+  return { multiplier, capped, reward: Math.round(amount * multiplier) };
 }
 
 /** How far through the open Bouts of a card an Entry has been built. */
@@ -487,6 +533,10 @@ export const ENTRY_MESSAGES = {
     "One of those answers is not offered on that Bout. Reload the card — the " +
     "answers a Bout offers, and what each of them pays, are set before it " +
     "opens.",
+  capped:
+    `Chained this far, the combined Multiplier has reached its cap of ` +
+    `×${COMBINED_MULTIPLIER_CAP}. Another Prediction lengthens the Entry ` +
+    "without increasing what it returns.",
   accepted: (amount: number, reward: number) =>
     `Entry accepted. ${coinsLabel(amount)} committed, returning ` +
     `${coinsLabel(reward)} if every Prediction in it lands.`,

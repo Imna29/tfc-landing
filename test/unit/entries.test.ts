@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AMOUNT,
   CANCELLATION_MESSAGES,
+  COMBINED_MULTIPLIER_CAP,
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   cancellationOf,
@@ -106,6 +107,7 @@ describe("what an Entry returns if every Prediction lands", () => {
   it("is the Amount at the answer's Multiplier, on the simplest Entry there is", () => {
     expect(potentialReward(20, [priced({ multiplier: 1.9 })])).toEqual({
       multiplier: 1.9,
+      capped: false,
       reward: 38,
     });
   });
@@ -137,25 +139,70 @@ describe("what an Entry returns if every Prediction lands", () => {
       priced({ boutId: ANOTHER_BOUT, multiplier: 2.15 }),
     ];
 
-    expect(potentialReward(100, uneven)).toEqual({ multiplier: 4.19, reward: 419 });
+    expect(potentialReward(100, uneven)).toEqual({ multiplier: 4.19, capped: false, reward: 419 });
   });
 
-  it("pays what a long chain multiplies out to, with nothing capping it", () => {
+  it("pays a long chain in full while it is under the cap", () => {
     const far = Array.from({ length: 5 }, (_, index) =>
       priced({ boutId: `bout-${index}`, multiplier: 3 }),
     );
 
-    // ADR-0020: 3^5 is 243, and that is what the Entry returns. The number used
-    // to stop at ×100 however far the chain was taken.
-    expect(potentialReward(10, far)).toEqual({ multiplier: 243, reward: 2430 });
+    // 3^5 is 243, well past the ×100 of ADR-0013 and nowhere near the ×10000 of
+    // ADR-0021: the cap is set where a chain like this one pays what it comes to.
+    expect(potentialReward(10, far)).toEqual({ multiplier: 243, capped: false, reward: 2430 });
   });
 
-  it("keeps multiplying out to the ten-Prediction limit, which is the only bound left", () => {
+  it("leaves the longest Entry at ordinary prices uncapped, which is what ×10000 is for", () => {
     const longest = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
-      priced({ boutId: `bout-${index}`, multiplier: 2 }),
+      priced({ boutId: `bout-${index}`, multiplier: 2.5 }),
     );
 
-    expect(potentialReward(1, longest)).toEqual({ multiplier: 1024, reward: 1024 });
+    // Ten answers at ×2.5 multiply out to ×9536.74, and the whole of it is paid.
+    // The cap sits above the longest Entry the game allows at the prices it is
+    // usually offered at (ADR-0021), so it decides nothing here.
+    expect(potentialReward(1, longest)).toMatchObject({ capped: false, reward: 9537 });
+  });
+
+  it("pays a chain that reaches the cap exactly, rather than treating it as past", () => {
+    // Two Outcomes at the ×100 ceiling a single Multiplier may be priced to come
+    // to exactly ×10000. The cap is a ceiling reached, not a ceiling crossed.
+    const ceiling = [
+      priced({ boutId: BOUT, multiplier: 100 }),
+      priced({ boutId: ANOTHER_BOUT, multiplier: 100 }),
+    ];
+
+    expect(potentialReward(1, ceiling)).toEqual({
+      multiplier: COMBINED_MULTIPLIER_CAP,
+      capped: false,
+      reward: COMBINED_MULTIPLIER_CAP,
+    });
+  });
+
+  it("caps the combined Multiplier, and says so", () => {
+    const far = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
+      priced({ boutId: `bout-${index}`, multiplier: 3 }),
+    );
+
+    // 3^10 is 59049: ten underdogs, or ten prices nobody checked. Either way the
+    // Entry returns the cap and the panel says the cap is why (ADR-0021).
+    expect(potentialReward(10, far)).toEqual({
+      multiplier: COMBINED_MULTIPLIER_CAP,
+      capped: true,
+      reward: 10 * COMBINED_MULTIPLIER_CAP,
+    });
+  });
+
+  it("pays no more however much further the chain is taken", () => {
+    const further = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
+      priced({ boutId: `bout-${index}`, multiplier: 4 }),
+    );
+
+    // 4^10 is over a million, and it returns the Coins the ×59049 above it did:
+    // past the cap, another link lengthens the Entry without paying for it.
+    expect(potentialReward(10, further)).toMatchObject({
+      multiplier: COMBINED_MULTIPLIER_CAP,
+      reward: 10 * COMBINED_MULTIPLIER_CAP,
+    });
   });
 
   it("returns whole Coins, because there is no half a Coin to return", () => {
@@ -164,7 +211,7 @@ describe("what an Entry returns if every Prediction lands", () => {
   });
 
   it("pays nothing extra for an Entry nobody has answered anything on", () => {
-    expect(potentialReward(20, [])).toEqual({ multiplier: 1, reward: 20 });
+    expect(potentialReward(20, [])).toEqual({ multiplier: 1, capped: false, reward: 20 });
   });
 });
 
@@ -205,6 +252,10 @@ describe("what the panel tells a fan", () => {
   // ones it renders from — this repo has no component-test setup, and adding
   // one is a bigger decision than #11. What can be checked here is that the
   // sentences it shows say the thing the criterion asks for.
+  it("names the cap when the cap is what decided the Reward", () => {
+    expect(ENTRY_MESSAGES.capped).toContain(String(COMBINED_MULTIPLIER_CAP));
+  });
+
   it("confirms an accepted Entry with the Coins committed and the Coins returned", () => {
     expect(ENTRY_MESSAGES.accepted(20, 240)).toContain("20 Coins");
     expect(ENTRY_MESSAGES.accepted(20, 240)).toContain("240 Coins");

@@ -538,9 +538,9 @@ A Multiplier is above 1 and no higher than 100, to two decimal places
 (`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
 correct Prediction returns exactly the Coins committed and below it a fan is
 worse off for being right; the ceiling is the stuck key — 190 where 1.90 was
-meant. It carries more weight than it used to: ADR-0020 removed the cap on the
-combined Multiplier, so a number typed wrong here is multiplied out in full
-rather than absorbed by a ceiling further down.
+meant. It carries real weight: a combined Multiplier stops at ×10000
+(ADR-0021), which two prices at this ceiling reach exactly rather than pass, so
+on a short Entry this check is what catches a stuck key.
 
 Two consequences worth knowing:
 
@@ -746,9 +746,9 @@ card rather than a card that cannot be imported.
 The same page is where a fan plays. Picking an answer turns the card
 interactive — every Outcome on an open Bout is a button — and
 `app/components/EntryBuilder.vue` holds the Entry being built: the Predictions
-in it, the combined Multiplier, the Amount, and the Coins it returns if it
-lands. `POST /api/predictions/entries` commits
-it.
+in it, the combined Multiplier, whether the ×10000 cap has decided it, the
+Amount, and the Coins it returns if it lands. `POST /api/predictions/entries`
+commits it.
 
 **A Prediction is one answer to one Question on one Bout** (ADR-0014): a winner
 or a method, carrying the Multiplier that answer pays. Each Multiplier stands
@@ -845,14 +845,19 @@ answer paid at submission (ADR-0002) — one number for one answer. The Entry
 stores neither the combined Multiplier nor the Reward: both are the product of
 what is on its Predictions, and a stored copy would be a second answer to a
 question that already has one. `potentialReward` in `shared/entries.ts` is where they
-become a Reward, rounded to whole Coins, said once for the panel, the API and
-the settlement that will eventually pay it. **Nothing caps it** (ADR-0020): a
-chain of ten answers at ×3 returns ×59049, and the ten-Prediction limit is the
-only thing bounding what a mispriced Outcome can cost. The cost of deriving is
-worth stating: the rounding is a *rule*, applied wherever a Reward is worked
-out, rather than a number frozen onto the Entry — so changing it changes what
-every unsettled Entry pays, which is a decision to take between Seasons rather
-than during one.
+become a Reward, capped at ×10000 and rounded to whole Coins, said once for the
+panel, the API and the settlement that will eventually pay it. **The cap is set
+clear of the chain a fan actually builds** (ADR-0021): ten answers at ×2
+multiply out to ×1024 and ten at ×2.5 to ×9537, so the longest Entry the game
+allows, at ordinary prices, does not reach it — it is there to catch the
+mispriced Outcome, not to shape how anybody plays. Expect never to see it in
+ordinary use; `test/unit/entries.test.ts` and the cap cases in the server suites
+are where the evidence that it works lives. The cost of deriving is worth
+stating: the cap and the rounding are *rules*, applied wherever a Reward is
+worked out, rather than numbers frozen onto the Entry — so changing either
+changes what every unsettled Entry pays. That is a decision to take between
+Seasons rather than during one, and `COMBINED_MULTIPLIER_CAP` says so where
+somebody would change it.
 
 **The Coins leave at submission**, as one `entry_commitment` row in the ledger
 written in the same transaction as the Entry (ADR-0003). The route reads the
@@ -874,7 +879,7 @@ is driven through the API against a real Postgres in
 `test/server/entries.test.ts`, and the rules Postgres holds are also written by
 hand there so that a passing route is not the only evidence for them. What a
 fan clicks is held by the unit tests over `shared/entries.ts` — building a
-Prediction, the chain, the Reward — plus the server-rendered shell of the page;
+Prediction, the cap, the Reward — plus the server-rendered shell of the page;
 the reactivity between them is held by `vue-tsc` and by those functions being
 the same ones the server uses, because this repo still has no component-test
 setup (see the card display section above).

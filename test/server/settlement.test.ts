@@ -1,6 +1,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { STARTING_BALANCE } from "../../shared/coins";
+import { COMBINED_MULTIPLIER_CAP } from "../../shared/entries";
 import { DISCIPLINES } from "../../shared/fightCard";
 import { METHODS } from "../../shared/pricing";
 import {
@@ -322,7 +323,7 @@ describe("entering a result", async () => {
       ]);
     });
 
-    it("pays what a long chain multiplies out to, with nothing capping it", async () => {
+    it("pays what a long chain multiplies out to while it is under the cap", async () => {
       const card = await upcomingCard(8);
       const fan = await fanWithCoins();
 
@@ -338,17 +339,19 @@ describe("entering a result", async () => {
         paid = (await settle(card, place, { winner: "red" })).settlement.paid;
       }
 
-      // Eight winner picks at ×2 multiply out to ×256, and ADR-0020 pays all of
-      // it: 10 Coins return 2560 where the ×100 cap used to hold them to 1000.
+      // Eight winner picks at ×2 multiply out to ×256, and all of it is paid:
+      // 10 Coins return 2560. The ×100 of ADR-0013 held this to 1000, and the
+      // ×1000 of ADR-0021 is set above it.
       const chained = TEST_MULTIPLIERS.winner ** card.bouts.length;
 
       expect(chained).toBe(256);
+      expect(chained).toBeLessThan(COMBINED_MULTIPLIER_CAP);
       expect(paid).toBe(10 * chained);
       expect(await statusOf(entry.id)).toBe("won");
 
-      // Read back out of the ledger rather than taken from the answer: an
-      // uncapped chain is the number this whole rule exists for, and what
-      // settlement said it returned is not evidence that it wrote it.
+      // Read back out of the ledger rather than taken from the answer: a long
+      // chain is the number this whole rule exists for, and what settlement
+      // said it returned is not evidence that it wrote it.
       expect(
         (await ledgerFor(fan.id))
           .filter((row) => row.kind === "entry_reward")
@@ -357,6 +360,35 @@ describe("entering a result", async () => {
       expect(await balance(fan.cookie)).toMatchObject({
         balance: STARTING_BALANCE - 10 + 10 * chained,
       });
+    });
+
+    it("returns no more than the cap however far it is chained", async () => {
+      const card = await upcomingCard(3, { multipliers: { winner: 100, method: 2.5 } });
+      const fan = await fanWithCoins();
+
+      const { entry } = await submit(
+        fan,
+        10,
+        card.bouts.map((bout) => winnerOn(bout.id, "red")),
+      );
+
+      let settlement;
+
+      for (const place of card.bouts.keys()) {
+        ({ settlement } = await settle(card, place, { winner: "red" }));
+      }
+
+      // Three Outcomes at the ceiling a Multiplier may be priced to multiply out
+      // to ×1000000, and the Entry returns the cap: 10 Coins pay 100000 rather
+      // than ten million. Settlement re-caps from the Predictions rather than
+      // reading a number back (ADR-0021), so this is the cap the panel showed.
+      expect(settlement?.paid).toBe(10 * COMBINED_MULTIPLIER_CAP);
+      expect(await statusOf(entry.id)).toBe("won");
+      expect(
+        (await ledgerFor(fan.id))
+          .filter((row) => row.kind === "entry_reward")
+          .map((row) => row.amount),
+      ).toEqual([10 * COMBINED_MULTIPLIER_CAP]);
     });
   });
 

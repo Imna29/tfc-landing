@@ -1,8 +1,23 @@
 ---
-status: accepted
+status: superseded by ADR-0021
 ---
 
 # The combined Multiplier is uncapped
+
+**Superseded by [[adr-0021]], which caps the combined Multiplier at ×10000.** Read that record,
+not this one. There is a `COMBINED_MULTIPLIER_CAP` constant again and a `capped` flag on a
+`PotentialReward` again, and a chain taken past ×10000 stops paying more.
+
+What this record got right is kept there: at ×100 the cap bit around the fourth or fifth
+Prediction and took away the reason to build a long Entry. [[adr-0021]] answers that with the
+number rather than with removal — at ×10000 the longest Entry the game allows, at ordinary
+prices, does not reach the cap at all. What this record got wrong is what removal left: ten
+hand-priced Multipliers with nothing above them, on a pricing model with no pool to correct one
+nobody looked at.
+
+Read the rest of this record as the reasoning for removing the cap, which did not survive, and
+for deriving the Reward rather than storing it, which did — [[adr-0021]] restates all of the
+latter.
 
 An Entry pays what its Predictions multiply out to. A chain of ten answers at ×3 returns
 ×59049, and `potentialReward` in `shared/entries.ts` works that out and rounds it to whole

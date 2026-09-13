@@ -1,18 +1,22 @@
 ---
-status: superseded by ADR-0020
+status: superseded by ADR-0020, then by ADR-0021
 ---
 
 # The combined Multiplier cap is a rule of the game, not a term of the offer
 
-**Superseded by [[adr-0020]], which removes the cap entirely.** Read that record, not this
-one. There is no ×100 ceiling on a combined Multiplier and no `COMBINED_MULTIPLIER_CAP`
-constant; an Entry pays what its Predictions multiply out to.
+**Superseded by [[adr-0020]], which removed the cap entirely — and then by [[adr-0021]], which
+put one back at ×10000.** Read [[adr-0021]] for what the game does now: there is a
+`COMBINED_MULTIPLIER_CAP` constant, it is 10000 rather than 100, and everything this record says
+about a cap being a rule of the game rather than a term of the offer holds again.
 
-The half of this record that does not concern the cap still holds, and [[adr-0020]] restates
-all of it: the combined Multiplier and the Reward are **derived wherever one is needed and
-never written onto the Entry**, because settlement recomputes from the answers that survived
-and could never pay a promised number anyway. Read the rest of this record as the reasoning
-behind that, with every mention of a cap struck out.
+So read this record as current in its reasoning and stale in its number. The ×100 is gone for
+the reason [[adr-0020]] gave: it bit around the fourth or fifth Prediction, where a fan is most
+invested in a chain, and a cap that has to be explained there is working against the product.
+
+The half of this record that never concerned the cap held throughout both changes: the combined
+Multiplier and the Reward are **derived wherever one is needed and never written onto the
+Entry**, because settlement recomputes from the answers that survived and could never pay a
+promised number anyway.
 
 An Entry freezes what each of its answers paid ([[adr-0002]]) and nothing else. The combined
 Multiplier, the ×100 cap on it and the rounding to whole Coins are worked out from the

@@ -342,7 +342,7 @@ export interface AnsweredBout extends PricedPrediction {
 export interface EntryAsItStands {
   /** What each Prediction pays now, in the order they were given. */
   multipliers: number[];
-  /** The combined Multiplier, and the Coins at it. */
+  /** The combined Multiplier after the ×10000 cap, and the Coins at it. */
   returns: PotentialReward;
 }
 
