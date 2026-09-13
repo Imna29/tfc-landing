@@ -538,8 +538,9 @@ A Multiplier is above 1 and no higher than 100, to two decimal places
 (`outcomes_multiplier_pays`, and `MULTIPLIER` in `shared/pricing.ts`). At 1 a
 correct Prediction returns exactly the Coins committed and below it a fan is
 worse off for being right; the ceiling is the stuck key — 190 where 1.90 was
-meant — and nothing above it could be paid anyway, since a combined Multiplier
-is capped at ×100.
+meant. It carries real weight: a combined Multiplier stops at ×10000
+(ADR-0021), which two prices at this ceiling reach exactly rather than pass, so
+on a short Entry this check is what catches a stuck key.
 
 Two consequences worth knowing:
 
@@ -745,9 +746,9 @@ card rather than a card that cannot be imported.
 The same page is where a fan plays. Picking an answer turns the card
 interactive — every Outcome on an open Bout is a button — and
 `app/components/EntryBuilder.vue` holds the Entry being built: the Predictions
-in it, the combined Multiplier, whether the ×100 cap has decided it, the Amount,
-and the Coins it returns if it lands. `POST /api/predictions/entries` commits
-it.
+in it, the combined Multiplier, whether the ×10000 cap has decided it, the
+Amount, and the Coins it returns if it lands. `POST /api/predictions/entries`
+commits it.
 
 **A Prediction is one answer to one Question on one Bout** (ADR-0014): a winner
 or a method, carrying the Multiplier that answer pays. Each Multiplier stands
@@ -844,13 +845,19 @@ answer paid at submission (ADR-0002) — one number for one answer. The Entry
 stores neither the combined Multiplier nor the Reward: both are the product of
 what is on its Predictions, and a stored copy would be a second answer to a
 question that already has one. `potentialReward` in `shared/entries.ts` is where they
-become a Reward, capped at ×100 and rounded to whole Coins, said once for the
-panel, the API and the settlement that will eventually pay it. The cost of that
-is worth stating: the cap and the rounding are *rules*, applied wherever a
-Reward is worked out, rather than numbers frozen onto the Entry — so changing
-either changes what every unsettled Entry pays. That is a decision to take
-between Seasons rather than during one, and `COMBINED_MULTIPLIER_CAP` says so
-where somebody would change it.
+become a Reward, capped at ×10000 and rounded to whole Coins, said once for the
+panel, the API and the settlement that will eventually pay it. **The cap is set
+clear of the chain a fan actually builds** (ADR-0021): ten answers at ×2
+multiply out to ×1024 and ten at ×2.5 to ×9537, so the longest Entry the game
+allows, at ordinary prices, does not reach it — it is there to catch the
+mispriced Outcome, not to shape how anybody plays. Expect never to see it in
+ordinary use; `test/unit/entries.test.ts` and the cap cases in the server suites
+are where the evidence that it works lives. The cost of deriving is worth
+stating: the cap and the rounding are *rules*, applied wherever a Reward is
+worked out, rather than numbers frozen onto the Entry — so changing either
+changes what every unsettled Entry pays. That is a decision to take between
+Seasons rather than during one, and `COMBINED_MULTIPLIER_CAP` says so where
+somebody would change it.
 
 **The Coins leave at submission**, as one `entry_commitment` row in the ledger
 written in the same transaction as the Entry (ADR-0003). The route reads the
@@ -1002,10 +1009,10 @@ lock settlement uses, and for the same reason. `test/server/corrections.test.ts`
 is the suite, and it asserts the ledger trail as hard as it asserts the
 statuses.
 
-### The profile: where a fan stands, and everything they predicted
+### The profile: where a fan stands
 
-`/profile` is the page a fan comes back to. It answers three separate requests
-and they are separate on purpose:
+`/profile` is the account. It answers two separate requests and they are
+separate on purpose:
 
 - **`/api/accounts/me`** is who is signed in, shared with every page that asks.
 - **`/api/coins/standing`** is the Season being played, the fan's Balance in it,
@@ -1014,8 +1021,6 @@ and they are separate on purpose:
   Balance is in the site header on every page a fan opens and is one indexed
   row, and a Rank orders every fan in the Season. Folding the second into the
   first would charge every page for it.
-- **`/api/predictions/history`** is every Entry the fan has ever committed,
-  filtered.
 
 **A Rank is an ordering of the materialised Balance and nothing else**
 (`server/utils/standings.ts`), and `CONTEXT.md` defines it. Ties are broken by
@@ -1030,9 +1035,43 @@ are 12th of 11. The leaderboard is the same ordering read a page at a time —
 `BY_STANDING` is written once and embedded in both — and the section below is
 about that page.
 
+**Everything a fan has predicted is no longer here.** It is My Predictions, in
+the next section, and the profile links to it rather than drawing it a second
+time. A fan's phone number never appears either: `shared/fan.ts` has no field
+for one and no endpoint returns one — see ADR-0018 and the Accounts section.
+
+The page is never edge-cached and is server-rendered per request (ADR-0008), and
+`/PROFILE` is a 404 rather than a second spelling that could miss that rule
+(ADR-0012).
+
+### My Predictions: what a fan is riding on, and everything before it
+
+`/predictions/mine` is every Entry a fan has ever committed, and the second item
+in the game's own navigation. One request behind it —
+**`/api/predictions/history`** — and one component, `EntryHistory`, which lays
+the answer out in the two halves a fan actually came for.
+
+**Still open above, finished below.** `openAndFinished` in `shared/history.ts`
+draws that line, and it draws it once: an Entry is on one side or the other,
+never both, because a fan reading one chain in two places is a fan counting it
+twice. A fan opening this page mid-card is looking for the chains that can still
+go either way, and a single listing newest-first buries them under whatever
+settled last week. The open half is flat and the finished half is grouped by
+Season, which is not an inconsistency: every Open Entry is in the Season being
+played, because a Season will not close while a Bout on one of its Events is
+still open, so there is never a second Season to group up there.
+
+**It is in the game's section rather than on the profile**, which is where it
+used to be. A fan checking whether their chain survived Bout 3 is playing the
+game, not administering an account — and one page owning a fan's Entries is what
+stops two of them coming to show the same Entry differently. `/predictions/mine`
+sits under `/predictions` so it inherits that section's exemption from the edge
+cache in `route-rules.ts`, which matters more here than it does on the card: this
+page is nothing but one fan's own answers.
+
 **Nothing on this page is stored.** The combined Multiplier, the Reward and each
 Prediction's own grade are worked out from the Predictions and the Results every
-time the page is read. That is ADR-0013 applied to a whole page: a history that
+time the page is read. That is ADR-0020 applied to a whole page: a history that
 quoted a Reward written down beside the Entry would be a second answer to a
 question settlement has already answered, and the day they differed nothing
 could say which was right.
@@ -1040,12 +1079,13 @@ could say which was right.
 `entryAsItStands` in `shared/results.ts` is the arithmetic — `settledPrice` over
 every answer, `potentialReward` over the chain they make, which is `rewardFor`
 in `server/utils/results.ts` in the same order. It is one function because a fan
-can have it on the screen twice: the listing beside the card and the Entry
-history both price the same Entry, and two copies of those four lines would be
-two Rewards on two pages. `shared/history.ts` adds only the reading — `readEntry`
-grades each answer beside it, `bySeason` groups, `rewardOf` decides whether the
-Coins beside an Entry are a promise, a payment, an Amount coming back, or
-nothing at all.
+can have it on the screen twice: the listing beside the card and this page both
+price the same Entry, and two copies of those four lines would be two Rewards on
+two pages. `shared/history.ts` adds only the reading — `readEntry` grades each
+answer beside it, `bySeason` groups, `rewardOf` decides whether the Coins beside
+an Entry are a promise, a payment, an Amount coming back, or nothing at all. Each
+Entry is drawn by `ReadEntry`, once, so the two listings on the page cannot come
+to draw the same Entry differently either.
 
 The number a **Lost** Entry shows is worth a sentence. It is derived exactly
 like every other Entry's, so on a dead chain it is a counterfactual — what the
@@ -1062,14 +1102,13 @@ Bout's Result at read time rather than written onto the Prediction when the
 Entry was graded — so a Bout that settles *after* the chain died still shows its
 true grade.
 
-**The page opens on the whole history**, grouped by Season with the current one
-first. Narrowing is the fan's move, not the page's opening position: a status
-filter over one Season would answer "find my wins" with some of them, and the
-grouping is what stops the old Entries drowning the current ones. `bySeason`
-does the grouping; `entries_by_fan_over_time` — `(user_id, submitted_at desc)`,
-added in `20260901080239_profile_and_entry_history` — is what keeps that affordable
-when history is kept forever, because `entries_by_fan` leads with the Season
-this query deliberately does not narrow to.
+**The page opens on the whole history.** Narrowing is the fan's move, not the
+page's opening position: a status filter over one Season would answer "find my
+wins" with some of them, and the grouping is what stops the old Entries drowning
+the current ones. `entries_by_fan_over_time` — `(user_id, submitted_at desc)`,
+added in `20260901080239_profile_and_entry_history` — is what keeps that
+affordable when history is kept forever, because `entries_by_fan` leads with the
+Season this query deliberately does not narrow to.
 
 **The filter is in the URL**, read by `historyFilter` in `shared/history.ts` and
 answered back on `filter` so the controls and the listing cannot disagree. It is
@@ -1079,16 +1118,20 @@ one of theirs is answered with the whole history, the same as a real Season they
 never played, because that is the honest reading of both. Nothing here is ever
 refused — a filter is a way of looking at a page, and a page that returned an
 error over a word in a query string would be worse than one that showed
-everything.
+everything. A status filter also suppresses the open half's empty-state sentence
+rather than printing "nothing of yours is still open" over a listing of Lost
+Entries: that emptiness is the filter's doing, not a fact about the fan.
 
-**One fan's history is one fan's.** There is no parameter naming a fan on either
+**Nothing here can be cancelled.** That is `SubmittedEntries` beside the card,
+which is a different question — which of these can I still take back — asked
+where the reason to ask it is, and it is the one listing of Entries that reads a
+Lock.
+
+**One fan's history is one fan's.** There is no parameter naming a fan on the
 route: the answer is always `requireFan`'s, so there is nothing to send that
-would ask for somebody else's. Both routes and the page are exempt from the edge
-cache (ADR-0008), and `/PROFILE` is a 404 rather than a second spelling that
-could miss the exemption (ADR-0012).
-
-A fan's phone number never appears. `shared/fan.ts` has no field for one and no
-endpoint returns one — see ADR-0018 and the Accounts section.
+would ask for somebody else's. A visitor with no account is shown the way to one
+and brought back here afterwards rather than dropped on a profile they did not
+ask about.
 
 ### The leaderboard: the top ten, and the row under it
 

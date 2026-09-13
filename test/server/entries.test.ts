@@ -420,7 +420,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       expect(await balance(fan.cookie)).toMatchObject({ balance: STARTING_BALANCE - 25 });
     });
 
-    it("caps the combined Multiplier at ×100, and says the cap is what decided it", async () => {
+    it("returns what the chain multiplies out to while it is under the cap", async () => {
       const card = await upcomingCard({
         multipliers: { winner: 5, method: 2.5 },
         bouts: [
@@ -438,8 +438,33 @@ describe("the Entry a fan commits, and takes back", async () => {
         ),
       );
 
-      // 5 × 5 × 5 is 125, and no Entry pays past the cap however far it is
-      // chained (ADR-0002: it bounds what a mispriced Outcome can cost).
+      // 5 × 5 × 5 is 125, and that is what the Entry returns: the ×10000 cap of
+      // ADR-0021 is far above a chain like this one, where the ×100 of ADR-0013
+      // would have stopped it at 2 × 100.
+      expect(entry).toMatchObject({ multiplier: 125, capped: false, reward: 250 });
+    });
+
+    it("caps the combined Multiplier at ×10000, and says the cap is what decided it", async () => {
+      const card = await upcomingCard({
+        multipliers: { winner: 100, method: 2.5 },
+        bouts: [
+          cardBout({ cardOrder: 1 }),
+          cardBout({ cardOrder: 2 }),
+          cardBout({ cardOrder: 3, mainEvent: true }),
+        ],
+      });
+      const fan = await fanWithCoins();
+
+      const { entry } = await accepted(
+        await submit(
+          { amount: 2, predictions: [winner(card, 0), winner(card, 1), winner(card, 2)] },
+          fan.cookie,
+        ),
+      );
+
+      // Three Outcomes at the ×100 ceiling a Multiplier may be priced to — the
+      // pricing mistake the cap is for — multiply out to ×1000000, and no Entry
+      // pays past the cap (ADR-0002: it bounds what a mispricing can cost).
       expect(entry).toMatchObject({
         multiplier: COMBINED_MULTIPLIER_CAP,
         capped: true,

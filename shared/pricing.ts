@@ -183,6 +183,40 @@ export function isMethod(value: unknown): value is Method {
 }
 
 /**
+ * One answer as it arrives from outside this code, or null if it is not one.
+ *
+ * **A corner always, plus a method exactly where the Question names one.** Every
+ * answer is about a fighter (ADR-0015), so an answer naming a method and no
+ * corner is not one the card ever offered — and a winner answer carrying a
+ * method is refused rather than resolved, because nothing downstream could say
+ * which of the two was given. `outcomes_answers_its_question` and
+ * `predictions_answers_its_question` refuse the same shape underneath.
+ *
+ * An answer naming the round of victory arrives as a Question the game does not
+ * ask, and {@link isQuestion} is what turns it away (ADR-0016): a card left open
+ * in a tab from before the change is refused rather than half-understood.
+ *
+ * Here rather than beside either caller, because both are reading the same thing
+ * and neither owns the rule. `readPrediction` in `shared/entries.ts` reads one
+ * off the wire, where a Bout is named alongside it; `useCardPicks` reads one back
+ * out of the browser's own storage, where the Bout is the key it was filed
+ * under. What an answer *is* does not depend on which of those it came from.
+ */
+export function readAnswer(value: unknown): OutcomeAnswer | null {
+  const answered = (value ?? {}) as Record<string, unknown>;
+  const { question, corner = null, method = null } = answered;
+
+  if (!isQuestion(question)) return null;
+  if (corner !== "red" && corner !== "blue") return null;
+
+  if (question === "winner") {
+    return method === null ? { question, corner, method: null } : null;
+  }
+
+  return isMethod(method) ? { question, corner, method } : null;
+}
+
+/**
  * One Outcome as it is seeded: which answer it is, and what it pays until an
  * admin says otherwise.
  */
@@ -388,8 +422,10 @@ export function defaultOutcomes(discipline: Discipline): SeededOutcome[] {
  * it they are punished for it. Neither is a price anybody meant to type.
  *
  * The ceiling is not a rule about pricing but a guard against a stuck key —
- * 190 where 1.90 was meant. A combined Multiplier is capped at ×100 whatever
- * it multiplies out to, so nothing above that could be paid anyway.
+ * 190 where 1.90 was meant. A combined Multiplier stops at ×10000 whatever it
+ * multiplies out to (ADR-0021), which is above what two prices typed wrong here
+ * can reach between them — so this guard, not the cap, is what catches a stuck
+ * key on a short Entry.
  *
  * Spelled out again in the `outcomes_multiplier_pays` check constraint and in
  * the `numeric(5, 2)` the column is stored as.

@@ -5,6 +5,7 @@ import {
   HISTORY_MESSAGES,
   bySeason,
   historyFilter,
+  openAndFinished,
   readEntry,
   rewardOf,
   type HistoricEntry,
@@ -97,6 +98,8 @@ describe("which Entries a fan is looking at", () => {
 });
 
 describe("the Coins beside an Entry", () => {
+  // Nowhere near the cap, which is a fact about the chain rather than about
+  // the sentence beside it: `rewardOf` reads the Coins and never the ceiling.
   const returns = { multiplier: 4, capped: false, reward: 80 };
 
   it("is what an Open Entry stands to return", () => {
@@ -124,20 +127,22 @@ describe("the Coins beside an Entry", () => {
     expect(lost.note).toContain("No Reward");
   });
 
-  it("is the Amount in full for an Entry the fan took back", () => {
+  it("says nothing at all about an Entry the fan took back", () => {
+    // Its Coins came back in full the moment they took it and they were told
+    // so then. The status beside it is the rest of the answer.
     expect(rewardOf(entry({ status: "cancelled", amount: 20 }), returns)).toEqual({
       state: "returned",
-      note: HISTORY_MESSAGES.cancelled(20),
+      note: null,
     });
   });
 
   it("is the Amount in full for an Entry that had nothing gradable in it", () => {
-    // The same Coins as a cancellation and a different sentence, because they
-    // are different things: one is the fan's decision, one is the game's.
+    // The same Coins as a cancellation and a sentence where that one has
+    // none, because they are different things: one is the fan's decision,
+    // one is the game's.
     const refunded = rewardOf(entry({ status: "refunded", amount: 20 }), returns);
 
     expect(refunded).toEqual({ state: "returned", note: HISTORY_MESSAGES.refunded(20) });
-    expect(refunded.note).not.toBe(HISTORY_MESSAGES.cancelled(20));
   });
 
   it("says the Coins the way a fan reads them", () => {
@@ -243,7 +248,7 @@ describe("reading one Entry back", () => {
     expect(read.predictions[0]?.note).toContain("Bout cancelled");
   });
 
-  it("says what a chain returns at the ×100 cap, and that the cap decided it", () => {
+  it("says what a chain returns at the ×10000 cap, and that the cap decided it", () => {
     const read = readEntry(
       entry({
         amount: 5,
@@ -253,6 +258,8 @@ describe("reading one Entry back", () => {
       }),
     );
 
+    // 4^8 is 65536, and the history reads the cap back the same way the panel
+    // worked it out: nothing about the Reward is stored (ADR-0021).
     expect(read.returns).toEqual({
       multiplier: COMBINED_MULTIPLIER_CAP,
       capped: true,
@@ -316,5 +323,98 @@ describe("what the history tells a fan", () => {
     for (const status of ENTRY_STATUSES) {
       expect(HISTORY_MESSAGES.noneMatching(status)).toContain(ENTRY_STATUS_LABELS[status]);
     }
+  });
+});
+
+/**
+ * The split My Predictions is built on: what a fan is still riding on, and
+ * what is done with.
+ *
+ * One rule, and it is the status. `CONTEXT.md` says an Open Entry is one with
+ * Predictions still unresolved, and that is the whole of what "current" means
+ * — a fan opening the page during a card is looking for the chains that can
+ * still go either way, and every other status is a decision already taken.
+ */
+describe("a fan's own Entries, split into what is still riding and what is done", () => {
+  it("puts the Entries still open on their own, in the order they arrive", () => {
+    const { open } = openAndFinished([
+      entry({ id: "a", status: "open" }),
+      entry({ id: "b", status: "won" }),
+      entry({ id: "c", status: "open" }),
+    ]);
+
+    expect(open.map((one) => one.entry.id)).toEqual(["a", "c"]);
+  });
+
+  it("leaves the open Entries out of the record below them", () => {
+    // Otherwise the page lists the same Entry twice, which is a fan reading
+    // one chain and counting two.
+    const { finished } = openAndFinished([entry({ id: "a", status: "open" })]);
+
+    expect(finished).toEqual([]);
+  });
+
+  it("groups everything finished under the Season it was committed in", () => {
+    const { finished } = openAndFinished([
+      entry({ id: "a", status: "won", season: { id: "season-2", name: "Season 2" } }),
+      entry({ id: "b", status: "lost", season: { id: "season-1", name: "Season 1" } }),
+      entry({ id: "c", status: "open", season: { id: "season-2", name: "Season 2" } }),
+    ]);
+
+    expect(finished.map((group) => group.season.name)).toEqual(["Season 2", "Season 1"]);
+    expect(finished.map((group) => group.entries.map((one) => one.entry.id))).toEqual([
+      ["a"],
+      ["b"],
+    ]);
+  });
+
+  it("counts every status but Open as done with", () => {
+    // The four are not the same thing and all four are over: two the game
+    // decided, one the fan took back, and one nothing turned out to be
+    // gradable in. Each says which it was where it is listed.
+    const { open, finished } = openAndFinished([
+      entry({ id: "won", status: "won" }),
+      entry({ id: "lost", status: "lost" }),
+      entry({ id: "cancelled", status: "cancelled" }),
+      entry({ id: "refunded", status: "refunded" }),
+    ]);
+
+    expect(open).toEqual([]);
+    expect(finished[0]?.entries.map((one) => one.entry.id)).toEqual([
+      "won",
+      "lost",
+      "cancelled",
+      "refunded",
+    ]);
+  });
+
+  it("reads every Entry it splits, on both sides of it", () => {
+    const { open, finished } = openAndFinished([
+      entry({ id: "a", status: "open" }),
+      entry({ id: "b", status: "won" }),
+    ]);
+
+    expect(open[0]?.reward.state).toBe("potential");
+    expect(finished[0]?.entries[0]?.reward.state).toBe("paid");
+  });
+
+  it("splits nothing into nothing", () => {
+    expect(openAndFinished([])).toEqual({ open: [], finished: [] });
+  });
+});
+
+describe("what My Predictions tells a fan", () => {
+  it("has a heading for each half of the page", () => {
+    expect(HISTORY_MESSAGES.stillOpen.length).toBeGreaterThan(0);
+    expect(HISTORY_MESSAGES.finished.length).toBeGreaterThan(0);
+  });
+
+  it("tells a fan with nothing open how to get something there", () => {
+    // Distinct from `noneYet`, which is a fan who has never committed one at
+    // all: a fan whose last chain settled this morning has a history and
+    // nothing riding, and "you have not committed an Entry yet" would be
+    // wrong about them.
+    expect(HISTORY_MESSAGES.noneOpen).toContain("card");
+    expect(HISTORY_MESSAGES.noneOpen).not.toEqual(HISTORY_MESSAGES.noneYet);
   });
 });

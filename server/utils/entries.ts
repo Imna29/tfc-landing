@@ -102,7 +102,7 @@ export interface SubmittedPrediction extends OutcomeAnswer {
 export interface SubmittedEntry {
   id: string;
   amount: number;
-  /** The combined Multiplier, after the ×100 cap. */
+  /** The combined Multiplier, after the ×10000 cap. */
   multiplier: number;
   /** Whether the cap is what decided that number. */
   capped: boolean;

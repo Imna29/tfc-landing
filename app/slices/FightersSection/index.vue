@@ -22,22 +22,31 @@ interface FighterCard {
   imageWidth: number;
   imageHeight: number;
   nicknameDisplay: string;
-  searchText: string;
   badges: FighterBadge[];
 }
 
 const PLACEHOLDER_IMAGE = "/fighter-placeholder.svg";
-const ALL_DIVISIONS_LABEL = "All Divisions";
-const ALL_DISCIPLINES_LABEL = "All Disciplines";
 const FIGHTERS_BATCH_SIZE = 9;
+const REVEAL_STAGGER_MS = 80;
 
 const fighterCardsSectionRef = ref<HTMLElement | null>(null);
-const cardStates = ref<Record<string, boolean>>({});
 const isMobileViewport = ref(false);
 const isMounted = ref(false);
 
+/**
+ * Which cards have finished fading in.
+ *
+ * Only ever added to. A card that is on the page and revealed stays revealed
+ * for as long as it is rendered, including through a keystroke that narrows
+ * the roster around it — the alternative, hiding everything and waiting for
+ * the observer to reveal it again, is what used to blank the grid whenever a
+ * keystroke changed the query without changing who matched it.
+ */
+const revealedCards = ref<Record<string, boolean>>({});
+
 let mobileViewportQuery: MediaQueryList | null = null;
 let cardObserver: IntersectionObserver | null = null;
+const pendingReveals = new Map<string, ReturnType<typeof setTimeout>>();
 
 const props = defineProps(
   getSliceComponentProps<Content.FightersSectionSlice>(["slice", "index", "slices", "context"]),
@@ -45,6 +54,34 @@ const props = defineProps(
 
 const { client } = usePrismic();
 
+/**
+ * Fade one card in, `position` places into the stagger it arrived with.
+ *
+ * A card already revealed or already counting down is left alone, so the
+ * re-scan that follows every keystroke does not restart an animation that is
+ * halfway through — a fan typing steadily would otherwise never see a card
+ * reach the end of its delay.
+ */
+const revealCard = (id: string, position: number) => {
+  if (revealedCards.value[id] || pendingReveals.has(id)) return;
+
+  pendingReveals.set(
+    id,
+    setTimeout(() => {
+      pendingReveals.delete(id);
+      revealedCards.value[id] = true;
+    }, position * REVEAL_STAGGER_MS),
+  );
+};
+
+/**
+ * Watch whatever cards are rendered right now, and fade in the ones a fan can
+ * already see.
+ *
+ * Runs after every change to the rendered list rather than only when the list
+ * of ids changes: the grid is invisible until this reveals it, so a re-render
+ * this misses is a blank page.
+ */
 const initializeCardObserver = () => {
   cardObserver?.disconnect();
   cardObserver = null;
@@ -53,46 +90,42 @@ const initializeCardObserver = () => {
     fighterCardsSectionRef.value?.querySelectorAll<HTMLElement>("[data-fighter-id]");
   if (!fighterCards?.length) return;
 
-  fighterCards.forEach((card, index) => {
+  const offScreen: HTMLElement[] = [];
+  let onScreenCount = 0;
+
+  fighterCards.forEach((card) => {
     const id = card.dataset.fighterId;
-    if (!id) return;
+    if (!id || revealedCards.value[id]) return;
 
     const rect = card.getBoundingClientRect();
     const isAboveFold = rect.top < window.innerHeight && rect.bottom > 0;
 
     if (isAboveFold) {
-      setTimeout(() => {
-        cardStates.value[id] = true;
-      }, index * 80);
+      revealCard(id, onScreenCount++);
+    } else {
+      offScreen.push(card);
     }
   });
 
+  if (offScreen.length === 0) return;
+
   cardObserver = new IntersectionObserver(
     (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const el = entry.target as HTMLElement;
-          const id = el.dataset.fighterId;
-          const index = Array.from(fighterCards).indexOf(el);
+      let position = 0;
 
-          if (id) {
-            setTimeout(() => {
-              cardStates.value[id] = true;
-            }, index * 80);
-          }
-          cardObserver?.unobserve(entry.target);
-        }
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+
+        const id = (entry.target as HTMLElement).dataset.fighterId;
+        if (id) revealCard(id, position++);
+
+        cardObserver?.unobserve(entry.target);
       });
     },
     { threshold: 0, rootMargin: "0px 0px 200px 0px" },
   );
 
-  fighterCards.forEach((card) => {
-    const id = card.dataset.fighterId;
-    if (!id || !cardStates.value[id]) {
-      cardObserver?.observe(card);
-    }
-  });
+  offScreen.forEach((card) => cardObserver?.observe(card));
 };
 
 const handleViewportChange = () => {
@@ -223,7 +256,6 @@ const fighters = computed<FighterCard[]>(() =>
         imageWidth,
         imageHeight,
         nicknameDisplay: nickname.toUpperCase(),
-        searchText: `${name} ${nickname}`.toLowerCase(),
         badges,
       };
     })
@@ -279,8 +311,6 @@ const selectedDiscipline = shallowRef(ALL_DISCIPLINES_LABEL);
 const searchQuery = shallowRef("");
 const visibleCount = shallowRef(FIGHTERS_BATCH_SIZE);
 
-const normalizedSearchQuery = computed(() => searchQuery.value.trim().toLowerCase());
-
 watch(divisions, (nextDivisions) => {
   if (!nextDivisions.includes(selectedDivision.value)) {
     selectedDivision.value = ALL_DIVISIONS_LABEL;
@@ -293,40 +323,43 @@ watch(disciplineTypes, (nextDisciplineTypes) => {
   }
 });
 
-watch([selectedDivision, selectedDiscipline, normalizedSearchQuery], () => {
+const rosterFilters = computed(() => ({
+  division: selectedDivision.value,
+  discipline: selectedDiscipline.value,
+  query: searchQuery.value,
+}));
+
+const filteredFighters = computed(() => filterRoster(fighters.value, rosterFilters.value));
+
+/** A narrowed roster is read from its first batch, however far the last one was loaded. */
+watch(filteredFighters, () => {
   visibleCount.value = FIGHTERS_BATCH_SIZE;
-  cardStates.value = {};
-});
-
-const filteredFighters = computed(() => {
-  let result = fighters.value;
-
-  if (selectedDivision.value !== ALL_DIVISIONS_LABEL) {
-    result = result.filter((fighter) => fighter.division === selectedDivision.value);
-  }
-
-  if (selectedDiscipline.value !== ALL_DISCIPLINES_LABEL) {
-    result = result.filter((fighter) => fighter.disciplines.includes(selectedDiscipline.value));
-  }
-
-  if (normalizedSearchQuery.value) {
-    result = result.filter((fighter) => fighter.searchText.includes(normalizedSearchQuery.value));
-  }
-
-  return result;
 });
 
 const visibleFighters = computed(() => filteredFighters.value.slice(0, visibleCount.value));
-const hasMoreFighters = computed(() => visibleCount.value < filteredFighters.value.length);
-const showLoadMore = computed(() => filteredFighters.value.length > 0 && hasMoreFighters.value);
+const showLoadMore = computed(() => visibleCount.value < filteredFighters.value.length);
 
-watch(
-  () => visibleFighters.value.map((fighter) => fighter.id).join(","),
-  async () => {
-    await nextTick();
-    initializeCardObserver();
-  },
+const isFiltered = computed(() => isRosterFiltered(rosterFilters.value));
+
+const trimmedSearchQuery = computed(() => searchQuery.value.trim());
+
+const emptyMessage = computed(() =>
+  trimmedSearchQuery.value
+    ? `No fighters match "${trimmedSearchQuery.value}".`
+    : "No fighters match your current filters.",
 );
+
+const clearSearch = () => {
+  searchQuery.value = "";
+};
+
+const showEveryFighter = () => {
+  searchQuery.value = NO_ROSTER_FILTERS.query;
+  selectedDivision.value = NO_ROSTER_FILTERS.division;
+  selectedDiscipline.value = NO_ROSTER_FILTERS.discipline;
+};
+
+watch(visibleFighters, () => initializeCardObserver(), { flush: "post" });
 
 onMounted(async () => {
   mobileViewportQuery = window.matchMedia("(max-width: 767px)");
@@ -341,6 +374,8 @@ onMounted(async () => {
 onUnmounted(() => {
   mobileViewportQuery?.removeEventListener("change", handleViewportChange);
   cardObserver?.disconnect();
+  pendingReveals.forEach((timer) => clearTimeout(timer));
+  pendingReveals.clear();
 });
 
 const loadMore = () => {
@@ -381,9 +416,24 @@ const loadMore = () => {
           <input
             v-model="searchQuery"
             type="text"
+            aria-label="Search fighters by name, nickname, division or discipline"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="search"
             :placeholder="searchPlaceholder"
-            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant focus:border-primary px-12 py-4 font-headline italic font-bold tracking-tight outline-none placeholder:text-outline-variant uppercase"
+            class="w-full bg-surface-container-lowest border-b-2 border-outline-variant focus:border-primary pl-12 pr-12 py-4 font-headline italic font-bold tracking-tight outline-none placeholder:text-outline-variant uppercase"
+            @keydown.escape="clearSearch"
           />
+          <button
+            v-if="searchQuery"
+            type="button"
+            aria-label="Clear search"
+            class="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-outline hover:text-on-surface transition-colors"
+            @click="clearSearch"
+          >
+            <Icon name="material-symbols:close" />
+          </button>
         </div>
       </div>
     </section>
@@ -433,7 +483,7 @@ const loadMore = () => {
           :key="fighter.id"
           :to="`/fighters/${fighter.id}`"
           class="group relative fighter-card fighter-card-skew bg-surface-container-low overflow-hidden hover:scale-[1.02] transition-all duration-700 ease-out mma-fade-up"
-          :class="{ 'mma-active': cardStates[fighter.id] }"
+          :class="{ 'mma-active': revealedCards[fighter.id] }"
           :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-fighter-id="fighter.id"
         >
@@ -447,7 +497,7 @@ const loadMore = () => {
               :height="fighter.imageHeight"
               :class="[
                 'w-full h-full object-cover transition-all duration-700',
-                isMobileViewport && cardStates[fighter.id]
+                isMobileViewport && revealedCards[fighter.id]
                   ? 'grayscale-0'
                   : 'grayscale group-hover:grayscale-0',
               ]"
@@ -512,12 +562,26 @@ const loadMore = () => {
         </NuxtLink>
       </div>
 
-      <p
-        v-if="filteredFighters.length === 0"
-        class="mt-16 text-center text-on-surface-variant uppercase tracking-widest text-sm"
-      >
-        No fighters match your current filters.
-      </p>
+      <!--
+        The region is always here, empty, so that a screen reader has something
+        to watch: one that only appears once the search has failed is usually
+        inserted unannounced.
+      -->
+      <div aria-live="polite" class="flex flex-col items-center gap-6 empty:hidden">
+        <template v-if="filteredFighters.length === 0">
+          <p class="mt-16 text-center text-on-surface-variant uppercase tracking-widest text-sm">
+            {{ emptyMessage }}
+          </p>
+          <button
+            v-if="isFiltered"
+            type="button"
+            class="border border-outline-variant px-8 py-3 font-headline font-black italic tracking-tighter uppercase hover:bg-primary-container hover:text-white transition-colors"
+            @click="showEveryFighter"
+          >
+            Show every fighter
+          </button>
+        </template>
+      </div>
 
       <div v-if="showLoadMore" class="mt-20 flex justify-center">
         <button

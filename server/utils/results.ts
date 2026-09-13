@@ -402,7 +402,7 @@ export interface SettlingEntry {
  * What a winning Entry returns, worked out by the function that told the fan
  * what it would.
  *
- * ADR-0013 and ADR-0005 in three lines: the combined Multiplier and the ×100
+ * ADR-0021 and ADR-0005 in three lines: the combined Multiplier and the ×10000
  * cap are worked out here from the Multipliers on the Predictions rather than
  * read back from a number written at submission, and each Prediction is priced
  * at what it *ended up* paying — a No Result at ×1.0, a disqualification at its

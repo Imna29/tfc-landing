@@ -6,7 +6,6 @@ import {
   ENTRY_MESSAGES,
   ENTRY_PREDICTIONS,
   cancellationOf,
-  entryProgress,
   isAnswered,
   parseEntry,
   pickAnswered,
@@ -16,7 +15,6 @@ import {
   type CommittedPrediction,
   type PricedPrediction,
 } from "../../shared/entries";
-import { PREDICTION_MESSAGES } from "../../shared/predictions";
 import type { OutcomeAnswer } from "../../shared/pricing";
 
 /**
@@ -142,15 +140,65 @@ describe("what an Entry returns if every Prediction lands", () => {
     expect(potentialReward(100, uneven)).toEqual({ multiplier: 4.19, capped: false, reward: 419 });
   });
 
-  it("caps the combined Multiplier, and says so", () => {
+  it("pays a long chain in full while it is under the cap", () => {
     const far = Array.from({ length: 5 }, (_, index) =>
       priced({ boutId: `bout-${index}`, multiplier: 3 }),
     );
 
-    // 3^5 is 243, and no Entry pays more than the cap however far it is chained.
+    // 3^5 is 243, well past the ×100 of ADR-0013 and nowhere near the ×10000 of
+    // ADR-0021: the cap is set where a chain like this one pays what it comes to.
+    expect(potentialReward(10, far)).toEqual({ multiplier: 243, capped: false, reward: 2430 });
+  });
+
+  it("leaves the longest Entry at ordinary prices uncapped, which is what ×10000 is for", () => {
+    const longest = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
+      priced({ boutId: `bout-${index}`, multiplier: 2.5 }),
+    );
+
+    // Ten answers at ×2.5 multiply out to ×9536.74, and the whole of it is paid.
+    // The cap sits above the longest Entry the game allows at the prices it is
+    // usually offered at (ADR-0021), so it decides nothing here.
+    expect(potentialReward(1, longest)).toMatchObject({ capped: false, reward: 9537 });
+  });
+
+  it("pays a chain that reaches the cap exactly, rather than treating it as past", () => {
+    // Two Outcomes at the ×100 ceiling a single Multiplier may be priced to come
+    // to exactly ×10000. The cap is a ceiling reached, not a ceiling crossed.
+    const ceiling = [
+      priced({ boutId: BOUT, multiplier: 100 }),
+      priced({ boutId: ANOTHER_BOUT, multiplier: 100 }),
+    ];
+
+    expect(potentialReward(1, ceiling)).toEqual({
+      multiplier: COMBINED_MULTIPLIER_CAP,
+      capped: false,
+      reward: COMBINED_MULTIPLIER_CAP,
+    });
+  });
+
+  it("caps the combined Multiplier, and says so", () => {
+    const far = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
+      priced({ boutId: `bout-${index}`, multiplier: 3 }),
+    );
+
+    // 3^10 is 59049: ten underdogs, or ten prices nobody checked. Either way the
+    // Entry returns the cap and the panel says the cap is why (ADR-0021).
     expect(potentialReward(10, far)).toEqual({
       multiplier: COMBINED_MULTIPLIER_CAP,
       capped: true,
+      reward: 10 * COMBINED_MULTIPLIER_CAP,
+    });
+  });
+
+  it("pays no more however much further the chain is taken", () => {
+    const further = Array.from({ length: ENTRY_PREDICTIONS.maximum }, (_, index) =>
+      priced({ boutId: `bout-${index}`, multiplier: 4 }),
+    );
+
+    // 4^10 is over a million, and it returns the Coins the ×59049 above it did:
+    // past the cap, another link lengthens the Entry without paying for it.
+    expect(potentialReward(10, further)).toMatchObject({
+      multiplier: COMBINED_MULTIPLIER_CAP,
       reward: 10 * COMBINED_MULTIPLIER_CAP,
     });
   });
@@ -495,47 +543,5 @@ describe("the Entry a fan takes back", () => {
   it("says what cancelling returns, and that it returns all of it", () => {
     expect(CANCELLATION_MESSAGES.cancelled(20)).toContain("20 Coins");
     expect(CANCELLATION_MESSAGES.cancelled(1)).toContain("1 Coin ");
-  });
-});
-
-/**
- * How far through the card a fan is, which the card's own header states.
- *
- * A number rather than a feeling: a fan two Bouts into a nine-Bout card is
- * looking at the same page as a fan who has answered eight, and the strip at
- * the top is the only thing that tells them apart.
- */
-describe("how far through the card an Entry is", () => {
-  it("counts what is answered against what is open", () => {
-    expect(entryProgress(3, 9)).toMatchObject({ answered: 3, offered: 9 });
-    expect(entryProgress(3, 9).label).toBe("3 of 9 Bouts answered");
-  });
-
-  it("fills the bar in proportion", () => {
-    expect(entryProgress(0, 9).percent).toBe(0);
-    expect(entryProgress(9, 9).percent).toBe(100);
-    expect(entryProgress(1, 4).percent).toBe(25);
-  });
-
-  it("never fills it past the end of its own track", () => {
-    // A card is fought while a fan reads it. An Entry keeps its answers on
-    // Bouts that have locked, and those Bouts leave the count of what is open
-    // — so there is a moment where more is answered than is open.
-    expect(entryProgress(4, 3).percent).toBe(100);
-  });
-
-  it("counts one Bout as a Bout", () => {
-    expect(entryProgress(0, 1).label).toBe("0 of 1 Bout answered");
-  });
-
-  it("says nothing is open rather than dividing by no Bouts at all", () => {
-    // A card whose Bouts nobody has opened yet: there is nothing to be part
-    // of the way through, and a bar at NaN percent is not a state.
-    expect(entryProgress(0, 0)).toEqual({
-      answered: 0,
-      offered: 0,
-      percent: 0,
-      label: PREDICTION_MESSAGES.noneOpenYet,
-    });
   });
 });

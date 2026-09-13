@@ -342,7 +342,7 @@ export interface AnsweredBout extends PricedPrediction {
 export interface EntryAsItStands {
   /** What each Prediction pays now, in the order they were given. */
   multipliers: number[];
-  /** The combined Multiplier after the ×100 cap, and the Coins at it. */
+  /** The combined Multiplier after the ×10000 cap, and the Coins at it. */
   returns: PotentialReward;
 }
 
@@ -355,7 +355,7 @@ export interface EntryAsItStands {
  * order).
  *
  * **Said once because a fan can have it on the screen twice.** The listing
- * beside the card and the Entry history on the profile both show what a chain
+ * beside the card and the record on My Predictions both show what a chain
  * is worth, and two copies of these four lines would be two Rewards for one
  * Entry on two pages — the same failure `priceOf` is shared to prevent at the
  * other end of an Entry's life.

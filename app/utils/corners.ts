@@ -9,6 +9,12 @@ import type { Corner } from "#shared/events";
  * They were the same pair of Tailwind classes written out in three components,
  * which is two places for one of them to drift.
  *
+ * Both are the mark's own colours. Red is `--color-primary-container`, which
+ * the theme already carries as TFC's red; blue is `--color-corner-blue`, added
+ * for this because the M3 tertiary role it used to borrow is a pale sky blue
+ * that belongs to nothing on the logo. See `app/assets/main.css` for what each
+ * is lifted to, and why.
+ *
  * Classes rather than colours, because that is what the components need and
  * because the values behind them belong to the theme in `app/assets/main.css`.
  * Which edge a border is on stays with whoever draws it: the corner's own is
@@ -30,5 +36,9 @@ export const CORNER_COLOURS = {
     fill: "bg-primary-container",
     tint: "bg-primary-container/15",
   },
-  blue: { border: "border-tertiary", fill: "bg-tertiary", tint: "bg-tertiary/15" },
+  blue: {
+    border: "border-corner-blue",
+    fill: "bg-corner-blue",
+    tint: "bg-corner-blue/15",
+  },
 } as const satisfies Record<Corner, CornerColour>;

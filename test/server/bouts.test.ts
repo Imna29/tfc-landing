@@ -1394,11 +1394,15 @@ describe("a fight card in the game", async () => {
 
       const page = await publicPage();
 
+      // A Bout that has stopped taking answers says so. An open one says
+      // nothing: it is the state every Bout on a card is in for most of the
+      // time it is up, and a card of ten labels saying "open" is a card that
+      // has told a fan nothing.
       expect(page).toContain(BOUT_STATE_LABELS.locked);
-      expect(page).toContain(BOUT_STATE_LABELS.open);
+      expect(page).not.toContain(BOUT_STATE_LABELS.open);
     });
 
-    it("counts down to the Lock on the Bout that locks by itself", async () => {
+    it("counts nothing down, on the Bout that locks by itself or any other", async () => {
       const { cookie, card } = await upcomingIn(120, [
         cardBout({ cardOrder: 1 }),
         cardBout({ cardOrder: 2, mainEvent: true }),
@@ -1411,16 +1415,22 @@ describe("a fight card in the game", async () => {
 
       const { card: shown, predictions } = await publicCard();
 
-      // Only the Bout fought first has a Lock a fan can be counted down to.
-      // An admin advances the rest as the card progresses, so a countdown on
-      // them would be a promise the game does not make.
+      // The Lock is still on the wire, because the card is what reads it to
+      // know a Bout has locked without waiting for the row to be written. Only
+      // the Bout fought first has one; an admin advances the rest as the card
+      // progresses.
       expect(predictions?.bouts[1]?.locksAt).toBe(shown?.scheduledStart);
       expect(predictions?.bouts[2]?.locksAt).toBe(null);
 
+      // And the page shows a fan neither of those things: no clock on the Bout
+      // that locks by itself, and none across the top of the card either. A
+      // clock ticking down beside an answer is pressure to answer, and the Bout
+      // fought first was the only one on the card that could carry an honest one
+      // anyway — the rest would have had to say "an admin decides" instead.
       const page = await publicPage();
 
-      expect(page).toMatch(/Locks in/);
-      expect(page).toContain(PREDICTION_MESSAGES.locksWhenReached);
+      expect(page).not.toMatch(/Locks in/);
+      expect(page).not.toMatch(/until the first Bout locks/);
     });
 
     it("shows the whole card to a visitor with no account", async () => {

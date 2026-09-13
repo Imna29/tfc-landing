@@ -33,12 +33,24 @@ describe("normalisePhone", () => {
     expect(normalisePhone("00 995 555 12 34 56")).toBe("+995555123456");
   });
 
-  it("refuses a number with no country code, rather than guessing one", () => {
-    // `555123456` is a Georgian number to a Georgian and a Dutch one to
-    // somebody in Amsterdam. Guessing would file two people under one row;
-    // accepting it as-is would file one person under two.
-    expect(normalisePhone("555123456")).toBe("");
+  it("reads +995 off a bare Georgian mobile number", () => {
+    // Nine digits from a 5 is a Georgian mobile number, and the way a fan here
+    // writes their own. It has to land on the same string `+995555123456` does
+    // — stored bare, it is a second account for somebody who already has one.
+    expect(normalisePhone("555123456")).toBe("+995555123456");
+    expect(normalisePhone("555 12 34 56")).toBe("+995555123456");
+    expect(normalisePhone("00995555123456")).toBe(normalisePhone("555123456"));
+  });
+
+  it("refuses any other number with no country code, rather than guessing one", () => {
+    // Only the Georgian shape is read without being told. Eight local digits
+    // are one person's number in one country and somebody else's in the next,
+    // and guessing would file two people under one row.
+    expect(normalisePhone("12345678")).toBe("");
     expect(normalisePhone("0555123456")).toBe("");
+    // A digit short of the shape, and a digit over it, are not the shape.
+    expect(normalisePhone("55512345")).toBe("");
+    expect(normalisePhone("5551234567")).toBe("");
   });
 
   it("answers empty for text that is not a number at all", () => {
@@ -122,9 +134,15 @@ describe("parseSignUpDetails", () => {
   });
 
   it("rejects a phone number left blank, unreachable, or missing its country code", () => {
-    for (const phone of ["", "   ", "call me", "+", "555123456"]) {
+    for (const phone of ["", "   ", "call me", "+", "12345678"]) {
       expect(problemsFor({ ...complete, phone })).toEqual(["phone"]);
     }
+  });
+
+  it("accepts a Georgian mobile number as a fan here writes it, and stores it dialable", () => {
+    const parsed = parseSignUpDetails({ ...complete, phone: "555 12 34 56" });
+
+    expect(parsed.details?.phone).toBe("+995555123456");
   });
 
   it("rejects a number too short or too long to dial", () => {
@@ -139,7 +157,7 @@ describe("parseSignUpDetails", () => {
   });
 
   it("says which of the two things is wrong with a number without a country code", () => {
-    const parsed = parseSignUpDetails({ ...complete, phone: "555123456" });
+    const parsed = parseSignUpDetails({ ...complete, phone: "12345678" });
 
     expect(parsed.problems?.[0]?.message).toMatch(/country code/i);
   });

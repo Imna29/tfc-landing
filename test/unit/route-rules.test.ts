@@ -41,12 +41,17 @@ describe("routes that read a session", () => {
     "/account/sign-in",
     "/account/sign-up",
     "/api/entries",
-    // The two the profile reads, both as personal as an answer gets: a fan's
-    // own Balance and Rank, and every Entry they have ever committed.
+    // The two a fan reads of their own, both as personal as an answer gets:
+    // their Balance and Rank on the profile, and every Entry they have ever
+    // committed on My Predictions.
     "/api/coins/standing",
     "/api/predictions/history",
     "/predictions",
     "/predictions/tfc-12",
+    // Nothing but one fan's own answers, and exempt by sitting under the card
+    // rather than by a rule of its own — which is the arrangement worth
+    // asserting, because it is the one nobody would remember to add.
+    "/predictions/mine",
     "/profile",
     "/profile/entries",
     "/admin",
@@ -137,6 +142,7 @@ describe("section index paths", () => {
 
   it.each([
     "/predictions/tfc-12",
+    "/predictions/mine",
     "/profile/entries",
     "/admin/events/tfc-12",
     "/standings/a-season",

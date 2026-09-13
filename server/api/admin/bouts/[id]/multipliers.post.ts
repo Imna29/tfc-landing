@@ -6,9 +6,9 @@ import { parseMultipliers, PRICING_MESSAGES } from "#shared/pricing";
  *
  * ADR-0002 makes this the whole pricing model — there is no pool to correct a
  * number nobody looked at, and a mispriced Outcome is exploitable until
- * somebody notices. What bounds the damage is the ×100 combined cap and the
- * ten-Prediction limit; what prevents it is this being done at all, before the
- * Bout opens.
+ * somebody notices. What bounds the damage is the ×10000 combined cap
+ * (ADR-0021) and the ten-Prediction limit — neither of them tightly, which is
+ * why what prevents it is this being done at all, before the Bout opens.
  *
  * A save is refused whole: one Multiplier that is not a price refuses all of
  * them, before anything is written. A Bout priced in part reads as priced, and

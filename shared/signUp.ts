@@ -32,6 +32,18 @@ const PHONE_PUNCTUATION = /[\s().-]/g;
 const E164 = /^\+\d+$/;
 
 /**
+ * A Georgian mobile number as a Georgian writes it: nine digits beginning with
+ * a 5, and nothing in front of them.
+ *
+ * Every mobile number in Georgia has this shape, which is what makes it a shape
+ * {@link normalisePhone} can read a country code off without being told one.
+ */
+const GEORGIAN_MOBILE = /^5\d{8}$/;
+
+/** What a number matching {@link GEORGIAN_MOBILE} is dialled with. */
+const GEORGIA_DIALLING_CODE = "+995";
+
+/**
  * A phone number in the one shape it is stored in, or `""` for anything that
  * is not a number TFC could dial.
  *
@@ -46,15 +58,26 @@ const E164 = /^\+\d+$/;
  * - The punctuation people separate digits with is thrown away. A `+` anywhere
  *   but the front survives this and is then refused, because it is not
  *   punctuation to tidy away — it is a number nobody can dial.
- * - A leading `00` becomes `+`. It is the same number written the way much of
- *   Europe writes it, and leaving the two forms apart is the easiest second
- *   account anybody could open.
+ * - A country code is put in front of a number that arrived without one. A
+ *   leading `00` becomes `+`, because that is the same number written the way
+ *   much of Europe writes it; and a bare nine digits from a 5 becomes `+995`,
+ *   because that is a Georgian mobile number. Both are spellings of a number
+ *   the database may already hold in its E.164 form, and leaving either apart
+ *   from it is the easiest second account anybody could open.
  * - What is left must be E.164: a `+`, then a country code and a national
- *   number. **A number without one is refused rather than guessed at**, because
- *   `555123456` is a Georgian number to a Georgian and a Dutch one to somebody
- *   in Amsterdam. Guessing files two people under one row; accepting it as
- *   typed files one person under two, which is the failure this whole function
- *   exists to prevent.
+ *   number. **Any other number with no country code is refused rather than
+ *   guessed at**, because eight local digits are one person's number in one
+ *   country and somebody else's in the next. Guessing files two people under
+ *   one row; accepting it as typed files one person under two, which is the
+ *   failure this whole function exists to prevent.
+ *
+ * Reading `+995` off nine digits is itself a guess, and worth naming as one: a
+ * fan abroad whose national number happens to take that shape is filed as
+ * Georgian. It is the guess this game can afford. It is played in Georgia, so
+ * the shape means what it looks like for almost everyone who types it — and for
+ * the fan it is wrong about, it is still *one* string rather than two. A wrong
+ * country code costs a number TFC cannot reach them on, which they find out and
+ * fix; two spellings of a right one cost the account rule itself, silently.
  *
  * Idempotent, because the stored form is fed back through it: the database
  * hook in `server/utils/auth.ts` normalises whatever reaches it, including a
@@ -62,13 +85,26 @@ const E164 = /^\+\d+$/;
  */
 export function normalisePhone(text: string): string {
   const stripped = text.trim().replace(PHONE_PUNCTUATION, "");
-  const dialled = stripped.startsWith("00") ? `+${stripped.slice(2)}` : stripped;
+  const dialled = withCountryCode(stripped);
 
   if (!E164.test(dialled)) return "";
 
   const digits = dialled.length - 1;
 
   return digits >= PHONE_DIGITS.minimum && digits <= PHONE_DIGITS.maximum ? dialled : "";
+}
+
+/**
+ * The two ways a number reaches {@link normalisePhone} without a `+` and still
+ * says which country it is in, rewritten as the one way that is stored.
+ *
+ * Anything else is handed back as it came, for E.164 to refuse.
+ */
+function withCountryCode(stripped: string): string {
+  if (stripped.startsWith("00")) return `+${stripped.slice(2)}`;
+  if (GEORGIAN_MOBILE.test(stripped)) return `${GEORGIA_DIALLING_CODE}${stripped}`;
+
+  return stripped;
 }
 
 /** What signing up asks a fan for. */
@@ -109,8 +145,9 @@ export const SIGN_UP_MESSAGES = {
   emailTaken: "That email address already has an account. Sign in instead.",
   password: `Choose a password of at least ${MINIMUM_PASSWORD_LENGTH} characters.`,
   phone:
-    "Enter a phone number TFC can reach you on, starting with its country code — " +
-    "+995 555 12 34 56, or 00995 555 12 34 56. It stays private, and other fans never see it.",
+    "Enter a phone number TFC can reach you on: a Georgian mobile number like 555 12 34 56, " +
+    "or any other number with its country code, like +44 7700 900123. " +
+    "It stays private, and other fans never see it.",
   phoneTaken:
     "That phone number already has an account. TFC Predictions is played on one account " +
     "per person — sign in to the one you have.",

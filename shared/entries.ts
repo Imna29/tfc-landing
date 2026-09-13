@@ -17,11 +17,11 @@
  */
 import { coinsLabel } from "./coins";
 import type { BoutStatus, Corner } from "./events";
-import { boutState, PREDICTION_MESSAGES } from "./predictions";
+import { boutState } from "./predictions";
 // Type-only, and so erased before anything runs: `shared/results.ts` reads the
 // Prediction types from here, and this reads the one type it adds.
 import type { BoutEnding } from "./results";
-import { isMethod, isQuestion, MULTIPLIER, outcomeKey, type OutcomeAnswer } from "./pricing";
+import { MULTIPLIER, outcomeKey, readAnswer, type OutcomeAnswer } from "./pricing";
 
 /**
  * How many Predictions one Entry holds.
@@ -31,6 +31,10 @@ import { isMethod, isQuestion, MULTIPLIER, outcomeKey, type OutcomeAnswer } from
  * cost, not a rule about how a fan should play — ADR-0002 has no pool that
  * self-corrects a price nobody looked at, so the damage is bounded by the ten
  * links here and by {@link COMBINED_MULTIPLIER_CAP} rather than prevented.
+ *
+ * The two bounds are worth telling apart. This one is a bound on how long a
+ * chain can be, and it bites on every Entry that reaches it; the cap is a bound
+ * on what a chain can pay, and at ×10000 it bites on very few (ADR-0021).
  *
  * Spelled out again in the `entries_hold_one_to_ten_predictions` trigger.
  */
@@ -49,26 +53,37 @@ export const AMOUNT = { minimum: 1 } as const;
 /**
  * The most an Entry's combined Multiplier can reach.
  *
- * The other half of ADR-0002's bill. A Multiplier set by hand can be wrong,
- * and ten wrong ones multiplied together is a Reward nobody meant to offer, so
- * the chain stops paying more at ×100 however far it is taken. The cap is
- * shown to the fan the moment it starts deciding their Reward: a number that
- * quietly stopped growing would read as a game that had stopped working.
+ * The other half of ADR-0002's bill. A Multiplier set by hand can be wrong, and
+ * ten wrong ones multiplied together is a Reward nobody meant to offer, so the
+ * chain stops paying more at ×10000 however far it is taken. The cap is shown to
+ * the fan the moment it starts deciding their Reward: a number that quietly
+ * stopped growing would read as a game that had stopped working.
  *
- * **The cap is a rule of the game, not a term of the offer** (ADR-0013). An
- * Entry freezes what each of its answers paid (ADR-0002) and nothing else, so
- * the cap and the rounding are applied wherever a Reward is worked out —
- * here, in the panel a fan confirms in, and in the settlement that pays. There
- * is no capped number written onto an Entry for settlement to read back,
- * because settlement could not pay it in any case: a No Result contributes
- * ×1.0 (ADR-0005), and the Reward is worked out from the answers that survived.
+ * **×10000 is set clear of the chain a fan actually builds** (ADR-0021). Ten
+ * answers at ×2 multiply out to ×1024 and ten at ×2.5 to ×9537, so a full Entry
+ * at ordinary prices does not reach the cap at all — the ×100 of ADR-0013 stopped
+ * the number at the fourth or fifth Prediction, and this one is not met by the
+ * longest Entry the game allows at the prices it is usually offered at. What is
+ * left above it is the tail: the mispriced Outcome, and the Entry built to find
+ * one. **So the cap is rarely the number a fan sees.** That is the point of
+ * putting it here rather than lower, and it is also why a fan reporting that it
+ * never bites is reporting the design working.
+ *
+ * **The cap is a rule of the game, not a term of the offer** (ADR-0013, whose
+ * reasoning ADR-0021 keeps). An Entry freezes what each of its answers paid
+ * (ADR-0002) and nothing else, so the cap and the rounding are applied wherever
+ * a Reward is worked out — here, in the panel a fan confirms in, and in the
+ * settlement that pays. There is no capped number written onto an Entry for
+ * settlement to read back, because settlement could not pay it in any case: a
+ * No Result contributes ×1.0 (ADR-0005), and the Reward is worked out from the
+ * answers that survived.
  *
  * The consequence is worth saying plainly: **changing this number changes what
  * every unsettled Entry pays.** That is a decision to take between Seasons
  * rather than during one, and the reason it is a constant somebody edits in a
  * reviewed change rather than a setting somebody can type.
  */
-export const COMBINED_MULTIPLIER_CAP = 100;
+export const COMBINED_MULTIPLIER_CAP = 10000;
 
 /**
  * Where an Entry is.
@@ -88,8 +103,8 @@ export const COMBINED_MULTIPLIER_CAP = 100;
  *
  * Shared rather than kept in the schema for the reason `BoutStatus` is: this
  * is what `gradeEntry` in `shared/results.ts` answers with, and what the
- * profile history reads back. Spelled out again in the check constraint, for
- * the reason given on `Role` in `server/db/schema.ts`.
+ * record on My Predictions reads back. Spelled out again in the check
+ * constraint, for the reason given on `Role` in `server/db/schema.ts`.
  */
 export type EntryStatus = "open" | "won" | "lost" | "cancelled" | "refunded";
 
@@ -206,7 +221,8 @@ export interface CommittedPrediction extends DraftPrediction, PredictedBout {
  *
  * Carries no combined Multiplier and no Reward, for the reason the `entries`
  * table carries neither: both are the product of what is on the Predictions,
- * and `potentialReward` below is where they are worked out (ADR-0013).
+ * and `potentialReward` below is where they are worked out, cap and all
+ * (ADR-0013, ADR-0021).
  */
 export interface CommittedEntry {
   id: string;
@@ -324,6 +340,16 @@ export function priceOf(answer: OutcomeAnswer, offered: readonly OfferedAnswer[]
  * Predictions, which is what it is. Nothing shows that — a fan who has
  * answered nothing is shown no Reward — and it is the honest answer for the
  * moment between clearing an Entry and starting the next one.
+ *
+ * At the other end the number stops at {@link COMBINED_MULTIPLIER_CAP}
+ * (ADR-0021). A chain taken past ×10000 lengthens the Entry without increasing
+ * what it returns, and `capped` is what says so — the panel reads it and tells
+ * the fan, because a Multiplier that had quietly stopped moving as they kept
+ * answering would read as a broken page rather than a rule.
+ *
+ * Ordinary prices do not get there: ten answers at ×2.5 come to ×9537, so the
+ * cap decides nothing on almost every Entry, and `capped` is false on almost
+ * every answer this returns.
  */
 export function potentialReward(
   amount: number,
@@ -337,51 +363,6 @@ export function potentialReward(
     : Number(combined.toFixed(MULTIPLIER.decimals));
 
   return { multiplier, capped, reward: Math.round(amount * multiplier) };
-}
-
-/** How far through the open Bouts of a card an Entry has been built. */
-export interface EntryProgress {
-  /** Bouts this Entry answers. */
-  answered: number;
-  /** Bouts the card is offering answers on at all. */
-  offered: number;
-  /** The proportion of them answered, as a percentage, for a bar to fill to. */
-  percent: number;
-  /** The same thing in words, for everybody the bar does not reach. */
-  label: string;
-}
-
-/**
- * How far through the card a fan is.
- *
- * The card's header states it, because two fans on the same page — one two
- * Bouts in, one eight — are otherwise looking at the same thing. It counts
- * against the Bouts that are *open* rather than every Bout on the card: a fan
- * cannot answer a Bout nobody has opened, and a progress bar that can never
- * fill is a bar that is lying about what is left to do.
- *
- * Which is also why the bar stops at full. Both numbers move while a card is
- * fought, and they move in opposite directions as Bouts lock.
- *
- * A card with nothing open says so instead of dividing by it. That is the
- * state between an import and the pricing that opens a Bout (ADR-0002), and
- * "0 of 0" with an empty bar reads as a fan who has fallen behind on a card
- * nobody can play yet.
- */
-export function entryProgress(answered: number, offered: number): EntryProgress {
-  if (offered <= 0) {
-    return { answered: 0, offered: 0, percent: 0, label: PREDICTION_MESSAGES.noneOpenYet };
-  }
-
-  return {
-    answered,
-    offered,
-    // A card is fought while a fan reads it: an Entry can hold answers on Bouts
-    // that have since locked and left the count of what is open, and a bar
-    // drawn past the end of its own track is how that would show.
-    percent: Math.min(100, Math.round((answered / offered) * 100)),
-    label: `${answered} of ${offered} ${offered === 1 ? "Bout" : "Bouts"} answered`,
-  };
 }
 
 /**
@@ -459,6 +440,14 @@ export const CANCELLATION_MESSAGES = {
 
 /** Everything submitting an Entry says to the fan submitting it. */
 export const ENTRY_MESSAGES = {
+  /**
+   * What a submission with no session behind it is refused with.
+   *
+   * The rule stated to somebody who has already run into it, which is why it is
+   * here rather than in `shared/signIn.ts`: that module is the same rule said
+   * *before* a visitor answers anything, and the card now says it there instead
+   * of leaving this one to arrive under a pressed button.
+   */
   signIn:
     "Sign in to commit Coins to an Entry. Reading the card and picking your " +
     "way through it needs no account; committing Coins to what you picked does.",
@@ -563,36 +552,24 @@ export function parseEntry(value: unknown): ParsedEntry {
 /**
  * One answered Bout as it arrives, or null if it is not one.
  *
- * **A corner always, plus a method exactly where the Question names one.**
- * Every answer is about a fighter (ADR-0015), so a Prediction naming a method
- * and no corner is not an answer the card ever offered — and a winner answer
- * carrying a method is refused here rather than resolved, because nothing
- * downstream could say which of the two the fan gave.
- * `predictions_answers_its_question` refuses the same row underneath, the way
- * `outcomes_answers_its_question` refuses it of the Outcome this is a copy of.
+ * The Bout is this function's own business; what a valid answer to it looks like
+ * is `readAnswer`'s, in `shared/pricing.ts`. That rule — a corner always, plus a
+ * method exactly where the Question names one (ADR-0015), and no Question the
+ * game does not ask (ADR-0016) — is read the same way here and out of the
+ * browser's own storage on the card (`useCardPicks`), which is why it is stated
+ * once over there rather than twice.
  *
- * A Prediction naming the round of victory arrives as a Question the game does
- * not ask, and `isQuestion` is what turns it away (ADR-0016): a card left open
- * in a tab from before the change is refused whole rather than committed in
- * part.
+ * An Entry arriving with a Prediction this refuses is refused whole: there is no
+ * reading of a submission where nine of ten are what the fan meant.
  */
 function readPrediction(value: unknown): PredictionAnswer | null {
-  const answered = (value ?? {}) as Record<string, unknown>;
-  const { boutId, question, corner = null, method = null } = answered;
+  const { boutId } = (value ?? {}) as Record<string, unknown>;
 
   if (typeof boutId !== "string" || boutId === "") return null;
-  if (!isQuestion(question)) return null;
-  if (corner !== "red" && corner !== "blue") return null;
 
-  if (question === "winner") {
-    if (method !== null) return null;
+  const answer = readAnswer(value);
 
-    return { boutId, question, corner, method: null };
-  }
-
-  if (!isMethod(method)) return null;
-
-  return { boutId, question, corner, method };
+  return answer === null ? null : { boutId, ...answer };
 }
 
 /** Whether this is a number of Coins that can be committed. */

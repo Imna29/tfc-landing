@@ -13,7 +13,7 @@ const props = defineProps<{
  * numbers are the Season rules from `CONTEXT.md`, not a promotion.
  */
 const DEFAULT_NOTE =
-  "Every Entry has to be in before then. Coins do not carry over — each Season starts everyone " +
+  "Every Entry has to be in before then. Coins do not carry over — each Event starts everyone " +
   "on the same 100.";
 
 /**
@@ -27,7 +27,7 @@ const deadline = computed(() => formatSeasonDeadline(props.endsAt));
   <section v-if="deadline" class="px-6 md:px-20 py-16 bg-surface-container-low">
     <div class="max-w-[1440px] mx-auto flex flex-col gap-4">
       <p class="text-xs font-bold uppercase tracking-widest text-primary">
-        {{ seasonName || "This Season" }} closes
+        {{ seasonName || "This Event" }} closes
       </p>
       <p class="font-headline text-3xl md:text-5xl font-black italic uppercase tracking-tighter">
         <time :datetime="deadline.iso">{{ deadline.display }}</time>

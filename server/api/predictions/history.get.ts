@@ -1,7 +1,7 @@
 import { historyFilter, type FanHistory } from "#shared/history";
 
 /**
- * The Entry history a fan reads on their own profile.
+ * The Entry history a fan reads on My Predictions.
  *
  * Every Entry they have ever committed, back through every Season, each
  * Prediction carrying the answer they gave and how that Bout actually ended —

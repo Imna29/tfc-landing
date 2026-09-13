@@ -1,21 +1,16 @@
 <script setup lang="ts">
-import {
-  entryProgress,
-  priceOf,
-  type CommittedEntries,
-  type DraftPrediction,
-} from "#shared/entries";
+import { priceOf, type CommittedEntries, type DraftPrediction } from "#shared/entries";
 import { boutState, PREDICTION_MESSAGES } from "#shared/predictions";
-import type { OutcomeAnswer } from "#shared/pricing";
+import { signInPrompt } from "#shared/signIn";
 
 /**
  * The card, and the Entry a fan builds on it.
  *
  * The page PlayTFC opens on, and the only page of the game a fan needs open
  * while a card is being fought. Three parts, in the order they are read: the
- * strip that says which card this is and how long there is left, the card
- * itself, and the panel holding what has been answered so far. Between them is
- * this page, which owns the one piece of state they share — what the fan has
+ * strip that says which card this is and where it is fought, the card itself,
+ * and the panel holding what has been answered so far. Between them is this
+ * page, which owns the one piece of state they share — what the fan has
  * answered, by Bout — because the card is where answers are given and the
  * panel is where they are committed.
  *
@@ -40,11 +35,11 @@ const card = computed(() => data.value?.card ?? null);
 const predictions = computed(() => data.value?.predictions ?? null);
 
 /**
- * The one clock on this page, held here rather than in either half of it.
+ * The one clock on this page, held here rather than inside the card.
  *
- * The strip counts down to the first Lock and the card counts down inside each
- * Bout, and two clocks started a moment apart are two answers to "has this
- * locked". Seeded from the moment the server answered — see {@link useNow}.
+ * Every Lock on the card is read against it, and two clocks started a moment
+ * apart are two answers to "has this locked". Seeded from the moment the server
+ * answered — see {@link useNow}.
  */
 const now = useNow(predictions.value?.answeredAt);
 
@@ -74,26 +69,24 @@ const { data: committed, refresh: refreshCommitted } = await useAsyncData<Commit
  *
  * One answer per Bout, because that is what an Entry may hold (ADR-0014) —
  * answering a second Question on a Bout replaces what is here rather than
- * standing beside it.
+ * standing beside it. Keyed by Bout id rather than by place on the card, because
+ * that is what an Entry is submitted against — and a Bout keeps its id when a
+ * card is re-imported into a different order.
  *
- * Keyed by Bout id rather than by place on the card, because that is what an
- * Entry is submitted against — and a Bout keeps its id when a card is
- * re-imported into a different order.
+ * **No longer this page's own state**, which is what the sign-in prompt below
+ * costs. Telling a visitor to sign in before they answer anything is only advice
+ * worth taking if it is free, so {@link useCardPicks} carries the answers across
+ * the trip to the form and back — and across a reload of either page. This page
+ * is still the only thing that reads them, and `keep()` is it saying so.
+ *
+ * Nothing personal is rendered from this. The server has no idea what a fan has
+ * answered — the answers are made in the browser and stay there until an Entry
+ * is submitted — so the state this page serialises into its HTML is always an
+ * empty card, whoever asked for it (ADR-0008, and `route-rules.ts`).
  */
-const picks = ref<Record<string, OutcomeAnswer>>({});
+const { picks, answer, clear, keep } = useCardPicks();
 
-/** Takes the answer the card just gave, or drops the Bout from the Entry. */
-function answer(boutId: string, pick: OutcomeAnswer | null) {
-  const answered = { ...picks.value };
-
-  if (pick === null) {
-    delete answered[boutId];
-  } else {
-    answered[boutId] = pick;
-  }
-
-  picks.value = answered;
-}
+keep();
 
 /** Every Bout the game is offering answers on, with what they pay. */
 const boutsInTheGame = computed(() =>
@@ -139,34 +132,27 @@ const draft = computed<DraftPrediction[]>(() =>
 );
 
 /**
- * How far through the card the fan is, for the strip at the top of it.
+ * Whether there is an account behind the answers being given.
  *
- * Counted against the Bouts that can actually be answered — open, and priced
- * — rather than against every Bout on the card, so the bar fills as a fan
- * works through what is in front of them rather than stopping short at
- * whatever an admin has not opened yet. Both halves are counted over the same
- * Bouts, so an Entry holding answers on Bouts that have since locked cannot
- * read as more answered than there is to answer.
+ * Read once here and handed to everything that needs it — the prompt, and the
+ * card that repeats it on each Bout a visitor answers — rather than each of them
+ * deciding for itself. Ten Bouts with ten views on who is looking is the failure
+ * this prevents.
  */
-const progress = computed(() => {
-  const answerable = boutsInTheGame.value.filter(
-    (bout) => bout.state === "open" && bout.outcomes.length > 0,
-  );
+const signedIn = computed(() => Boolean(fan.value));
 
-  return entryProgress(
-    answerable.filter((bout) => picks.value[bout.id] !== undefined).length,
-    answerable.length,
-  );
-});
-
-/** Takes every answer back, for a fan starting the card again. */
-function clear() {
-  picks.value = {};
-}
+/**
+ * What to say to whoever is holding the card without an account, if anything.
+ *
+ * Counted off the priced draft rather than off `picks`, so the number it names
+ * is the number the panel shows: an answer the card no longer offers is not in
+ * the Entry, and has no business being in the sentence either.
+ */
+const prompt = computed(() => signInPrompt(signedIn.value, draft.value.length));
 
 /** Clears the card the Entry was built on, and lists the Entry it became. */
 async function submitted() {
-  picks.value = {};
+  clear();
   await refreshCommitted();
 }
 
@@ -180,24 +166,27 @@ useSeoMeta({
 </script>
 
 <template>
-  <FightCardHeader v-if="card" :card="card" :now="now" :progress="progress" />
+  <FightCardHeader v-if="card" :card="card" />
   <PageHeading v-else text="TFC Predictions" />
 
   <section class="px-6 md:px-20 pt-10 pb-28 lg:pb-24">
     <div class="max-w-[1440px] mx-auto">
       <template v-if="card">
-        <p class="max-w-3xl text-on-surface/80 leading-relaxed">
-          Answer any Bout — which fighter wins, or how they win — and that one answer is a whole
-          Prediction at the Multiplier beside it. Chain Predictions across Bouts into one Entry,
-          commit your Coins, and a Bout stops taking Predictions the moment it locks.
-        </p>
+        <!--
+          Straight to the card. What the game is for is said in the strip above
+          it, and what an Entry is made of is said by the card itself — a fan who
+          presses a fighter has learnt more from it than any paragraph here was
+          telling them.
+        -->
+        <SignInToPlay v-if="prompt" :prompt="prompt" class="mb-8" />
 
-        <div class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <FightCard
             :card="card"
             :predictions="predictions"
             :picks="picks"
             :now="now"
+            :needs-account="!signedIn"
             @pick="answer"
           />
 

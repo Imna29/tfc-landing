@@ -16,6 +16,7 @@ import {
   PRICING_MESSAGES,
   questionsAsked,
   QUESTION_LABELS,
+  readAnswer,
   type OutcomeAnswer,
   type Question,
 } from "../../shared/pricing";
@@ -360,5 +361,86 @@ describe("adjusting a Multiplier", () => {
     expect(parseMultipliers({}).problem).toBe(PRICING_MESSAGES.nothingToPrice);
     expect(parseMultipliers(undefined).problem).toBe(PRICING_MESSAGES.nothingToPrice);
     expect(parseMultipliers("2.75").problem).toBe(PRICING_MESSAGES.nothingToPrice);
+  });
+});
+
+/**
+ * Reading one answer off something that is not this code.
+ *
+ * Two callers, and the second is why this is worth its own cases. A Prediction
+ * arriving over the wire was always read rather than trusted (`parseEntry` in
+ * `shared/entries.ts`, whose cases exercise this through a whole Entry); the card
+ * now also reads answers back out of the browser's own `sessionStorage`, so a
+ * visitor keeps what they answered across a reload of the sign-in form
+ * (`app/composables/useCardPicks.ts`). Storage is a place anybody can write, so
+ * what comes out of it gets the same reading the wire gets.
+ */
+describe("one answer read off the wire, or out of a browser's own storage", () => {
+  it("reads a winner answer, which names a fighter and no method", () => {
+    expect(readAnswer({ question: "winner", corner: "blue", method: null })).toEqual({
+      question: "winner",
+      corner: "blue",
+      method: null,
+    });
+  });
+
+  it("takes a winner answer that simply left the method out", () => {
+    expect(readAnswer({ question: "winner", corner: "red" })).toEqual({
+      question: "winner",
+      corner: "red",
+      method: null,
+    });
+  });
+
+  it("reads a method answer, which names the fighter it is about", () => {
+    // ADR-0015: "Tsiklauri by Submission" is a whole answer; "Submission" is
+    // not one, and never was one the card offered.
+    expect(readAnswer({ question: "method", corner: "red", method: "submission" })).toEqual({
+      question: "method",
+      corner: "red",
+      method: "submission",
+    });
+  });
+
+  it("refuses an answer that names no fighter", () => {
+    expect(readAnswer({ question: "method", method: "ko_tko" })).toBe(null);
+    expect(readAnswer({ question: "winner", corner: null })).toBe(null);
+    expect(readAnswer({ question: "winner", corner: "green" })).toBe(null);
+  });
+
+  it("refuses a winner answer carrying a method as well", () => {
+    // Nothing downstream could say which of the two was given, so it is
+    // refused rather than resolved.
+    expect(readAnswer({ question: "winner", corner: "red", method: "decision" })).toBe(null);
+  });
+
+  it("refuses a method answer with no method, or a method the game does not know", () => {
+    expect(readAnswer({ question: "method", corner: "red" })).toBe(null);
+    expect(readAnswer({ question: "method", corner: "red", method: "points" })).toBe(null);
+  });
+
+  it("refuses a Question the game does not ask", () => {
+    // The round of victory, from a tab left open since before ADR-0016 retired
+    // it — or from storage written by that tab.
+    expect(readAnswer({ question: "round", corner: "red", round: 2 })).toBe(null);
+    expect(readAnswer({ corner: "red", method: "ko_tko" })).toBe(null);
+  });
+
+  it("refuses whatever is not an answer at all", () => {
+    expect(readAnswer(null)).toBe(null);
+    expect(readAnswer(undefined)).toBe(null);
+    expect(readAnswer("winner")).toBe(null);
+    expect(readAnswer(7)).toBe(null);
+    expect(readAnswer([])).toBe(null);
+  });
+
+  it("keeps nothing the caller did not ask about", () => {
+    // What comes back is the answer and only the answer: a stored object
+    // carrying a Multiplier somebody edited must not bring it along.
+    expect(readAnswer({ question: "winner", corner: "red", multiplier: 9999 })).toEqual({
+      question: "winner",
+      corner: "red",
+      method: null,
+    });
   });
 });

@@ -5,6 +5,7 @@ import {
   type ClosedSeason,
   type Leaderboard,
 } from "#shared/standings";
+import { THE_CARD } from "~/utils/navigation";
 
 /**
  * The public scoreboard: the top ten of the Season, and where the fan reading
@@ -69,7 +70,7 @@ const { data: deadline } = await useOptionalSingle("season_deadline");
 useSeoMeta({
   title: "Leaderboard",
   description:
-    "The top ten fans of the TFC Predictions Season, by the Coins they hold, and where you stand among them.",
+    "The top ten fans of the TFC Predictions Event, by the Coins they hold, and where you stand among them.",
 });
 </script>
 
@@ -92,7 +93,7 @@ useSeoMeta({
       />
 
       <section class="mt-16 border-t border-outline-variant/20 pt-10">
-        <h2 class="font-headline text-2xl font-black italic uppercase">
+        <h2 class="font-headline text-sm font-black uppercase tracking-widest text-on-surface/60">
           {{ PAST_SEASONS_MESSAGES.heading }}
         </h2>
 
@@ -111,13 +112,9 @@ useSeoMeta({
             </NuxtLink>
           </li>
         </ul>
-
-        <p v-else class="mt-6 max-w-xl text-sm text-on-surface/70 leading-relaxed">
-          {{ PAST_SEASONS_MESSAGES.none }}
-        </p>
       </section>
     </div>
   </section>
 
-  <PageCrossLink to="/predictions" heading="Climb it from the card" label="Make a Prediction" />
+  <PageCrossLink :to="THE_CARD" heading="Climb it from the card" label="Make a Prediction" />
 </template>

@@ -59,10 +59,6 @@ const standing = computed(() => whereYouStand(props.standings, props.signedIn, p
         {{ standings.season.name }}
       </p>
 
-      <p class="mt-2 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
-        {{ words.what }}
-      </p>
-
       <div v-if="standings.top.length > 0" class="mt-8 overflow-x-auto">
         <table class="w-full border-collapse text-left">
           <thead>
@@ -136,6 +132,15 @@ const standing = computed(() => whereYouStand(props.standings, props.signedIn, p
 
       <p v-if="standing.note" class="mt-6 max-w-xl text-sm text-on-surface/80 leading-relaxed">
         {{ standing.note }}
+      </p>
+
+      <!--
+        Under the table rather than over it: a fan arrives to read where they
+        came, and what the table is can be read once, afterwards, by whoever
+        wants it.
+      -->
+      <p class="mt-6 max-w-2xl text-sm text-on-surface/70 leading-relaxed">
+        {{ words.what }}
       </p>
     </template>
 

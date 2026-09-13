@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { SIGN_IN_MESSAGES } from "#shared/signIn";
 import { MINIMUM_PASSWORD_LENGTH, USERNAME_LENGTH, type SignUpField } from "#shared/signUp";
+import { accountPath, returnTo, RETURN_QUERY, THE_CARD } from "~/utils/navigation";
 
 /**
  * The sign-up form.
@@ -15,11 +17,26 @@ useSeoMeta({
   robots: "noindex",
 });
 
+const route = useRoute();
+
+/**
+ * Where creating an account puts the fan down.
+ *
+ * The same rule as the sign-in form's, because the card offers both ways in and
+ * a visitor who has never played is the more likely of the two to take this
+ * one. `returnTo` decides what a URL may ask for.
+ */
+const landing = computed(() => returnTo(route.query[RETURN_QUERY]));
+
+// Carrying where the fan was headed, so switching to the other form does not
+// lose it — the mirror of the same line on the sign-in page.
+const signInLink = computed(() => accountPath("sign-in", landing.value));
+
 // A fan who is already signed in has nothing to do here.
 const { data: signedIn } = await useFan();
 
 if (signedIn.value) {
-  await navigateTo("/profile");
+  await navigateTo(landing.value);
 }
 
 const form = reactive({
@@ -75,8 +92,9 @@ const fields: AccountFormField[] = [
     type: "tel",
     autocomplete: "tel",
     hint:
-      "Starting with its country code, like +995 555 12 34 56. Kept private — other " +
-      "fans never see it, and TFC Predictions is played on one account per number.",
+      "A Georgian mobile number like 555 12 34 56, or any other number with its country " +
+      "code, like +44 7700 900123. Kept private — other fans never see it, and TFC " +
+      "Predictions is played on one account per number.",
   },
 ];
 
@@ -90,9 +108,10 @@ async function submit() {
 
     await refreshBalance();
 
-    // Straight to the profile: signing up signs the fan in and there is no
-    // second step to wait on (ADR-0018).
-    await navigateTo("/profile");
+    // Straight in: signing up signs the fan in and there is no second step to
+    // wait on (ADR-0018). To the card when the card is what sent them, and to
+    // their profile otherwise.
+    await navigateTo(landing.value);
   } catch (error) {
     const reported = (error as { data?: { problems?: { field: SignUpField; message: string }[] } })
       .data?.problems;
@@ -113,6 +132,10 @@ async function submit() {
 
   <section class="px-6 md:px-20 pb-24">
     <div class="max-w-xl mx-auto">
+      <p v-if="landing === THE_CARD" class="text-on-surface/80 leading-relaxed mb-6" role="status">
+        {{ SIGN_IN_MESSAGES.backToTheCard }}
+      </p>
+
       <p class="text-on-surface/80 leading-relaxed mb-10">
         Your username is the only thing other fans ever see. Your email address and phone number
         stay private — TFC holds them to reach you about your account, and plays TFC Predictions on
@@ -145,7 +168,7 @@ async function submit() {
 
       <p class="mt-10 text-on-surface/70">
         Already have an account?
-        <NuxtLink to="/account/sign-in" class="text-primary underline">Sign in</NuxtLink>.
+        <NuxtLink :to="signInLink" class="text-primary underline">Sign in</NuxtLink>.
       </p>
     </div>
   </section>

@@ -24,8 +24,8 @@ import type { OutcomeAnswer } from "./pricing";
  * a moment the card decides, and the row saying so is written by the next
  * request to arrive (`applyAutomaticLocks` in `server/utils/locks.ts`) — so
  * between those two instants the column still says `open`. Working the state
- * out here rather than trusting the column means a countdown reaching zero and
- * the words beside it can never disagree.
+ * out here rather than trusting the column means a card cannot offer answers on
+ * a Bout that is already being fought.
  *
  * `settled` is told apart from `locked` for the same reason: they are two
  * different pieces of news. A locked Bout is being fought, and a fan is waiting
@@ -61,18 +61,20 @@ export function boutState(
 }
 
 /**
- * The Lock a fan is counted down to, or null on a Bout an admin advances.
+ * The moment a Bout locks by itself, or null on one an admin advances.
  *
  * ADR-0006: the Bout fought first locks automatically at the card's scheduled
  * start, and the rest are locked by an admin as the card progresses — so it is
- * the only Bout on a card with a moment a fan can watch arrive.
+ * the only Bout on a card whose Lock is a moment rather than a decision. It is
+ * what {@link boutState} reads to call that Bout locked the instant it is,
+ * without waiting for the row to be written.
  *
  * Deliberately not the sweep that stands behind every other Bout
  * (`automaticLock` in `shared/locks.ts`). That moment is hours out and will
  * almost never be the one: an admin locks Bout 6 when Bout 6 is fought, long
- * before its backstop. Counting a fan down to a moment that is not going to be
- * the moment is worse than telling them an admin decides it, so what the rest
- * of the card gets is `PREDICTION_MESSAGES.locksWhenReached`.
+ * before its backstop. Answering "this locks at 23:40" for a Bout that will
+ * lock at 21:15 is worse than saying nothing, so the rest of the card says
+ * nothing — and the card no longer counts any of them down at all.
  */
 export function locksAt(bout: FightCardBout, card: FightCard): string | null {
   return bout.cardOrder === firstFought(card.bouts) ? card.scheduledStart : null;
@@ -89,7 +91,7 @@ export interface BoutPredictions {
   /** The row a Prediction points at, and an Entry is submitted against. */
   boutId: string;
   status: BoutStatus;
-  /** The Lock a fan can watch arrive, or null on one an admin advances. */
+  /** The moment it locks by itself, or null on one an admin advances. */
   locksAt: string | null;
   /**
    * Every answer offered, in the order they are asked.
@@ -109,11 +111,12 @@ export interface CardPredictions {
   /**
    * The server's clock when it answered.
    *
-   * A countdown has to start somewhere, and starting it at the browser's clock
-   * would render one number on the server and a different one a moment later
-   * in the browser — a hydration mismatch, and a page that disagrees with
-   * itself about whether a Bout has locked. The page counts from here until it
-   * is mounted, and from the browser's own clock afterwards.
+   * Which moment a Bout's state is read against has to be the same number on
+   * both sides of hydration: starting from the browser's own clock would render
+   * one answer on the server and a different one a moment later in the browser
+   * — a mismatch Vue warns about, and a page that disagrees with itself about
+   * whether a Bout has locked. The page reads from here until it is mounted,
+   * and from the browser's clock afterwards. See `useNow`.
    */
   answeredAt: string;
   /** What the game holds against each Bout, by its place on the card. */
@@ -133,9 +136,6 @@ export const PREDICTION_MESSAGES = {
   notOpenYet:
     "What each answer pays is set before a Bout opens, so there is nothing to " +
     "weigh up on this one yet.",
-  locksWhenReached: "This Bout locks when the card reaches it.",
-  cardUnderway: "This card is being fought. Its Bouts lock one at a time as it reaches them.",
-  noneOpenYet: "No Bout on this card is open yet",
   locked: "This Bout has locked. Nothing further can be predicted on it.",
   settled:
     "This Bout has been settled. Every Entry holding a Prediction on it has " +

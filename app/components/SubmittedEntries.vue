@@ -14,11 +14,11 @@ import { endingNote, entryAsItStands } from "#shared/results";
  * The Entries a fan has committed on this Season, and the one thing they can
  * still do about one: take it back.
  *
- * Beside the card rather than on the profile page, because the reason a fan
+ * Beside the card rather than on My Predictions, because the reason a fan
  * cancels is almost always the card — a fighter withdrew, a Bout moved — and
  * the moment they want the button is the moment they are looking at what
- * changed. The history that goes back through every Season, with each
- * Prediction of a chain graded, is `EntryHistory` on the profile.
+ * changed. The record that goes back through every Season, with each
+ * Prediction of a chain graded, is `EntryHistory` on My Predictions.
  *
  * **Whether an Entry can be cancelled is decided here, from the clock.** Every
  * Prediction carries where its Bout stands and the moment it locks by itself,
@@ -37,9 +37,9 @@ import { endingNote, entryAsItStands } from "#shared/results";
  * looking for, and the status beside the Amount already says where it is.
  *
  * What the chain is worth is `entryAsItStands` in `shared/results.ts`, which
- * is also what the Entry history on the profile prices its Entries with — so
- * one Entry cannot come to be worth two different numbers on the two pages a
- * fan can have open at the same time.
+ * is also what My Predictions prices its Entries with — so one Entry cannot
+ * come to be worth two different numbers on the two pages a fan can have open
+ * at the same time.
  *
  * **A Prediction whose answer stopped counting says so, and says why.** It is
  * the only place a fan finds out that a Bout was cancelled, lost a fighter,
@@ -54,7 +54,7 @@ import { endingNote, entryAsItStands } from "#shared/results";
 const props = defineProps<{
   /** Every Entry this fan holds this Season, newest first. */
   entries: CommittedEntry[];
-  /** The server's clock when it answered, which the countdowns start from. */
+  /** The server's clock when it answered, which the clock here starts from. */
   answeredAt: string | null;
 }>();
 

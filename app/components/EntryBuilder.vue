@@ -1,16 +1,12 @@
 <script setup lang="ts">
 import { coinsLabel } from "#shared/coins";
-import {
-  AMOUNT,
-  ENTRY_MESSAGES,
-  ENTRY_PREDICTIONS,
-  potentialReward,
-  type DraftPrediction,
-} from "#shared/entries";
+import { AMOUNT, ENTRY_MESSAGES, potentialReward, type DraftPrediction } from "#shared/entries";
 import type { Fan } from "#shared/fan";
 import { multiplierLabel } from "#shared/predictions";
 import { outcomeLabel } from "#shared/pricing";
+import { SIGN_IN_MESSAGES } from "#shared/signIn";
 import { CORNER_COLOURS } from "~/utils/corners";
+import { accountPath, THE_CARD } from "~/utils/navigation";
 
 /**
  * The Entry a fan is building, and the button that commits it.
@@ -30,6 +26,21 @@ import { CORNER_COLOURS } from "~/utils/corners";
  * The Balance comes from {@link useBalance} rather than from a prop, so that
  * the number here and the number in the game's header are the same number:
  * this is one of the places the header learns its answer has changed.
+ *
+ * **Nothing counts the Predictions off against the ten an Entry may hold.** The
+ * cap is a bound on what a mispriced Outcome can cost (`ENTRY_PREDICTIONS`), not
+ * a target a fan is working towards, and a running "3 of 10" beside the Entry
+ * read as the latter — the Predictions are listed below it, and a fan who ever
+ * reaches the eleventh is told so by name in {@link problem}.
+ *
+ * **A visitor with no account is sent to the form rather than refused at it.**
+ * The panel's own action is the sign-in link for as long as `fan` is null, and
+ * the Submit button takes its place the moment there is somebody to submit for —
+ * two controls in one place, and only ever one of them. So there is no press
+ * here that can fail for want of an account, which is what the button used to
+ * do: it read "Submit Entry", and answered "sign in first". The refusal in
+ * {@link submit} survives only as the guard it always was, for a session that
+ * ends between the render and the press.
  */
 const props = defineProps<{
   /** What the fan has answered so far, priced, in card order. */
@@ -121,6 +132,9 @@ async function submit() {
   problem.value = "";
   accepted.value = "";
 
+  // Unreachable from the panel as it renders: the action is a link to the
+  // form while there is no fan. It is the session that ended between the render
+  // and the press, and it stays for that.
   if (!props.fan) {
     problem.value = ENTRY_MESSAGES.signIn;
     return;
@@ -171,10 +185,6 @@ async function submit() {
       @click="expanded = !expanded"
     >
       <h2 class="font-headline text-lg font-black italic uppercase">Your Entry</h2>
-
-      <p class="text-xs uppercase tracking-widest text-on-surface/60">
-        {{ predictions.length }} of {{ ENTRY_PREDICTIONS.maximum }}
-      </p>
 
       <div class="ml-auto flex items-center gap-3 lg:hidden">
         <p v-if="predictions.length > 0" class="flex items-center gap-2">
@@ -272,7 +282,7 @@ async function submit() {
           </div>
           <div class="text-right">
             <dt class="text-xs uppercase tracking-widest text-on-surface/50">Returns</dt>
-            <dd class="mt-1 font-headline text-2xl font-black tabular-nums text-primary">
+            <dd class="mt-1 font-headline text-2xl font-black tabular-nums text-white">
               {{ coinsLabel(returns.reward) }}
             </dd>
           </div>
@@ -286,7 +296,16 @@ async function submit() {
       <div class="px-5 pb-5">
         <p v-if="hint" class="mb-4 text-sm text-on-surface/70 leading-relaxed">{{ hint }}</p>
 
+        <NuxtLink
+          v-if="!fan"
+          :to="accountPath('sign-in', THE_CARD)"
+          class="block w-full bg-primary-container px-8 py-4 text-center font-headline font-black uppercase tracking-widest text-white transition-transform hover:scale-[1.02] active:scale-95"
+        >
+          {{ SIGN_IN_MESSAGES.action }}
+        </NuxtLink>
+
         <button
+          v-else
           type="button"
           :disabled="submitting || predictions.length === 0"
           class="w-full bg-primary-container px-8 py-4 font-headline font-black uppercase tracking-widest text-white transition-transform hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
@@ -297,7 +316,9 @@ async function submit() {
 
         <p v-if="problem" class="mt-4 text-sm text-error" role="alert">
           {{ problem }}
-          <NuxtLink v-if="!fan" to="/account/sign-in" class="underline">Sign in</NuxtLink>
+          <NuxtLink v-if="!fan" :to="accountPath('sign-in', THE_CARD)" class="underline">
+            {{ SIGN_IN_MESSAGES.signIn }}
+          </NuxtLink>
         </p>
 
         <p v-if="accepted" class="mt-4 text-sm text-primary" role="status">{{ accepted }}</p>

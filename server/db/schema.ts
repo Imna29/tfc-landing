@@ -1164,8 +1164,8 @@ export const entries = pgTable(
     // Every Entry a fan holds in one Season: the listing beside the card
     // (`committedEntries`), and what settlement re-reads.
     index("entries_by_fan").on(table.seasonId, table.userId),
-    // Every Entry a fan has ever committed, newest first, which is the profile
-    // history (`entryHistory` in `server/utils/history.ts`). A second index
+    // Every Entry a fan has ever committed, newest first, which is My
+    // Predictions (`entryHistory` in `server/utils/history.ts`). A second index
     // rather than a reordering of the one above, because they are read by two
     // different questions: that one always knows the Season, and this one is
     // for the page that deliberately does not narrow to it — history is kept

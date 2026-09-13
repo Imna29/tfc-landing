@@ -1,5 +1,5 @@
 /**
- * The Entry history a fan reads on their profile: everything they have ever
+ * The Entry history a fan reads on My Predictions: everything they have ever
  * committed, and how each part of it went.
  *
  * The other end of `shared/entries.ts`. That module is what a fan may build
@@ -85,7 +85,7 @@ export interface PlayedSeason {
  * Which of a fan's Entries they are looking at.
  *
  * Null is every one of them on both fields, which is where the page starts:
- * "every Entry the fan has submitted is listed" is what the profile is for,
+ * "every Entry the fan has submitted is listed" is what the page is for,
  * and {@link bySeason} is what stops the old ones drowning the current ones.
  * Narrowing is the fan's move, not the page's opening position — and a status
  * filter that searched only one Season would answer "find my wins" with some
@@ -103,7 +103,7 @@ export interface HistoryFilter {
  * actually played.
  *
  * Said once for both sides, like every other parse in this directory: the
- * profile puts these two values in the URL and the route reads them back out,
+ * page puts these two values in the URL and the route reads them back out,
  * and two readings of the same query string would be a page whose controls
  * disagreed with the listing under them.
  *
@@ -135,8 +135,15 @@ export type RewardState = "potential" | "paid" | "returned" | "none";
 /** What became of the Coins an Entry committed, and how a fan is told. */
 export interface EntryReward {
   state: RewardState;
-  /** The sentence beside the Entry, which is where the number is. */
-  note: string;
+  /**
+   * The sentence beside the Entry, which is where the number is, or null
+   * where there is nothing to say.
+   *
+   * Null for an Entry the fan took back: its Coins were returned in full the
+   * moment they took it, they were told so then, and the status beside it
+   * already says which of the two returns this was.
+   */
+  note: string | null;
 }
 
 /**
@@ -146,8 +153,9 @@ export interface EntryReward {
  * mean, and telling them apart is the whole of what "potential or actual
  * Reward" asks for. A Won Entry's Reward has been paid; an Open one's has not
  * and may never be; a Cancelled or Refunded Entry returned its Amount rather
- * than any Reward at all, and the two say so differently because they are
- * different decisions — the fan's and the game's.
+ * than any Reward at all. Only the Refunded one says so: a refund is the game
+ * deciding something on the fan's behalf and owes them the reason, where a
+ * cancellation is the fan's own decision, already answered when they made it.
  *
  * A Lost Entry returned nothing, and its sentence is the one that has to work
  * hardest. The combined Multiplier is still on the screen beside it, worked
@@ -169,7 +177,7 @@ export function rewardOf(
   }
 
   if (entry.status === "cancelled") {
-    return { state: "returned", note: HISTORY_MESSAGES.cancelled(entry.amount) };
+    return { state: "returned", note: null };
   }
 
   if (entry.status === "refunded") {
@@ -267,7 +275,56 @@ export function bySeason(entries: readonly HistoricEntry[]): SeasonHistory[] {
   return [...seasons.values()];
 }
 
-/** The whole of a fan's history, as their profile asks for it. */
+/**
+ * A fan's own Entries, split by whether any of one is still to be decided.
+ *
+ * What My Predictions is laid out from. A fan opening that page during a card
+ * is looking for one thing — the chains that can still go either way — and a
+ * single list newest-first buries them under whatever settled last week the
+ * moment they have played more than a few cards.
+ *
+ * The two halves are shaped differently on purpose. What is still riding is a
+ * flat list, because every Open Entry is in the Season being played: a Season
+ * will not close while a Bout on one of its Events is still open or still
+ * waiting on a Result, so there is never a second Season to group. What is
+ * done with goes back through every Season a fan has played, which is what
+ * {@link bySeason} is for.
+ */
+export interface FanEntries {
+  /** The Entries still riding on a Bout that has not been decided. */
+  open: ReadEntry[];
+  /** Everything done with, grouped by the Season it was committed in. */
+  finished: SeasonHistory[];
+}
+
+/**
+ * The Entries a fan is still riding on, and everything that is done with.
+ *
+ * One rule decides it, and it is the status. `CONTEXT.md`: an Open Entry is
+ * one with Predictions still unresolved, and the other four are all decisions
+ * already taken — two the game made against a Result, one the fan made by
+ * taking the Entry back, and one the game made because nothing in it turned
+ * out to be gradable. "Still open" and "finished" is that line drawn once,
+ * rather than four statuses each page decides about for itself.
+ *
+ * An Entry appears on exactly one side. Listing an Open Entry in both halves
+ * would be a fan reading one chain and counting two, which is the specific
+ * mistake a page with a "current" section above a full history makes.
+ *
+ * The order inside each half is the order the Entries arrive in — newest
+ * first, as `entryHistory` reads them — so neither half has an opinion about
+ * sorting that the other could disagree with.
+ */
+export function openAndFinished(entries: readonly HistoricEntry[]): FanEntries {
+  const open: HistoricEntry[] = [];
+  const finished: HistoricEntry[] = [];
+
+  for (const entry of entries) (entry.status === "open" ? open : finished).push(entry);
+
+  return { open: open.map(readEntry), finished: bySeason(finished) };
+}
+
+/** The whole of a fan's history, as My Predictions asks for it. */
 export interface FanHistory {
   /** Every Season this fan has committed an Entry in, newest first. */
   seasons: PlayedSeason[];
@@ -284,9 +341,6 @@ export const HISTORY_MESSAGES = {
   lost: (coins: number) =>
     `No Reward. This Entry was going for ${coinsLabel(coins)} and a Prediction ` +
     "in it did not land; its Amount left your Balance when you committed it.",
-  cancelled: (coins: number) =>
-    `${coinsLabel(coins)} returned in full. You took this Entry back while ` +
-    "every Bout in it was still open.",
   refunded: (coins: number) =>
     `${coinsLabel(coins)} returned in full. No Bout in this Entry produced a ` +
     "result to grade, so there was nothing for it to be right or wrong about.",
@@ -302,10 +356,26 @@ export const HISTORY_MESSAGES = {
   noneAtAll:
     "None of your Entries match that. Every Entry you have ever committed is " +
     "still here — widen the filter to find it.",
-  everySeason: "Every Season",
-  everyStatus: "Every status",
-  kept:
-    "Every Entry you have ever committed, newest first, grouped by the Season " +
-    "you committed it in. Nothing here is ever removed — narrow it by Season " +
-    "or by status to find one.",
+  /**
+   * The two headings My Predictions is laid out under.
+   *
+   * "Still open" is the Entry status a fan already reads beside each one, said
+   * once over the group rather than invented as a second word for it — and
+   * "Finished" covers the four that are over without claiming they went the
+   * same way, which each Entry says for itself.
+   */
+  stillOpen: "Still open",
+  finished: "Finished",
+  /**
+   * Said to a fan holding nothing open, whatever else they hold.
+   *
+   * Deliberately not {@link HISTORY_MESSAGES.noneYet}, which is a fan who has
+   * never committed an Entry at all. A fan whose last chain settled this
+   * morning has a record below this line and nothing riding above it, and
+   * telling them they have not committed an Entry yet would be wrong about
+   * them in the one place they can see it is.
+   */
+  noneOpen:
+    "Nothing of yours is still open. Answer a Bout on the card and the Entry " +
+    "you commit is here until the last Bout in it has been decided.",
 } as const;

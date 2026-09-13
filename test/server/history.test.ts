@@ -19,22 +19,28 @@ import {
   winnerOn,
 } from "../helpers/playing";
 import { setupTestServer } from "../helpers/server";
+import { MY_PREDICTIONS } from "../../app/utils/navigation";
 
 /**
- * The profile: where a fan stands, and everything they have ever predicted.
+ * Where a fan stands, and everything they have ever predicted.
  *
- * The page is the payoff for every other file in this suite — a fan comes here
- * to find out whether they were right — and almost nothing on it is stored.
- * The combined Multiplier, the Reward and each Prediction's own grade are
- * worked out from the Predictions and the Results every time the page is read
+ * The payoff for every other file in this suite — a fan comes to find out
+ * whether they were right — and almost nothing behind it is stored. The
+ * combined Multiplier, the Reward and each Prediction's own grade are worked
+ * out from the Predictions and the Results every time they are read
  * (ADR-0013), so the cases below drive real Entries through real settlements
- * and then ask what the profile says about them.
+ * and then ask what the pages say about them.
  *
- * Two of them are worth reading first. A chain that is already Lost still
- * grades the Bouts it has left, which is #14's promise kept where a fan can
- * actually see it. And one fan's history is one fan's: there is no route that
- * takes a fan to read a history for, and the case below is the one that would
- * notice if there ever were.
+ * Two pages, and the split between them is the point. `/profile` is the
+ * account: the Balance, the Rank and the way out. My Predictions is every
+ * Entry, in the section the card is in, laid out as what is still riding and
+ * what is done with.
+ *
+ * Two cases are worth reading first. A chain that is already Lost still grades
+ * the Bouts it has left, which is #14's promise kept where a fan can actually
+ * see it. And one fan's history is one fan's: there is no route that takes a
+ * fan to read a history for, and the case below is the one that would notice
+ * if there ever were.
  */
 
 /**
@@ -52,7 +58,7 @@ async function nextSeason(admin: CardAdmin, name: string): Promise<void> {
   if (!opened.ok) throw new Error(`Opening ${name} was refused: ${await opened.text()}`);
 }
 
-describe("a fan's own profile", async () => {
+describe("a fan's own record", async () => {
   await setupTestServer();
 
   describe("where a fan stands", () => {
@@ -361,8 +367,17 @@ describe("a fan's own profile", async () => {
     });
   });
 
-  describe("the page a fan reads it on", () => {
-    it("shows where they stand and what their Entries came to", async () => {
+  /**
+   * Where a fan reads all of this, which is two pages rather than one.
+   *
+   * `/profile` is the account: the Balance, the Rank and the way out. My
+   * Predictions is every Entry they have ever committed, in the section the
+   * card is in — a fan checking whether their chain survived Bout 3 is playing
+   * the game rather than administering an account. The profile links there and
+   * draws none of it, so one Entry cannot be shown two ways on two pages.
+   */
+  describe("the pages a fan reads it on", () => {
+    it("says where they stand on the profile, and sends them on for the rest", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
@@ -379,9 +394,65 @@ describe("a fan's own profile", async () => {
       // 20 Coins at ×2 twice over is 80 returned, on a Balance of 160.
       expect(page).toContain(STANDING_MESSAGES.balance(160));
       expect(page).toContain(STANDING_MESSAGES.ranked(1, 2));
+
+      // And the Entries themselves are somewhere else now, named rather than
+      // drawn: a second listing here is a second thing to keep in step.
+      expect(page).toContain(MY_PREDICTIONS);
+      expect(page).not.toContain(HISTORY_MESSAGES.paid(80));
+    });
+
+    it("shows what their Entries came to", async () => {
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 20, [
+        winnerOn(card.bouts[0]!.id, "red"),
+        winnerOn(card.bouts[1]!.id, "red"),
+      ]);
+
+      await settle(card, 0, { winner: "red" });
+      await settle(card, 1, { winner: "red" });
+
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
+
       expect(page).toContain(HISTORY_MESSAGES.paid(80));
       expect(page).toContain(ENTRY_STATUS_LABELS.won);
       expect(page).toContain("TFC 12");
+    });
+
+    it("puts what is still riding above what is done with", async () => {
+      // The whole of what the page adds: a fan opening it mid-card is looking
+      // for the chain that can still go either way, and one listing newest
+      // first buries it under whatever settled last week.
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 11, [winnerOn(card.bouts[0]!.id, "red")]);
+      await submit(fan, 22, [winnerOn(card.bouts[1]!.id, "red")]);
+      await settle(card, 0, { winner: "red" });
+
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
+
+      expect(page).toContain(HISTORY_MESSAGES.stillOpen);
+      expect(page).toContain(HISTORY_MESSAGES.finished);
+      // The Entry on the Bout still to be fought is above the one its Bout
+      // decided, whichever was submitted first.
+      expect(page.indexOf(coinsLabel(22))).toBeLessThan(page.indexOf(coinsLabel(11)));
+    });
+
+    it("tells a fan with a record and nothing riding that nothing is open", async () => {
+      // Not the same sentence as a fan who has never committed one at all:
+      // this fan has Entries, and none of them are waiting on anything.
+      const card = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 20, [winnerOn(card.bouts[0]!.id, "red")]);
+      await settle(card, 0, { winner: "red" });
+
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
+
+      expect(page).toContain(HISTORY_MESSAGES.noneOpen);
+      expect(page).not.toContain(HISTORY_MESSAGES.noneYet);
     });
 
     it("names the fighter in every Prediction it shows", async () => {
@@ -397,7 +468,7 @@ describe("a fan's own profile", async () => {
 
       await settle(card, 0, { winner: "blue", method: "ko_tko" });
 
-      const page = await $fetch<string>("/profile", { headers: { cookie: fan.cookie } });
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
 
       expect(page).toContain("Levan Beridze by KO/TKO");
       expect(page).toContain("Giorgi Tsiklauri by Submission");
@@ -414,7 +485,7 @@ describe("a fan's own profile", async () => {
 
       await settle(card, 0, { winner: "red" });
 
-      const page = await $fetch<string>("/profile", { headers: { cookie: fan.cookie } });
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
 
       expect(page).toContain(PREDICTION_GRADE_LABELS.wrong);
       expect(page).toContain(PREDICTION_GRADE_LABELS.unresolved);
@@ -423,7 +494,7 @@ describe("a fan's own profile", async () => {
       expect(page).toContain(HISTORY_MESSAGES.lost(80));
     });
 
-    it("renders the filter it was asked for, and the listing under it", async () => {
+    it("renders the listing the URL asked for, with no control to say so", async () => {
       const card = await upcomingCard(2);
       const fan = await fanWithCoins();
 
@@ -432,31 +503,86 @@ describe("a fan's own profile", async () => {
       await settle(card, 0, { winner: "red" });
       await settle(card, 1, { winner: "red" });
 
-      const page = await $fetch<string>("/profile?status=lost", {
+      const page = await $fetch<string>(`${MY_PREDICTIONS}?status=lost`, {
         headers: { cookie: fan.cookie },
       });
 
-      // In the HTML rather than set by the browser afterwards: a control that
-      // said "Every status" over a listing of Lost Entries until the page
-      // hydrated — and forever without JavaScript — is a page contradicting
-      // itself about what a fan is looking at.
-      expect(page).toMatch(/<option value="lost"[^>]*\bselected\b/);
+      // The two controls are gone from the page and the filter behind them is
+      // not: a link somebody kept to a narrowed history still narrows it, and
+      // the server still renders only what was asked for rather than sending
+      // a whole history for the browser to hide most of.
+      expect(page).not.toContain("<option");
       expect(page).toContain(coinsLabel(22));
       expect(page).not.toContain(coinsLabel(11));
     });
 
+    it("leaves the open half out rather than blaming a fan for their own filter", async () => {
+      // "Nothing of yours is still open" under a listing of Lost Entries would
+      // be the page answering a question the fan did not ask.
+      const card = await upcomingCard(2);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 11, [winnerOn(card.bouts[0]!.id, "blue")]);
+      await submit(fan, 22, [winnerOn(card.bouts[1]!.id, "red")]);
+      await settle(card, 0, { winner: "red" });
+
+      const page = await $fetch<string>(`${MY_PREDICTIONS}?status=lost`, {
+        headers: { cookie: fan.cookie },
+      });
+
+      expect(page).not.toContain(HISTORY_MESSAGES.noneOpen);
+    });
+
+    it("leaves it out for a fan who narrowed to a Season they have finished", async () => {
+      // The same rule as the status filter, and the case that catches it: this
+      // fan holds an open Entry — in the *other* Season — so "nothing of yours
+      // is still open" would be false about them as well as about the filter.
+      const first = await upcomingCard(1);
+      const fan = await fanWithCoins();
+
+      await submit(fan, 11, [winnerOn(first.bouts[0]!.id, "red")]);
+      await settle(first, 0, { winner: "red" });
+      await nextSeason(first.admin, "Season 2");
+
+      const second = await upcomingCard(1, {
+        admin: first.admin,
+        card: { prismicId: "event-tfc-13", title: "TFC 13" },
+      });
+
+      await submit(fan, 22, [winnerOn(second.bouts[0]!.id, "red")]);
+
+      const seasonOne = (await historyFor(fan.cookie)).seasons.find(
+        (season) => season.name === "Season 1",
+      );
+
+      const page = await $fetch<string>(`${MY_PREDICTIONS}?season=${seasonOne?.id}`, {
+        headers: { cookie: fan.cookie },
+      });
+
+      expect(page).toContain(coinsLabel(11));
+      expect(page).not.toContain(HISTORY_MESSAGES.noneOpen);
+    });
+
     it("says so to a fan who has not committed an Entry yet", async () => {
       const fan = await fanWithCoins();
-      const page = await $fetch<string>("/profile", { headers: { cookie: fan.cookie } });
+      const page = await $fetch<string>(MY_PREDICTIONS, { headers: { cookie: fan.cookie } });
 
       expect(page).toContain(HISTORY_MESSAGES.noneYet);
     });
 
     it("asks a signed-out visitor to sign in rather than showing them a history", async () => {
-      const page = await $fetch<string>("/profile");
+      const page = await $fetch<string>(MY_PREDICTIONS);
 
       expect(page).toContain("Sign in");
-      expect(page).not.toContain(HISTORY_MESSAGES.kept);
+      expect(page).not.toContain(HISTORY_MESSAGES.noneYet);
+    });
+
+    it("brings a visitor who signs in back to the page they asked for", async () => {
+      // Rather than dropping them on a profile they did not ask about. The
+      // whole page is behind a session, so this link is the only way onto it.
+      const page = await $fetch<string>(MY_PREDICTIONS);
+
+      expect(page).toContain(`next=${encodeURIComponent(MY_PREDICTIONS)}`);
     });
   });
 });
