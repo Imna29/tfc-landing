@@ -36,10 +36,12 @@ onMounted(load);
     v-if="balance !== null"
     to="/profile"
     data-fan-balance
-    class="inline-flex items-center gap-2 border border-outline-variant/30 px-3 py-1.5 hover:border-primary transition-colors"
+    class="inline-flex shrink-0 items-center gap-1.5 border border-outline-variant/30 px-2 py-1.5 sm:gap-2 sm:px-3 hover:border-primary transition-colors"
   >
-    <TfcCoin class="w-[18px] h-[18px] shrink-0" />
-    <span class="font-headline text-sm font-black uppercase tracking-widest tabular-nums">
+    <TfcCoin class="w-4 h-4 sm:w-[18px] sm:h-[18px] shrink-0" />
+    <span
+      class="font-headline text-xs sm:text-sm font-black uppercase tracking-wider sm:tracking-widest tabular-nums"
+    >
       {{ coinsLabel(balance) }}
     </span>
   </NuxtLink>

@@ -38,7 +38,15 @@ const closeMenu = () => {
       class="sticky top-0 z-50 bg-surface-container-lowest/90 backdrop-blur-xl border-b border-outline-variant/15"
     >
       <div class="max-w-[1440px] mx-auto px-6 md:px-20 py-4">
-        <div class="flex items-center gap-6">
+        <!--
+          Allowed to wrap, which is the whole of how this row behaves on a
+          phone. It holds five things and two of them are words — the wordmark
+          and a Balance — so on the narrowest windows with a Balance in it the
+          right-hand group drops to a second line. Nothing is hidden to make it
+          fit and nothing runs off the edge, which are the two other ways this
+          could go.
+        -->
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4 md:gap-x-6">
           <NuxtLink to="/" class="flex items-center shrink-0" aria-label="TFC, the main site">
             <img
               src="/tfc_logo.png"
@@ -48,21 +56,28 @@ const closeMenu = () => {
               loading="eager"
               decoding="async"
               fetchpriority="high"
-              class="w-20 h-10 md:w-24 md:h-12 object-contain"
+              class="w-16 h-8 sm:w-20 sm:h-10 md:w-24 md:h-12 object-contain"
             />
           </NuxtLink>
 
+          <!--
+            The name of the section a fan is in, at every width. It used to drop
+            to `sr-only` on the narrowest windows and leave the coin standing on
+            its own, which reads as an ornament rather than as where you are —
+            and the coin is also a Balance, a Multiplier and a mark on a button
+            elsewhere, so on its own it says nothing about this page. It sizes
+            down instead, and the header's gaps are what give it the room.
+          -->
           <NuxtLink
             :to="PLAY_TFC.to"
-            class="flex items-center gap-2 shrink-0 border-l border-outline-variant/20 pl-4 md:pl-6"
+            class="flex items-center gap-2 shrink-0 border-l border-outline-variant/20 pl-3 sm:pl-4 md:pl-6"
           >
-            <TfcCoin class="w-6 h-6 shrink-0" />
+            <TfcCoin class="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
             <span
-              class="hidden sm:inline font-headline text-lg md:text-xl font-black italic uppercase tracking-tight"
+              class="font-headline text-sm sm:text-lg md:text-xl font-black italic uppercase tracking-tight"
             >
               {{ PLAY_TFC.label }}
             </span>
-            <span class="sr-only sm:hidden">{{ PLAY_TFC.label }}</span>
           </NuxtLink>
 
           <nav class="hidden lg:flex items-center gap-8 ml-4">
@@ -88,7 +103,7 @@ const closeMenu = () => {
 
             <button
               type="button"
-              class="lg:hidden w-11 h-11 border border-outline-variant/30 flex items-center justify-center hover:border-primary transition-colors"
+              class="lg:hidden w-11 h-11 shrink-0 border border-outline-variant/30 flex items-center justify-center hover:border-primary transition-colors"
               :aria-expanded="isMenuOpen"
               aria-controls="play-nav"
               aria-label="Toggle navigation menu"
