@@ -128,6 +128,53 @@ jobs:
               ;;
           esac
 
+      # Reaching Postgres is not the same as being near it. A Function in one
+      # continent and a database in another answers every local run in
+      # milliseconds and every deployed one in seconds, which is the one class
+      # of regression nothing else here can see — see ./deployment.ts for what
+      # it cost the last time.
+      #
+      # `/api/health` is exactly one query. A route that matches nothing is the
+      # same request through the same Function without one. The difference
+      # between them is the database's distance and nothing else: the runner's
+      # own distance to the deployment is in both measurements and cancels, so
+      # this asserts the same thing from London or Ohio.
+      - name: Prove Postgres is in the same region as the Function
+        env:
+          BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          budget=$(grep -oP 'DATABASE_ROUND_TRIP_BUDGET_MS = \K[0-9]+' deployment.ts)
+          base="${{ steps.deploy.outputs.url }}"
+          args=(--silent --show-error --output /dev/null --max-time 30 --write-out '%{time_starttransfer}')
+          if [ -n "$BYPASS" ]; then
+            args+=(--header "x-vercel-protection-bypass: $BYPASS")
+          fi
+
+          # The fastest of several, after a warm-up. A cold Function opens its
+          # connection on the way past and a shared runner is noisy; both only
+          # ever add, so the floor is the honest reading of a distance.
+          floor() {
+            curl "${args[@]}" "$base$1" > /dev/null || true
+            best=999
+            for _ in 1 2 3 4 5; do
+              t=$(curl "${args[@]}" "$base$1" || echo 999)
+              best=$(awk -v a="$t" -v b="$best" 'BEGIN{print (a<b)?a:b}')
+            done
+            echo "$best"
+          }
+
+          queried=$(floor /api/health)
+          unqueried=$(floor /api/this-route-does-not-exist)
+          trip=$(awk -v a="$queried" -v b="$unqueried" 'BEGIN{printf "%.0f", (a-b)*1000}')
+
+          echo "One database round trip: ${trip}ms (budget ${budget}ms)"
+          echo "- Database round trip: ${trip}ms (budget ${budget}ms)" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$trip" -gt "$budget" ]; then
+            echo "::error::Postgres is ${trip}ms from the Function, over the ${budget}ms budget. A PlayTFC page makes twenty of these round trips, so this is seconds on every page. Either FUNCTION_REGION in deployment.ts no longer matches the region the database is in, or the region is not reaching the deployed Function."
+            exit 1
+          fi
+
       # Only ever a deployment the check above passed: the hostname fans reach
       # and every link TFC emails must not be moved onto something unproven.
       # Each preview deploy gets its own URL, and those links are built from one
