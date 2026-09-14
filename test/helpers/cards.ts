@@ -68,12 +68,35 @@ export function cardBout(overrides: Partial<CardBout> = {}): CardBout {
   };
 }
 
+/**
+ * When the default card is fought: far enough out that every Bout is still open.
+ *
+ * Relative to now, and that is the whole of it. This was a fixed date until the
+ * date arrived. ADR-0006 locks the `cardOrder: 1` Bout automatically at the
+ * card's scheduled start, and `boutState` calls that Bout locked the instant the
+ * moment passes without waiting for a row to be written — so on the morning the
+ * date went by, every test that opened the first Bout of a default card began
+ * finding it already locked, and the suite went red with no line of source
+ * having changed. A fixture with a date written into it is a fixture with an
+ * expiry date on it.
+ *
+ * Two hours, because that is the offset the suites that already say this for
+ * themselves use — `test/helpers/playing.ts`, and the cards in
+ * `test/server/entries.test.ts`. A test that wants a card already being fought
+ * passes its own `scheduledStart` behind this, a negative offset said out loud,
+ * because when the card started is a fact about that test rather than about the
+ * fixture every other test shares.
+ */
+function upcoming(): Date {
+  return new Date(Date.now() + 120 * 60_000);
+}
+
 /** A card as `readCard` would have read one out of Prismic. */
 export function card(overrides: Partial<Card> = {}): Card {
   return {
     prismicId: "event-tfc-12",
     title: "TFC 12",
-    scheduledStart: new Date("2026-09-12T19:00:00Z"),
+    scheduledStart: upcoming(),
     venue: "Tbilisi Sports Palace",
     posterUrl: "https://images.prismic.io/tfc/tfc-12.png",
     bouts: [cardBout()],
