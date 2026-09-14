@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { priceOf, type CommittedEntries, type DraftPrediction } from "#shared/entries";
 import { boutState, PREDICTION_MESSAGES } from "#shared/predictions";
-import { signInPrompt } from "#shared/signIn";
 
 /**
  * The card, and the Entry a fan builds on it.
@@ -134,21 +133,12 @@ const draft = computed<DraftPrediction[]>(() =>
 /**
  * Whether there is an account behind the answers being given.
  *
- * Read once here and handed to everything that needs it — the prompt, and the
- * card that repeats it on each Bout a visitor answers — rather than each of them
+ * Read once here and handed to everything that needs it — the card, which says
+ * so on each Bout a visitor answers, and the panel — rather than each of them
  * deciding for itself. Ten Bouts with ten views on who is looking is the failure
  * this prevents.
  */
 const signedIn = computed(() => Boolean(fan.value));
-
-/**
- * What to say to whoever is holding the card without an account, if anything.
- *
- * Counted off the priced draft rather than off `picks`, so the number it names
- * is the number the panel shows: an answer the card no longer offers is not in
- * the Entry, and has no business being in the sentence either.
- */
-const prompt = computed(() => signInPrompt(signedIn.value, draft.value.length));
 
 /** Clears the card the Entry was built on, and lists the Entry it became. */
 async function submitted() {
@@ -176,10 +166,10 @@ useSeoMeta({
           Straight to the card. What the game is for is said in the strip above
           it, and what an Entry is made of is said by the card itself — a fan who
           presses a fighter has learnt more from it than any paragraph here was
-          telling them.
+          telling them. That goes for the account too: a visitor is told what
+          needs one on the Bout they just answered and on the panel's own
+          button, where the fact is about something in front of them.
         -->
-        <SignInToPlay v-if="prompt" :prompt="prompt" class="mb-8" />
-
         <div class="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <FightCard
             :card="card"

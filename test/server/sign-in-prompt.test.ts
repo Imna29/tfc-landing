@@ -6,20 +6,23 @@ import { cardBout, cardInTheGame } from "../helpers/cards";
 import { setupTestServer } from "../helpers/server";
 
 /**
- * Being told an account is needed *before* answering a card, rather than after.
+ * Being told an account is needed where the fact is about the Bout in hand,
+ * rather than as a refusal at the end or a notice in the way at the start.
  *
  * The card is open to a visitor on purpose, and the requirement used to arrive
  * as a red line under the Submit button — after a fan had worked down ten Bouts
  * and chosen an Amount. That is the bug: at that moment the fact is a refusal,
- * and every answer leading up to it was wasted.
+ * and every answer leading up to it was wasted. The notice that replaced it sat
+ * above the card and was in the way of the one thing a visitor came for, so what
+ * is left says it on the Bout just answered and on the panel's own button.
  *
  * A server file rather than unit cases because the fix is in what the page
  * *renders*, and this repo has no component-test setup: `shared/signIn.ts`
  * decides the sentences and `test/unit/sign-in.test.ts` holds those, but only a
- * rendered page can say whether a visitor is shown one and a signed-in fan is
- * not. The panel's own control is here for the same reason — that it is a link
- * to the form rather than a button that refuses is the whole of the fix, and it
- * is a fact about the HTML.
+ * rendered page can say whether a visitor meets them where they should and a
+ * signed-in fan meets none of them. The panel's own control is here for the same
+ * reason — that it is a link to the form rather than a button that refuses is
+ * the whole of the fix, and it is a fact about the HTML.
  */
 describe("the card a visitor with no account is reading", async () => {
   await setupTestServer();
@@ -39,24 +42,26 @@ describe("the card a visitor with no account is reading", async () => {
     });
   }
 
-  it("asks the visitor to sign in before they have answered anything", async () => {
-    await upcomingCard();
-
-    const rendered = await page();
-
-    expect(rendered).toContain(SIGN_IN_MESSAGES.reading.headline);
-    expect(rendered).toContain(SIGN_IN_MESSAGES.reading.detail);
-  });
-
-  it("still shows them the whole card, with every answer there to press", async () => {
-    // The prompt is an instruction, not a gate. A card that did nothing until a
-    // visitor had an account is the thing this must not become.
+  it("shows them the whole card, with every answer there to press", async () => {
+    // What a visitor is told is a fact, not a gate. A card that did nothing
+    // until a visitor had an account is the thing this must not become.
     await upcomingCard();
 
     const rendered = await page();
 
     expect(rendered).toContain("Giorgi Tsiklauri");
     expect(rendered).toMatch(/aria-pressed="false"/);
+  });
+
+  it("puts nothing between them and the card before they have answered", async () => {
+    // The Bout they press says what needs an account, and the panel says it
+    // again. A standing notice above the card only delays the card.
+    await upcomingCard();
+
+    const rendered = await page();
+
+    expect(rendered).not.toMatch(/Sign in before you answer/i);
+    expect(rendered).not.toMatch(/Sign in to commit what you have answered/i);
   });
 
   it("offers the panel's own action as the way to an account, not as a refusal", async () => {
@@ -89,9 +94,8 @@ describe("the card a visitor with no account is reading", async () => {
 
     const rendered = await page(fan.cookie);
 
-    expect(rendered).not.toContain(SIGN_IN_MESSAGES.reading.headline);
-    expect(rendered).not.toContain(SIGN_IN_MESSAGES.answered.headline);
     expect(rendered).not.toContain(SIGN_IN_MESSAGES.onTheBout);
+    expect(rendered).not.toContain(SIGN_IN_MESSAGES.action);
     expect(rendered).toContain("Submit Entry");
   });
 });

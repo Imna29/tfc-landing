@@ -112,9 +112,9 @@ const lockNote = computed(() => {
  * a card that did nothing until a visitor had an account is a worse way into
  * the game than one they can play with straight away. What changed is when they
  * are told an account is needed. It used to be the moment they pressed Submit,
- * with a card's worth of answers already given; it is now said before they
- * answer anything and again on each Bout they answer — see
- * {@link needsAnAccount} and `shared/signIn.ts`.
+ * with a card's worth of answers already given; it is now said on each Bout
+ * they answer, as they answer it — see {@link needsAnAccount} and
+ * `shared/signIn.ts`.
  */
 const answering = computed(() => props.picking === true && state.value === "open");
 
@@ -122,18 +122,17 @@ const answering = computed(() => props.picking === true && state.value === "open
  * Whether this Bout is one a visitor has answered without an account.
  *
  * The requirement is said here, on the Bout, because this is where they are
- * looking. `SignInToPlay` says it at length above the card, and above the card
- * is off screen by the third Bout of ten — a fan working down the card would
- * answer all of it before reading a word. One clause where they pressed reaches
- * them; a paragraph at the top does not.
+ * looking. The card once carried a paragraph above it saying the same thing at
+ * length, and above the card is off screen by the third Bout of ten — a fan
+ * working down the card would answer all of it before reading a word. One
+ * clause where they pressed reaches them; a paragraph at the top does not.
  *
  * Only while the Bout is still open. A locked Bout has its own note saying so,
  * and nothing about an account changes what a fan can do with it.
  *
- * What it renders is deliberately not a live region. `SignInToPlay` above the
- * card is the one on this page, and it is already saying this the moment a first
- * answer is given — ten Bouts each announcing it again would be the same
- * sentence read out on every press.
+ * What it renders is deliberately not a live region. Ten Bouts each announcing
+ * it would be the same sentence read out on every press, and the panel already
+ * carries the one thing a fan has to act on.
  */
 const needsAnAccount = computed(
   () => props.needsAccount === true && answering.value && Boolean(props.pick),

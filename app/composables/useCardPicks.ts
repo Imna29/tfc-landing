@@ -3,17 +3,18 @@ import { readAnswer, type OutcomeAnswer } from "#shared/pricing";
 /**
  * What a fan has answered on the card, by the Bout it answers.
  *
- * The card tells a visitor with no account to sign in *before* they answer a
- * Bout (`shared/signIn.ts`), and promises in so many words that the answers they
- * have already given are still there when they come back. This is what makes
- * that sentence true. It is the only reason the answers live anywhere but in the
- * page: a promise the product makes in a paragraph a fan reads has to be kept by
- * something, and before this it was kept by nothing.
+ * The card tells a visitor with no account that committing the Bout they just
+ * answered needs one (`shared/signIn.ts`), and the form it sends them to
+ * promises in so many words that the answers they have already given are still
+ * there when they come back. This is what makes that sentence true. It is the
+ * only reason the answers live anywhere but in the page: a promise the product
+ * makes in a line a fan reads has to be kept by something, and before this it
+ * was kept by nothing.
  *
  * Two layers, because the answers have to survive two different things.
  * {@link Picks.picks} is `useState`, which carries them across a client-side
  * navigation — the card to the sign-in form and back, which is the trip the
- * prompt actually sends a fan on. `sessionStorage` underneath it carries them
+ * panel's own button actually sends a fan on. `sessionStorage` underneath it carries them
  * across a *reload* of either page: the fan who refreshes the form, the one
  * whose chunk failed to load, the one who came back tomorrow to a restored tab.
  * Neither covers the other, and the promise is unconditional.
