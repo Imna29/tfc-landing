@@ -32,6 +32,7 @@ import { eq, inArray, sql } from "drizzle-orm";
 import type { DatabaseConnection } from "../db/client";
 import { boutLocks, bouts, events, users } from "../db/schema";
 import { useDatabase } from "./db";
+import { askedOncePerRequest } from "./perRequest";
 
 /** The name of the trigger that refuses to reopen a Bout that has locked. */
 export const A_LOCKED_BOUT_IS_NEVER_REOPENED = "a_locked_bout_is_never_reopened";
@@ -197,11 +198,56 @@ export async function lockBout(
  * One statement, so that the whole sweep is atomic and two requests arriving
  * together cannot both lock the same Bout: the second finds the row already
  * locked and writes nothing.
+ *
+ * **Once per request, however many of those requests call it.** Rendering
+ * `/predictions` calls both `/api/predictions/card` and
+ * `/api/predictions/entries`, and each of those is one of the requests that
+ * has to sweep — so the page swept the same card twice, the second time an
+ * instant after the first had finished writing. Both routes still call this
+ * exactly as they did; what changed is that the second call within one render
+ * is handed what the first one wrote. See ADR-0023, and
+ * `server/utils/perRequest.ts`.
+ *
+ * Two things follow from sharing, and both are why every route reads a Bout's
+ * state rather than this answer. The moment swept against is the first
+ * caller's rather than each caller's own `now` — harmless because the refusal
+ * a fan meets is `automaticLock` asked directly, as the paragraph above says,
+ * and not a row this wrote. And the Bouts answered are the ones the *first*
+ * call locked, so a second caller in one request is told what that one wrote
+ * rather than the empty list it would have written itself. Nothing reads
+ * either: the admin area asks {@link locksOn} what actually happened.
+ *
+ * A caller that names its own connection is not sharing: it is settlement or a
+ * test sweeping inside a transaction of its own (see {@link lockBout}), and
+ * rows written on somebody else's connection are not an answer about that one.
  */
 export async function applyAutomaticLocks(
   now: Date = new Date(),
-  on: DatabaseConnection = useDatabase(),
+  on?: DatabaseConnection,
 ): Promise<LockedBout[]> {
+  if (on) return sweepDue(now, on);
+
+  return theLocksThatHaveFallenDue(now);
+}
+
+/**
+ * The sweep as a request runs it: on the application's own connection, and at
+ * most once however many of the request's routes call for it.
+ *
+ * No subject, because there is only one card in the game and one set of Locks
+ * due on it — every caller in one request is asking the same question, and
+ * `askedOncePerRequest` says so by taking no `about`.
+ */
+const theLocksThatHaveFallenDue = askedOncePerRequest((now: Date) => sweepDue(now, useDatabase()));
+
+/**
+ * The sweep itself: one statement that locks every Bout whose moment has
+ * passed and records each Lock at the moment it fell due.
+ *
+ * Separate from {@link applyAutomaticLocks} only so that the sharing above can
+ * wrap it. Everything about *why* it is shaped this way is on that function.
+ */
+async function sweepDue(now: Date, on: DatabaseConnection): Promise<LockedBout[]> {
   const seconds = sweepWindow() / 1000;
 
   const locked = await on.execute<{ bout_id: string; kind: CardLockKind; locked_at: Date }>(sql`

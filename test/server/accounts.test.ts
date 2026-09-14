@@ -181,6 +181,44 @@ describe("accounts", async () => {
     expect(await $fetch("/profile", { headers: { cookie } })).toContain("cage-side");
   });
 
+  it("tells two fans asking at the same moment apart", async () => {
+    // The guard on #50's saving: a request works the session out once and
+    // hands that answer to everything inside it, including the internal calls
+    // a page render makes. One request, and the answer dies with it — an
+    // answer about one fan reaching another is the failure that would make.
+    const { cookie: red } = await signUp({ username: "red-corner" });
+    const { cookie: blue } = await signUp({ username: "blue-corner" });
+
+    const [first, second] = await Promise.all([
+      $fetch("/api/accounts/me", { headers: { cookie: red } }),
+      $fetch("/api/accounts/me", { headers: { cookie: blue } }),
+    ]);
+
+    expect(first).toMatchObject({ username: "red-corner" });
+    expect(second).toMatchObject({ username: "blue-corner" });
+  });
+
+  it("renders each fan their own page, whoever asked a moment before", async () => {
+    // A page render is the case worth asserting rather than the API call: the
+    // username on it comes from `/api/accounts/me` fetched inside the render,
+    // which is the one place two requests share anything at all.
+    const { cookie: red } = await signUp({ username: "red-profile" });
+    const { cookie: blue } = await signUp({ username: "blue-profile" });
+
+    const [forRed, forBlue, forNobody] = await Promise.all([
+      $fetch<string>("/profile", { headers: { cookie: red } }),
+      $fetch<string>("/profile", { headers: { cookie: blue } }),
+      $fetch<string>("/profile"),
+    ]);
+
+    expect(forRed).toContain("red-profile");
+    expect(forRed).not.toContain("blue-profile");
+    expect(forBlue).toContain("blue-profile");
+    expect(forBlue).not.toContain("red-profile");
+    expect(forNobody).toContain("/account/sign-in");
+    expect(forNobody).not.toContain("red-profile");
+  });
+
   it("signs a returning fan back in", async () => {
     const { details, cookie } = await signUp({ username: "returning" });
     await signOutRequest(cookie);
