@@ -49,6 +49,21 @@
   --color-on-tertiary: #003350;
   --color-on-surface: #e5e2e1;
 
+  /* TFC Coins: the gold of the coin in `redesign/tfc-coin-faces.svg`, so a
+     Multiplier and the mark beside a Balance are struck from the same metal. */
+  --color-coin: #f8ca15;
+
+  /* The blue corner, from the blue of the mark in `public/tfc_logo.png`
+     (#194a7d) — so the two corners of a Bout are the two colours TFC is drawn
+     in rather than one of them and a pastel.
+
+     Lifted off the mark's own value by the amount `--color-primary-container`
+     is lifted off the mark's red: the logo is drawn for white, this theme is
+     drawn on #131313, and #194a7d against that is a rule nobody can see. Same
+     hue and saturation as the mark, at the contrast the red corner already
+     carries, so neither corner shouts over the other. */
+  --color-corner-blue: #2670c0;
+
   --font-family-headline: "Space Grotesk", sans-serif;
   --font-family-body: "Inter", sans-serif;
   --font-family-label: "Inter", sans-serif;
@@ -209,9 +224,15 @@
   }
 
   @keyframes digitBounce {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.15); }
-    100% { transform: scale(1); }
+    0% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
   }
 
   /* Ken Burns for hero background */
@@ -219,8 +240,12 @@
     animation: kenBurns 20s ease-out forwards;
   }
   @keyframes kenBurns {
-    0% { transform: scale(1); }
-    100% { transform: scale(1.08); }
+    0% {
+      transform: scale(1);
+    }
+    100% {
+      transform: scale(1.08);
+    }
   }
 
   /* Pulse for play buttons */
@@ -228,17 +253,36 @@
     animation: playPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
   @keyframes playPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.85; transform: scale(1.05); }
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: scale(1.05);
+    }
   }
 
   /* Stagger delays */
-  .mma-delay-1 { transition-delay: 0.08s; }
-  .mma-delay-2 { transition-delay: 0.16s; }
-  .mma-delay-3 { transition-delay: 0.24s; }
-  .mma-delay-4 { transition-delay: 0.32s; }
-  .mma-delay-5 { transition-delay: 0.40s; }
-  .mma-delay-6 { transition-delay: 0.48s; }
+  .mma-delay-1 {
+    transition-delay: 0.08s;
+  }
+  .mma-delay-2 {
+    transition-delay: 0.16s;
+  }
+  .mma-delay-3 {
+    transition-delay: 0.24s;
+  }
+  .mma-delay-4 {
+    transition-delay: 0.32s;
+  }
+  .mma-delay-5 {
+    transition-delay: 0.4s;
+  }
+  .mma-delay-6 {
+    transition-delay: 0.48s;
+  }
 
   /* Modal transitions */
   .mma-modal-enter-active,

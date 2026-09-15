@@ -1,0 +1,1 @@
+CREATE INDEX "balance_cache_by_standing" ON "balance_cache" USING btree ("season_id","balance" DESC NULLS LAST,"updated_at","user_id");

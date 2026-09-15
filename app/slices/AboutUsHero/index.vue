@@ -39,10 +39,18 @@ onMounted(() => {
       <h1
         class="font-headline text-5xl sm:text-6xl md:text-9xl font-black italic uppercase leading-none tracking-tighter text-white"
       >
-        <span class="block mma-fade-up" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.2s' }">
+        <span
+          class="block mma-fade-up"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.2s' }"
+        >
           {{ slice.primary.title }}
         </span>
-        <span class="block mma-fade-up text-primary-container" :class="{ 'mma-active': isMounted }" :style="{ transitionDelay: '0.35s' }">
+        <span
+          class="block mma-fade-up text-primary-container"
+          :class="{ 'mma-active': isMounted }"
+          :style="{ transitionDelay: '0.35s' }"
+        >
           {{ slice.primary.title_highlight }}
         </span>
       </h1>

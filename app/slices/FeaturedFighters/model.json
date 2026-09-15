@@ -1,94 +1,87 @@
 {
+  "description": "FeaturedFighters",
   "id": "featured_fighters",
-  "type": "SharedSlice",
   "name": "FeaturedFighters",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "Title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "Subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "fighters": {
-          "type": "Group",
           "config": {
-            "label": "Fighters",
-            "repeat": true,
             "fields": {
               "name": {
-                "type": "Text",
                 "config": {
                   "label": "name",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "nickname": {
-                "type": "Text",
                 "config": {
                   "label": "nickname",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "record": {
-                "type": "Text",
                 "config": {
                   "label": "record",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "nationality": {
-                "type": "Text",
                 "config": {
                   "label": "nationality",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "height": {
-                "type": "Text",
                 "config": {
                   "label": "height",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "age": {
-                "type": "Text",
                 "config": {
                   "label": "age",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "fighter_image": {
-                "type": "Image",
                 "config": {
-                  "label": "fighter image",
                   "constraint": {},
+                  "label": "fighter image",
                   "thumbnails": []
-                }
+                },
+                "type": "Image"
               },
               "fighter": {
-                "type": "Link",
                 "config": {
-                  "label": "",
-                  "select": "document",
                   "customtypes": [
                     {
-                      "id": "fighter",
                       "fields": [
                         "name",
                         "nickname",
@@ -97,17 +90,24 @@
                         "image",
                         "from",
                         "height"
-                      ]
+                      ],
+                      "id": "fighter"
                     }
                   ],
-                  "repeat": false
-                }
+                  "label": "",
+                  "repeat": false,
+                  "select": "document"
+                },
+                "type": "Link"
               }
-            }
-          }
+            },
+            "label": "Fighters",
+            "repeat": true
+          },
+          "type": "Group"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "FeaturedFighters"
+  ]
 }

@@ -1,14 +1,23 @@
 <script setup lang="ts">
 import { isFilled } from "@prismicio/client";
-import type { Content } from "@prismicio/client";
+import type { Content, RTNode } from "@prismicio/client";
 import { computed, ref, onMounted, onUnmounted, nextTick } from "vue";
 
 const props = defineProps(
   getSliceComponentProps<Content.OurStorySlice>(["slice", "index", "slices", "context"]),
 );
 
-const bodyParagraphs = computed(() => {
-  return (props.slice.primary.body ?? []).flatMap((block) => {
+const bodyParagraphs = computed<RTNode[]>(() => {
+  // Widened to a plain array first: a rich text field is typed as the empty
+  // tuple *or* a non-empty one, and `flatMap` over that union has no single
+  // callback signature to resolve against — so the block arrived as `never`
+  // and every paragraph came out `unknown`.
+  const blocks: RTNode[] = props.slice.primary.body ?? [];
+
+  // The type argument is pinned because inference takes it from the first
+  // branch below — every node that is not a paragraph — and then refuses the
+  // paragraphs the second branch returns.
+  return blocks.flatMap<RTNode>((block) => {
     if (block.type !== "paragraph") {
       return [block];
     }
@@ -56,7 +65,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     headerObserver.observe(header);
   }
@@ -88,7 +97,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
   );
 
   paragraphs.forEach((p) => {
@@ -125,7 +134,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -30px 0px" },
   );
 
   stats.forEach((stat) => {
@@ -146,7 +155,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     imageObserver.observe(image);
   }
@@ -205,7 +214,11 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div data-story-image class="relative mma-fade-right" :class="{ 'mma-active': isImageInView }">
+      <div
+        data-story-image
+        class="relative mma-fade-right"
+        :class="{ 'mma-active': isImageInView }"
+      >
         <div class="absolute -top-4 -left-4 w-full h-full border-2 border-primary-container/20" />
         <img
           v-if="isFilled.image(slice.primary.image)"

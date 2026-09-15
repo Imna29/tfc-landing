@@ -1,124 +1,124 @@
 {
+  "description": "HeroSection",
   "id": "hero_section",
-  "type": "SharedSlice",
   "name": "HeroSection",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "background_image": {
-          "type": "Image",
           "config": {
-            "label": "Background Image",
             "constraint": {},
+            "label": "Background Image",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "badge_text": {
-          "type": "Text",
           "config": {
             "label": "Badge Text",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "headline_1": {
-          "type": "Text",
           "config": {
             "label": "Headline 1",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "headline_2": {
-          "type": "Text",
           "config": {
             "label": "Headline 2",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "headline_3": {
-          "type": "Text",
           "config": {
             "label": "Headline 3",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "description": {
-          "type": "StructuredText",
           "config": {
+            "allowTargetBlank": true,
             "label": "description",
             "placeholder": "",
-            "single": "paragraph,strong,em,hyperlink",
-            "allowTargetBlank": true
-          }
+            "single": "paragraph,strong,em,hyperlink"
+          },
+          "type": "StructuredText"
         },
         "event_time": {
-          "type": "Timestamp",
           "config": {
             "label": "Event time",
             "placeholder": ""
-          }
+          },
+          "type": "Timestamp"
         },
         "event_location": {
-          "type": "Text",
           "config": {
             "label": "Event Location",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "cta": {
-          "type": "Group",
           "config": {
-            "label": "cta",
-            "repeat": true,
             "fields": {
               "label": {
-                "type": "Text",
                 "config": {
                   "label": "label",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "link": {
-                "type": "Link",
                 "config": {
-                  "label": "link",
-                  "placeholder": "",
-                  "select": null,
                   "allowTargetBlank": true,
                   "allowText": true,
+                  "label": "link",
+                  "placeholder": "",
                   "repeat": false,
+                  "select": null,
                   "variants": [
                     "Primary",
                     "Secondary"
                   ]
-                }
+                },
+                "type": "Link"
               },
               "icon": {
-                "type": "Text",
                 "config": {
                   "label": "icon",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               }
-            }
-          }
+            },
+            "label": "cta",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "tba": {
-          "type": "Boolean",
           "config": {
-            "label": "tba",
             "default_value": false,
-            "placeholder_true": "true",
-            "placeholder_false": "false"
-          }
+            "label": "tba",
+            "placeholder_false": "false",
+            "placeholder_true": "true"
+          },
+          "type": "Boolean"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "HeroSection"
+  ]
 }

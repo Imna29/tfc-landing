@@ -1,77 +1,77 @@
 {
+  "description": "UpcomingEvent",
   "id": "upcoming_event",
-  "type": "SharedSlice",
   "name": "UpcomingEvent",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "event_date": {
-          "type": "Timestamp",
           "config": {
             "label": "Event Date",
             "placeholder": ""
-          }
+          },
+          "type": "Timestamp"
         },
         "event_venue": {
-          "type": "Text",
           "config": {
             "label": "Event Venue",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "event_poster": {
-          "type": "Image",
           "config": {
-            "label": "Event Poster",
             "constraint": {},
+            "label": "Event Poster",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         },
         "main_headline": {
-          "type": "Text",
           "config": {
             "label": "Main Headline",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "Subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "background_watermark": {
-          "type": "Text",
           "config": {
             "label": "Background Watermark",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "tba": {
-          "type": "Boolean",
           "config": {
-            "label": "tba",
             "default_value": false,
-            "placeholder_true": "true",
-            "placeholder_false": "false"
-          }
+            "label": "tba",
+            "placeholder_false": "false",
+            "placeholder_true": "true"
+          },
+          "type": "Boolean"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "UpcomingEvent"
+  ]
 }

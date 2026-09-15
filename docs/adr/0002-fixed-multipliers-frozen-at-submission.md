@@ -1,0 +1,31 @@
+---
+status: accepted
+---
+
+# Multipliers are fixed by an admin and copied onto the Prediction at submission
+
+An admin sets a Multiplier per Outcome before a Bout opens, and the value in force at
+submission is copied onto the Prediction and never recalculated. The alternative was a
+pool-based model — compute rewards at settlement from how the committed Coins actually
+split across Outcomes — which is self-balancing and needs no human pricer, but leaves the
+user not knowing what they stand to win at the moment they commit, and makes Chained
+Entries very hard to explain or compute.
+
+Since chaining is a headline feature and the emotional payload of the product is "commit 20
+to win 240", legibility beat self-balancing.
+
+## Consequences
+
+- A mispriced Outcome is exploitable and nothing self-corrects it. Hence the combined
+  Multiplier cap and the ten-Prediction limit: they bound the damage of a pricing mistake
+  rather than preventing it. The cap was ×100 here, removed by [[adr-0020]], and is ×10000
+  since [[adr-0021]] — high enough that the ten-Prediction limit is the bound that does the
+  work on an ordinary Entry.
+- Someone at TFC must price every card before it opens. That is an ongoing operational
+  commitment, not a one-off setup task.
+- A Prediction stores its Multiplier as a value, never a reference to the Outcome's current
+  Multiplier.
+- Those values are the whole of what is frozen. The combined Multiplier they multiply out to,
+  the cap on it and the Reward are worked out wherever one is needed rather than written down —
+  see [[adr-0013]], which decided that the cap was a rule of the game rather than part of what
+  a fan was offered, and [[adr-0021]], which sets it at ×10000 and keeps that reasoning.

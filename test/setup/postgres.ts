@@ -20,7 +20,26 @@ let container: StartedPostgreSqlContainer | undefined;
  * and can never damage it.
  */
 export async function setup(project: TestProject) {
-  container = await new PostgreSqlContainer(image).start();
+  container = await new PostgreSqlContainer(image)
+    // A database that is thrown away at the end of the run has no reason to
+    // survive losing power, and every test pays for the guarantee that it
+    // would: each `beforeEach` truncate and each write a request makes waits
+    // on a real disk flush. Turning the three durability settings off is worth
+    // roughly a fifth of the time the tests spend talking to Postgres.
+    //
+    // Safe only because of what this container is. Never do this to a database
+    // whose contents anybody expects to still be there.
+    .withCommand([
+      "postgres",
+      "-c",
+      "fsync=off",
+      "-c",
+      "synchronous_commit=off",
+      "-c",
+      "full_page_writes=off",
+    ])
+    .start();
+
   const databaseUrl = container.getConnectionUri();
 
   await runMigrations(databaseUrl);

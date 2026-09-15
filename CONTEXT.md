@@ -1,0 +1,543 @@
+# Context
+
+The glossary for this project. Terms here are canonical: use them in code, issues, tests
+and UI copy, and avoid the synonyms each entry rules out.
+
+## Naming rule: no sportsbook vocabulary
+
+This product is a free-to-play prediction game, not a sportsbook, and the language has to
+hold that line everywhere — schema, API, UI copy. **Banned: bet, wager, slip, stake, odds,
+parlay, accumulator, bookmaker, payout, void, punter, bankroll, market.** The replacements
+below are the approved vocabulary. When a new concept needs a name, pick the word a quiz or
+fantasy-league product would use, not the word a betting site would.
+
+The list is enforced rather than remembered: `test/unit/vocabulary.test.ts` sweeps every file
+a fan can read and every decision record in `docs/adr/`, matching inflections, so a word
+reached for out of habit fails a run rather than a review.
+
+Two deliberate exceptions. **marketing** never counts, though banning "market" catches it: it
+is the word for the site TFC runs beside the game and has no synonym, the rule is about the
+game's vocabulary rather than the company's, and a guard that fires on legitimate copy is a
+guard somebody switches off. And **this file is not swept**: it is the rule rather than prose
+subject to it, and it cannot ban a word without naming it — every entry below that says never
+"odds" or never a "stake" would fail a check that cannot tell a mention from a use.
+
+## Prediction Game
+
+The feature is called **TFC Predictions** in public-facing copy. Not "prediction market" —
+"market" is finance and sportsbook vocabulary, and the naming rule above applies to the
+product name too.
+
+### PlayTFC
+
+The part of the site TFC Predictions is played in, and the name on the one button that
+leads there from the marketing site. A section rather than a page: the card, everything a
+fan has committed to it, the [[leaderboard]], and the account behind them, under a
+navigation of their own.
+
+Its navigation is three items — the card, **My Predictions**, and the leaderboard — and
+they are three different things a fan comes to do: answer the card, read what they are
+riding on, and see where that leaves them.
+
+The game is still **TFC Predictions** wherever it is described — this is what a fan
+presses and where they end up, not a second name for the feature. Written as one word,
+capitalised this way, because it is a mark rather than a sentence.
+
+The line between the two sites is drawn in `app/utils/navigation.ts` and applied by
+`app/middleware/play-section.global.ts`, so which chrome a page gets is decided in one
+place rather than page by page. It is deliberately not the same list as the edge-cache
+exemptions in `route-rules.ts`: that one is about what may be stored, this one about what
+a page looks like. They agree on every page today — nothing in the game is cached since
+[[adr-0018]] removed the two pages that were — but the exemption list also carries `/api`
+and `/admin`, which are not pages a fan plays on.
+
+### Event
+
+One TFC fight card: a set of Bouts on a single date at a single venue. Authored in Prismic
+and [[import]]ed into Postgres by an admin, which is what the game runs on from then on.
+Belongs to exactly one Season. See [[adr-0001]].
+
+One Event at a time is **the card being fought**: the next one until it starts, and then
+that same one until the [[sweep]] behind it has closed every Bout on it. It is the card a
+fan is offered and the card an admin runs from the live lock console, and it is one answer
+rather than two that agree — a card that stopped being the first before it stopped being
+the second would be a card a fan could commit Coins to and nobody could lock.
+
+### Lock
+
+The moment a Bout stops accepting Predictions. Bouts lock individually: the first
+automatically at the card's scheduled start, the rest advanced by an admin during the
+event, with automatic backstops behind them. A locked Bout can never be reopened.
+See [[adr-0006]].
+
+Every Lock is recorded — when it happened, how, and which admin if one did it — and that
+record is the answer to a fan who thinks their Bout closed too early. Its moment is the
+moment the Bout stopped taking Predictions, never the moment the row was written: an
+automatic Lock falls due while nobody is looking and is written down by the next request
+to arrive.
+
+The four ways a Bout locks: an admin locks it (**manual**), the card reaches its
+scheduled start with the Bout fought first still open (**scheduled**), the [[sweep]]
+passes (**sweep**), or a result is entered on a Bout still open (**result**). Only the
+first is somebody deciding to close that Bout at that moment, and the other three are
+**automatic** — a result Lock included, because what the admin decided to do was enter a
+result.
+
+Two of them are recorded against the admin whose action caused them, manual and result;
+the two the card performs on its own are recorded against nobody, because nobody
+performed them.
+
+### Sweep
+
+The last automatic backstop: every Bout still open a configured window after the card's
+scheduled start — six hours by default — is locked regardless of what an admin
+remembered to do.
+
+Not a scheduled job. There is nothing to run one on ([[adr-0009]], [[adr-0010]]), so it
+is applied by the requests that care where a Bout is: the public card, an Entry being
+submitted or cancelled, the listing a fan reads the Entries they can still cancel in, and
+the admin area. A card nobody is looking at locks the moment somebody looks, and the
+[[lock]] is still dated at the moment it fell due.
+
+Not [[my-predictions]], which is the one listing of Entries that does not apply it:
+nothing there can be cancelled, and a Prediction is graded against what its Bout produced
+rather than against the moment it stopped taking answers.
+
+### Result
+
+What happened in a [[bout]], as an admin records it: who won and the method it ended by —
+or who won and nothing else, on a Bout whose [[discipline]] asks no method Question
+([[adr-0017]]). A Result records what the game asked about.
+
+Not the round it ended in. That was recorded while the game asked a round of victory
+Question and existed to grade the answers to it; with the Question retired ([[adr-0016]])
+nothing reads it, and a Result records what the game asked about.
+
+Recorded once per Bout and only after it has locked — entering one locks a Bout still open
+— and the Bout is **settled** from that moment, which is the end of the road its status
+travels: closed, open, locked, settled. A Result entered wrong is corrected rather than
+deleted, the way a Coin Transaction is — see [[correction]] and [[adr-0003]].
+
+A Result may record one more method than the game offers: a **disqualification**. It is
+how a Bout ends and it is not one of the answers any fan was shown, so it settles the winner
+Question and turns the method Question into a [[no-result]]. It is not recorded on a Bout
+with no method Question, because there is nothing there for it to do.
+
+Not a "score" and not an "outcome": an [[outcome]] is an answer the game offered, and a
+Result is what actually happened. A [[bout]] that produced nothing gradable is a
+[[no-result]] rather than a Result of its own. Both are recorded the same way and in the
+same place, and a Bout is **settled** either way.
+
+### Correction
+
+Replacing a [[result]] that was entered wrong, once Entries have already settled against
+it. The Bout stays settled and its Lock stays where it was: what was wrong is the record of
+the fight, not the fact that it is over.
+
+A Correction **reverses** the Coin Transactions the first Result wrote and grades every
+Entry on the Bout again ([[adr-0003]]). It never edits or deletes one: a fan whose Entry
+flipped from Won to Lost has the Reward taken back by a row that says so, standing beside
+the row that paid it, so the mistake and its fix are both readable afterwards. An Entry
+whose grade has not changed is not moved at all.
+
+What the Bout used to be recorded as is kept, with who entered it, who corrected it and
+when — the answer to a fan whose Entry was Won yesterday and is Lost today. The one Entry a
+Correction never reaches is a cancelled one ([[cancellation]]), which was taken back before
+anything in it was decided.
+
+Not an "amendment", and never "voiding" a Result. Correcting is what the ledger is shaped
+for, not an exception to it.
+
+### Settlement
+
+Grading every Entry affected by a Bout's [[result]] and writing the resulting Coin
+Transactions, as one transaction. An Entry becomes Lost the instant any of its Predictions
+loses, without waiting for its remaining Bouts. See [[adr-0003]].
+
+A Prediction is **correct** when the one answer it holds is what the Bout produced. Whether
+it landed is worked out from the Bout's Result whenever it is shown, never written onto the
+Prediction — the [[result]] is the only record of what happened.
+
+### Bout
+
+A single scheduled fight between two fighters on an event card. Carries its two fighters,
+the [[discipline]] it is fought in, its weight class, and how many rounds it is scheduled
+for.
+
+Not a "match", "fight", or "matchup". A Bout is the thing users predict against; the
+`fighter` documents it references are the same fighters shown on the marketing site.
+
+### Corner
+
+One side of a [[bout]]: **red** or **blue**. Carries the name the fighter is fought under
+and, when that fighter has a `fighter` document, their image and the uid their profile
+page is reached by.
+
+A corner with only a name is a **fallback name**, and is how a late replacement booked
+days before a card appears on it at all. Requiring a document would mean either a rushed
+half-empty one or a Bout that cannot be published, and the second costs predictions on a
+fight that is actually happening. See [[adr-0001]].
+
+### Discipline
+
+What is being fought: **MMA**, **CageBox** or **Cage Grappling**. TFC books all three and
+puts them on one card, so it is a fact about a [[bout]] rather than about an [[event]].
+
+The one fact about a fight that changes what the game asks about it ([[adr-0017]]). An MMA
+Bout is asked both [[question]]s and carries eight [[outcome]]s; a CageBox Bout is boxing, so
+Submission is not an ending it has, and it carries six; a Cage Grappling Bout is asked the
+winner Question alone and carries two. A [[result]] records what its discipline asked, so a
+Cage Grappling Bout is settled on its winner and records no method at all.
+
+A closed set the game recognises, deliberately unlike the weight class beside it. A division
+is text a card shows; a discipline is priced and graded against, so one the game has never
+been taught is refused at [[import]] rather than written as a Bout nothing knows what to ask.
+It is read from the uid of the `discipline` document in Prismic — the name there is what an
+editor picks it by and nothing reads.
+
+Not a "sport", not a "ruleset" and not a "format". Format is how long a Bout is booked for,
+which decides nothing ([[adr-0016]]).
+
+### Card order
+
+Where a [[bout]] sits on an [[event]]: 1 is fought first. Two Bouts on one card can never
+share a place — it is the order they are locked in as the card progresses ([[adr-0006]]),
+and the order a fan reads the card in.
+
+Deliberately not the order the Bouts appear in Prismic, which is usually the reverse: a
+card is written main event first and fought the other way round.
+
+### Import
+
+Copying an [[event]] and its [[bout]]s out of Prismic and into Postgres, which is where
+the game reads them from afterwards ([[adr-0001]]). An admin does it, and does it again to
+pull a lineup change through — but only while every Bout on the card is still closed. Once
+one is open, fans hold Coins against these rows and the card can no longer be replaced.
+
+Not a "sync": nothing goes back the other way, and nothing repeats it on a schedule.
+
+### Question
+
+One thing asked about a Bout. There are two: **winner** and **method of victory**.
+
+**Not every Bout is asked both.** The winner Question is asked of every Bout on every card;
+the method Question is asked only where the [[discipline]] has methods, which is everything
+but Cage Grappling ([[adr-0017]]).
+
+There were three. A **round of victory** was retired by [[adr-0016]]: it was the Question a
+fan was least equipped to answer, the one that made what a Bout offers depend on how long it
+was booked for, and the one whose price was hardest to be right about. Nothing about it
+survives — no round Outcome, no round Prediction, and no round on a [[result]].
+
+Each is asked and answered on its own terms: a Prediction answers exactly one of them, and
+each carries its own [[multiplier]] ([[adr-0014]]).
+
+Each is also asked about a [[corner]] ([[adr-0015]]): the answers are "Fighter A" and
+"Fighter A by KO/TKO", never a bare method. The words "of victory" name a victor because the
+answer names one.
+
+Which methods it may be answered with is the [[discipline]]'s to say as well: three on an MMA
+Bout, two on a CageBox one, which cannot end in a Submission.
+
+A Question is never an answer — "KO/TKO" is not a Question. Previously called a "market";
+renamed because "market" reads as sportsbook, and now banned outright by the naming rule
+above.
+
+### Outcome
+
+One selectable answer to a Question — "Fighter A", "Fighter A by KO/TKO" — carrying the
+Multiplier that answer pays.
+
+Every Outcome names the [[corner]] it is about ([[adr-0015]]), so a method is an answer about
+a fighter rather than about the Bout. **How many a Bout offers is its [[discipline]]'s to
+say** ([[adr-0017]]): eight on an MMA Bout — two winner and six method — six on a CageBox
+one, and two on a Cage Grappling Bout. It is the same number whatever format it is booked in
+([[adr-0016]]).
+
+### Multiplier
+
+The number an Outcome pays, set by an admin before the Bout opens. **Never "odds".**
+
+A Multiplier is copied onto a Prediction when the Entry is submitted and never recalculated.
+Editing an Outcome's Multiplier afterwards never changes an Entry that already exists.
+See [[adr-0002]].
+
+Every Multiplier stands for its own answer outright ([[adr-0014]]): a method of ×6.4 means
+×6.4 if that fighter wins the Bout that way ([[adr-0015]]). Multipliers combine only across
+different Bouts, never between the Questions asked about one.
+
+Every Outcome is [[import]]ed carrying a **seeded** Multiplier from a fixed table, so that
+pricing a card is a Bout's numbers adjusted rather than authored from blank. A seeded
+Multiplier is deliberately not a price: an Outcome is **priced** only once an admin has set
+it, and a Bout with an **unpriced** Outcome cannot be opened.
+
+The table is per [[discipline]], and a Question a discipline asks fewer answers to is still
+worth what it was worth: CageBox's two method numbers carry the chance the Submission answer
+was holding, rather than being MMA's with a row deleted ([[adr-0017]]).
+
+### Prediction
+
+A fan's answer to **one Question on one Bout**: a single Outcome — a winner or a method of
+victory, always naming the [[corner]] it is about ([[adr-0015]]) — carrying the Multiplier
+that Outcome pays. Never a compound answer: a fan who has a read on only one of the two says
+only that, and it is a whole Prediction.
+
+An Entry holds **at most one Prediction per Bout**, which is what keeps the game's arithmetic
+honest: within a Bout there is one answer, and chaining is across different Bouts, which are
+independent of each other, so nothing correlated is ever multiplied. See [[adr-0014]]. A fan
+holding two views on one Bout commits two Entries.
+
+That rule holds harder than it reads. "Fighter A by Decision" says everything "Fighter A
+wins" says and more, so an Entry allowed to hold both would pay a fan for two answers when
+they gave nearly one ([[adr-0015]]).
+
+A method of victory stands on its own — a fan can say Fighter A wins by Submission without
+having answered the winner Question first. It is graded on the winner as well as the method,
+because it names one: "Fighter B by Submission" is wrong on a Bout Fighter A submitted. On a
+Bout whose [[discipline]] asks no method Question there is no such Prediction to make.
+
+### Entry
+
+The committed unit: between one and ten Predictions plus an Amount of Coins. An Entry is
+what a user *submits*, and what [[my-predictions]] lists.
+
+An Entry with more than one Prediction is a **Chained Entry**. Never a "slip", never a
+"parlay" or "accumulator".
+
+### Entry Status
+
+One of **Open** (some Predictions still unresolved), **Won** (every Prediction correct or
+No Result, Reward paid), **Lost** (at least one Prediction wrong), **Cancelled** (the fan
+took it back before any of it was decided — see [[cancellation]]), or **Refunded** (every
+Prediction was No Result, Amount returned).
+
+The last two both return the Amount in full and are not the same thing. A Cancellation is
+the fan's decision, taken while every Bout in the Entry was still open; a Refund is the
+game's, because nothing in the Entry turned out to be gradable ([[adr-0005]]).
+
+### My Predictions
+
+The page a fan reads their own [[entry]]s on, at `/predictions/mine`, and the second item
+in the PlayTFC navigation. Two halves: the Entries **still open**, which is what a fan
+opening it mid-card came for, and everything **finished** — Won, Lost, Cancelled or
+Refunded — grouped by the [[season]] it was committed in and kept forever.
+
+An Entry is in one half or the other, never both. Every Open Entry is in the Season being
+played, because a Season will not close while a Bout on one of its Events is still open,
+which is why only the finished half is grouped by Season at all.
+
+It is in the game's own section rather than on the profile, where it used to be: a fan
+checking whether their chain survived Bout 3 is playing rather than administering an
+account. The profile keeps the [[balance]], the [[rank]] and the account itself, and links
+here. Nothing on this page can be cancelled — that is the listing beside the card, which is
+where the reason to cancel one is.
+
+Not the "Entry history", which was the old name for it on the profile, and not a "prediction
+card": a card is an [[event]], and what a fan makes of one is an Entry.
+
+### Cancellation
+
+A fan taking an Entry back. Its status becomes Cancelled and its Amount returns to the
+Balance in full, as one Coin Transaction — restoring the Balance exactly, because the
+Amount is the only thing that ever left it.
+
+Allowed only while **every** Bout in the Entry is still open, and refused from the moment
+the first of them locks. Multipliers are frozen at submission ([[adr-0002]]), so an Entry
+that could be withdrawn at any point would let a fan wait for a Multiplier to move, or fish
+for a pricing mistake and back out of it — and "frozen at submission" would mean nothing.
+The rule is worth as much as "Predictions are made on open Bouts": a fan who could take an
+Entry back after a Bout closed could take it back knowing how that Bout was going.
+
+A cancelled Entry is not deleted. It stays in the fan's history with its status, is never
+graded against a [[result]] and never pays a [[reward]], and is never cancelled twice —
+what happened is recorded rather than unwritten, the way the [[coin-transaction]] ledger
+records everything else ([[adr-0003]]).
+
+It counts towards no leaderboard either. Its Coins are back in the [[balance]] the
+standings are read from, so a ranking by Balance excludes it by arithmetic; a column
+counting Entries played has to exclude it by asking, because an Entry the fan took back
+is not one they played.
+
+Not a "withdrawal", which is money leaving an account somewhere, and never "voiding" an
+Entry.
+
+### Amount
+
+The Coins a user commits to an Entry. Minimum 1, maximum the user's whole Balance. Deducted
+at submission, not at settlement. Never a "stake".
+
+### Reward
+
+Coins returned by a winning Entry: Amount × the Entry's combined Multiplier, which is capped
+at ×10000 — high enough that an ordinary Entry never reaches it. A losing Entry has no Reward;
+it is not a "negative reward". Never a "payout".
+
+The cap is a rule of the game rather than a number frozen on the Entry, so a Reward is worked
+out from the Predictions every time one is needed and never read back from a promise. See
+[[adr-0021]], which sets the cap at ×10000 — [[adr-0013]] had it at ×100 and [[adr-0020]]
+removed it altogether.
+
+### Prize — retired
+
+**There are no Prizes.** [[adr-0018]] removed them: nothing is awarded outside the game for
+finishing a Season anywhere in particular, and the word should not appear in new copy, new
+code or new records except to say this.
+
+What a Season is played for is the [[leaderboard]] while it runs and its
+[[final-standings]] once it closes. A [[reward]] is the word that survives, and it means
+one thing only: the Coins the game pays a winning Entry. Never a "payout".
+
+### Fan
+
+A person with an account: the audience this game is built for, and the word the spec's
+user stories use throughout. Prefer it to "user" in copy and in names for things a fan
+would recognise as themselves.
+
+A Fan is public only as their [[username]]. The one private thing an account holds is a
+phone number: required, unique across accounts, and never returned by any endpoint. It is
+how TFC reaches a fan, and being unique is the whole of "one account per person". A Fan has
+no name and no date of birth on record — [[adr-0018]] retired both along with the contest
+that was the only reason for either.
+
+The table is `users` and `better-auth` calls the model `user`, because that is what it
+requires of a schema. Above that layer — routes, composables, pages, tests — the word is
+Fan.
+
+### Admin
+
+A [[fan]] whose [[role]] is admin: TFC staff who price a card, open and lock Bouts, enter
+results and run Seasons. Not a second kind of account — an Admin has a Balance and can
+play like anyone else, and every "as an admin" user story is about what the role permits,
+not about who the person is.
+
+The admin area is one deliberately plain part of the same application, at `/admin`. There
+is no separate admin site. See [[adr-0011]].
+
+### Role
+
+What a user is permitted to do: `fan` or `admin`, held as a column on the user row. Not
+"permission", "scope" or "claim" — there is one column with two values, and naming it as
+though it were a permissions system would promise something the product does not have.
+
+A Role is never carried on a session and is never settable through any route: it is
+granted by hand in SQL, so that no form, and no field an auth library might helpfully
+accept, can make somebody an admin. See [[adr-0011]].
+
+### Username
+
+The only identifier TFC ever shows publicly: on a leaderboard, beside an Entry, anywhere
+one fan can see another. Chosen at signup, unique regardless of capitalisation, and never
+a real name.
+
+### Coin
+
+The virtual currency. Has no real-money value and is never purchasable, transferable or
+redeemable. Users receive 100 at the start of each Season.
+
+### Coin Transaction
+
+One append-only row in the Coin ledger — a commitment, a Reward, a refund, or a reversal.
+The ledger is the source of truth for Balance; there is no mutable balance column.
+See [[adr-0003]].
+
+Deliberately *not* called a "ledger entry", because [[entry]] already means something else
+in this domain.
+
+### Balance
+
+A user's current Coin total for the current Season, derived from their Coin Transactions.
+Coins committed to an unsettled Entry have already left the Balance.
+
+A **materialised Balance** is a stored copy of that total, per user per Season, so a header
+or a leaderboard does not add the ledger up on every request. It is derived data and can
+always be rebuilt from the Coin Transactions — it is never a source of truth, and never the
+mutable balance column [[adr-0003]] rules out.
+
+### Rank
+
+Where a [[fan]] sits in a Season's standings: 1 is the top. Ordered by [[balance]], and
+where two fans hold the same, by who reached that total first — so that a Rank is
+predictable rather than arbitrary, and does not reorder between one page load and the
+next.
+
+Read from the materialised [[balance]] rather than by adding the ledger up, because the
+leaderboard asks for a page of them and every profile asks for one.
+
+A fan reads their own Rank on their profile however far down it they are, which is the
+question the top ten cannot answer for somebody sitting at 340th. A Rank is worth nothing
+outside the game and is not meant to be ([[adr-0018]]); it is the answer to "how am I
+doing?", which is the only question it was ever good at.
+
+### Leaderboard
+
+The public scoreboard of a Season: the ten fans holding the most Coins, by [[rank]], with
+the signed-in fan's own row pinned below them however far down they are. A fan already in
+the top ten is marked in it rather than shown twice.
+
+Each row is a [[username]], a [[balance]] and the **Entries played** — the Entries that
+fan has committed in the Season, a [[cancellation]] never being one they played. A
+[[username]] is the only thing about a fan that appears here or anywhere public
+([[adr-0018]]).
+
+Public, and personalised anyway: a visitor with no account reads the top ten, which is how
+somebody sizes up a competition before joining it, and it is the pinned row that makes the
+page as a whole uncacheable ([[adr-0008]]).
+
+Singular, and always of one Season. A Season that has ended has **final standings**, which
+are the record of what it finished as; the leaderboard is the one being played.
+
+### No Result
+
+A Bout that produced nothing gradable, and which of four it was: **cancelled**,
+**withdrawal**, **draw**, or **no contest**. Its Prediction contributes a Multiplier of
+×1.0 and the rest of the Chained Entry plays on; if every Prediction in an Entry is No
+Result, the Amount is refunded in full.
+
+The reason is recorded and shown, because a fan told their Prediction counted for nothing
+and not why is reading an outcome that looks arbitrary.
+
+It is also what a single Question becomes where the Bout answered the other. A
+disqualification settles the winner Question and leaves the method Question a No Result, so a
+winner Prediction on that Bout is graded normally while a method Prediction on it counts for
+nothing. A No Result is a thing that happens to a Question, and a Bout that produced nothing
+gradable is the case where it happens to both.
+
+A Question the [[discipline]] never asked is not a No Result. Nothing was offered, so there
+is no Prediction on it to count for anything.
+
+Never "void". See [[adr-0005]].
+
+### Season
+
+An admin-declared block of Events. Every user starts each Season with 100 Coins, and there
+are no mid-Season top-ups — a user who reaches zero waits for the next Season. Leaderboards
+are scoped to a Season; Entry history is kept forever and grouped by Season.
+
+An admin **opens** one and, when its last Bout has settled, **closes** it. Closing freezes
+its [[final-standings]] and is the end of the road: a closed Season is never reopened, for
+the reason a [[lock]] is never lifted. Opening the next one grants every fan the same 100
+Coins again, which is what makes "no top-ups" survivable rather than terminal — and what
+stops a fan who joined at Event 1 holding an insurmountable lead over one who joined at
+Event 9. The two together are a **rollover**, and between them no Season is being played:
+there is no Balance, nothing to rank, and no Entry can be committed.
+
+A Season will not close while a Bout on one of its Events is still open or still waiting on
+a [[result]], because a Balance frozen then is a Balance about to move. A Bout nobody ever
+opened does not stop it: it took no Predictions and can never settle.
+
+### Final standings
+
+What a Season finished as: every fan's closing [[balance]] and the [[rank]] it put them at,
+frozen the moment the Season closed and never written again. The record of what happened,
+and the answer to "who won that one?" for as long as anybody asks.
+
+Not the [[leaderboard]], which is the Season being played and moves with every settlement.
+The final standings are read from a table of their own rather than from the materialised
+[[balance]], so a [[correction]] entered on a settled Bout years later moves the Coin ledger
+and never them. They keep the [[rank]]'s full ordering, ties and all — a snapshot ordered by
+Balance alone would put whichever of two tied fans the database happened to return first
+above the other, and record it as the order they finished in.
+
+A Season has them from the moment it closes and never before. They are public, at
+`/standings/<season>`, and personalised the way the leaderboard is: a visitor reads the top
+ten, and a fan reads the place they came, however far down it they were.

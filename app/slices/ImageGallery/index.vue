@@ -8,15 +8,19 @@ const props = defineProps(
 
 const titleText = computed(() => props.slice.primary.title || "THE");
 const titleHighlightText = computed(() => props.slice.primary.title_highlight || "LENS");
-const ctaLabel = computed(() => props.slice.primary.view_all_button_label || "VIEW FULL PHOTO ARCHIVE");
+const ctaLabel = computed(
+  () => props.slice.primary.view_all_button_label || "VIEW FULL PHOTO ARCHIVE",
+);
 
+// flatMap rather than map-then-filter: a filter that asks about `item.image`
+// says nothing to TypeScript about `item`, so the images came out still
+// possibly empty and `url` still possibly null. Dropping them here narrows
+// what is kept. The index is the position in the unfiltered group either way,
+// so the ids are the same ones.
 const galleryImages = computed(() =>
-  props.slice.primary.images
-    .map((item, index) => ({
-      id: `${props.slice.id}-${index}`,
-      image: item.image,
-    }))
-    .filter((item) => isFilled.image(item.image)),
+  props.slice.primary.images.flatMap((item, index) =>
+    isFilled.image(item.image) ? [{ id: `${props.slice.id}-${index}`, image: item.image }] : [],
+  ),
 );
 </script>
 
@@ -41,7 +45,10 @@ const galleryImages = computed(() =>
       <div class="w-20 h-1 bg-primary mb-8" />
     </div>
 
-    <div v-if="galleryImages.length > 0" class="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-3 gap-1">
+    <div
+      v-if="galleryImages.length > 0"
+      class="max-w-[1400px] mx-auto grid grid-cols-2 md:grid-cols-3 gap-1"
+    >
       <div
         v-for="photo in galleryImages"
         :key="photo.id"
@@ -54,7 +61,7 @@ const galleryImages = computed(() =>
           fetchpriority="low"
           class="w-full h-full object-cover"
           :src="photo.image.url"
-        >
+        />
       </div>
     </div>
 

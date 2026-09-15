@@ -150,6 +150,182 @@ interface DivisionDocumentData {
 export type DivisionDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<DivisionDocumentData>, "division", Lang>;
 
 /**
+ * Item in *Event → bouts*
+ */
+export interface EventDocumentDataBoutsItem {
+	/**
+	 * card order field in *Event → bouts*
+	 *
+	 * - **Field Type**: Number
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].card_order
+	 * - **Documentation**: https://prismic.io/docs/fields/number
+	 */
+	card_order: prismic.NumberField;
+	
+	/**
+	 * red corner field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].red_corner
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	red_corner: prismic.ContentRelationshipField<"fighter">;
+	
+	/**
+	 * red corner name (if no fighter document yet) field in *Event → bouts*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].red_corner_name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	red_corner_name: prismic.KeyTextField;
+	
+	/**
+	 * blue corner field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].blue_corner
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	blue_corner: prismic.ContentRelationshipField<"fighter">;
+	
+	/**
+	 * blue corner name (if no fighter document yet) field in *Event → bouts*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].blue_corner_name
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	blue_corner_name: prismic.KeyTextField;
+	
+	/**
+	 * discipline field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].discipline
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	discipline: prismic.ContentRelationshipField<"discipline">;
+	
+	/**
+	 * division field in *Event → bouts*
+	 *
+	 * - **Field Type**: Content Relationship
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].division
+	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
+	 */
+	division: prismic.ContentRelationshipField<"division">;
+	
+	/**
+	 * scheduled rounds field in *Event → bouts*
+	 *
+	 * - **Field Type**: Number
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].scheduled_rounds
+	 * - **Documentation**: https://prismic.io/docs/fields/number
+	 */
+	scheduled_rounds: prismic.NumberField;
+	
+	/**
+	 * main event field in *Event → bouts*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].main_event
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	main_event: prismic.BooleanField;
+	
+	/**
+	 * title fight field in *Event → bouts*
+	 *
+	 * - **Field Type**: Boolean
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[].title_fight
+	 * - **Documentation**: https://prismic.io/docs/fields/boolean
+	 */
+	title_fight: prismic.BooleanField;
+}
+
+/**
+ * Content for Event documents
+ */
+interface EventDocumentData {
+	/**
+	 * title field in *Event*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.title
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	title: prismic.KeyTextField;
+	
+	/**
+	 * scheduled start field in *Event*
+	 *
+	 * - **Field Type**: Timestamp
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.scheduled_start
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/timestamp
+	 */
+	scheduled_start: prismic.TimestampField;
+	
+	/**
+	 * venue field in *Event*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.venue
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	venue: prismic.KeyTextField;
+	
+	/**
+	 * poster field in *Event*
+	 *
+	 * - **Field Type**: Image
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.poster
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/image
+	 */
+	poster: prismic.ImageField<never>;
+	
+	/**
+	 * bouts field in *Event*
+	 *
+	 * - **Field Type**: Group
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: event.bouts[]
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/repeatable-group
+	 */
+	bouts: prismic.GroupField<Simplify<EventDocumentDataBoutsItem>>;
+}
+
+/**
+ * Event document from Prismic
+ *
+ * - **API ID**: `event`
+ * - **Repeatable**: `true`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type EventDocument<Lang extends string = string> = prismic.PrismicDocumentWithUID<Simplify<EventDocumentData>, "event", Lang>;
+
+/**
  * Item in *Fighter → disciplines*
  */
 export interface FighterDocumentDataDisciplinesItem {
@@ -161,7 +337,7 @@ export interface FighterDocumentDataDisciplinesItem {
 	 * - **API ID Path**: fighter.disciplines[].discipline
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	discipline: ContentRelationshipFieldWithData<[{"id":"discipline","fields":["name"]}]>;
+	discipline: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"discipline"}]>;
 }
 
 /**
@@ -337,7 +513,7 @@ interface FighterDocumentData {
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	division: ContentRelationshipFieldWithData<[{"id":"division","fields":["name"]}]>;
+	division: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"division"}]>;
 	
 	/**
 	 * disciplines field in *Fighter*
@@ -778,7 +954,7 @@ interface MediaDocumentData {
 	 * - **Tab**: Main
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	media_type: ContentRelationshipFieldWithData<[{"id":"media_type","fields":["name"]}]>;
+	media_type: ContentRelationshipFieldWithData<[{"fields":["name"],"id":"media_type"}]>;
 	
 	/**
 	 * thumbnail field in *Media*
@@ -996,6 +1172,55 @@ interface PrivacyPolicyDocumentData {
  */
 export type PrivacyPolicyDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<PrivacyPolicyDocumentData>, "privacy_policy", Lang>;
 
+/**
+ * Content for Season Deadline documents
+ */
+interface SeasonDeadlineDocumentData {
+	/**
+	 * Season name field in *Season Deadline*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: Season 1
+	 * - **API ID Path**: season_deadline.season_name
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	season_name: prismic.KeyTextField;
+	
+	/**
+	 * Season ends at field in *Season Deadline*
+	 *
+	 * - **Field Type**: Timestamp
+	 * - **Placeholder**: The deadline fans are playing against, in Tbilisi time
+	 * - **API ID Path**: season_deadline.season_ends_at
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/timestamp
+	 */
+	season_ends_at: prismic.TimestampField;
+	
+	/**
+	 * Season deadline note field in *Season Deadline*
+	 *
+	 * - **Field Type**: Text
+	 * - **Placeholder**: One line under the date, about what the deadline means
+	 * - **API ID Path**: season_deadline.season_deadline_note
+	 * - **Tab**: Main
+	 * - **Documentation**: https://prismic.io/docs/fields/text
+	 */
+	season_deadline_note: prismic.KeyTextField;
+}
+
+/**
+ * Season Deadline document from Prismic
+ *
+ * - **API ID**: `season_deadline`
+ * - **Repeatable**: `false`
+ * - **Documentation**: https://prismic.io/docs/content-modeling
+ *
+ * @typeParam Lang - Language API ID of the document.
+ */
+export type SeasonDeadlineDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<SeasonDeadlineDocumentData>, "season_deadline", Lang>;
+
 type TermsOfServiceDocumentDataSlicesSlice = TermsOfServiceSlice
 
 /**
@@ -1056,7 +1281,7 @@ interface TermsOfServiceDocumentData {
  */
 export type TermsOfServiceDocument<Lang extends string = string> = prismic.PrismicDocumentWithoutUID<Simplify<TermsOfServiceDocumentData>, "terms_of_service", Lang>;
 
-export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | TermsOfServiceDocument;
+export type AllDocumentTypes = CtaDocument | DisciplineDocument | DivisionDocument | EventDocument | FighterDocument | FooterDocument | HomePageDocument | MediaDocument | MediaTypeDocument | PageDocument | PictureDocument | PrivacyPolicyDocument | SeasonDeadlineDocument | TermsOfServiceDocument;
 
 /**
  * Primary content in *AboutUsCta → Default → Primary*
@@ -1616,7 +1841,7 @@ export interface FeaturedFightersSliceDefaultPrimaryFightersItem {
 	 * - **API ID Path**: featured_fighters.default.primary.fighters[].fighter
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","age","image","from","height"]}]>;
+	fighter: ContentRelationshipFieldWithData<[{"fields":["name","nickname","record","age","image","from","height"],"id":"fighter"}]>;
 }
 
 /**
@@ -1777,7 +2002,7 @@ export interface FightersSectionSliceDefaultPrimaryFightersItem {
 	 * - **API ID Path**: fighters_section.default.primary.fighters[].fighter
 	 * - **Documentation**: https://prismic.io/docs/fields/content-relationship
 	 */
-	fighter: ContentRelationshipFieldWithData<[{"id":"fighter","fields":["name","nickname","record","image",{"id":"division","customtypes":[{"id":"division","fields":["name"]}]},{"id":"badges","fields":["label"]},{"id":"disciplines","fields":[{"id":"discipline","customtypes":[{"id":"discipline","fields":["name"]}]}]}]}]>;
+	fighter: ContentRelationshipFieldWithData<[{"fields":["name","nickname","record","image",{"customtypes":[{"fields":["name"],"id":"division"}],"id":"division"},{"fields":["label"],"id":"badges"},{"fields":[{"customtypes":[{"fields":["name"],"id":"discipline"}],"id":"discipline"}],"id":"disciplines"}],"id":"fighter"}]>;
 }
 
 /**
@@ -2614,6 +2839,44 @@ type PrivacyPolicySliceVariation = PrivacyPolicySliceDefault
 export type PrivacyPolicySlice = prismic.SharedSlice<"privacy_policy", PrivacyPolicySliceVariation>;
 
 /**
+ * Primary content in *RichTextSection → Default → Primary*
+ */
+export interface RichTextSectionSliceDefaultPrimary {
+	/**
+	 * content field in *RichTextSection → Default → Primary*
+	 *
+	 * - **Field Type**: Rich Text
+	 * - **Placeholder**: *None*
+	 * - **API ID Path**: rich_text_section.default.primary.content
+	 * - **Documentation**: https://prismic.io/docs/fields/rich-text
+	 */
+	content: prismic.RichTextField;
+}
+
+/**
+ * Default variation for RichTextSection Slice
+ *
+ * - **API ID**: `default`
+ * - **Description**: Default
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type RichTextSectionSliceDefault = prismic.SharedSliceVariation<"default", Simplify<RichTextSectionSliceDefaultPrimary>, never>;
+
+/**
+ * Slice variation for *RichTextSection*
+ */
+type RichTextSectionSliceVariation = RichTextSectionSliceDefault
+
+/**
+ * RichTextSection Shared Slice
+ *
+ * - **API ID**: `rich_text_section`
+ * - **Description**: RichTextSection
+ * - **Documentation**: https://prismic.io/docs/slices
+ */
+export type RichTextSectionSlice = prismic.SharedSlice<"rich_text_section", RichTextSectionSliceVariation>;
+
+/**
  * Item in *SponsorLogos → Default → Primary → sponsors*
  */
 export interface SponsorLogosSliceDefaultPrimarySponsorsItem {
@@ -3392,6 +3655,9 @@ declare module "@prismicio/client" {
 			DisciplineDocumentData,
 			DivisionDocument,
 			DivisionDocumentData,
+			EventDocument,
+			EventDocumentData,
+			EventDocumentDataBoutsItem,
 			FighterDocument,
 			FighterDocumentData,
 			FighterDocumentDataDisciplinesItem,
@@ -3420,6 +3686,8 @@ declare module "@prismicio/client" {
 			PrivacyPolicyDocument,
 			PrivacyPolicyDocumentData,
 			PrivacyPolicyDocumentDataSlicesSlice,
+			SeasonDeadlineDocument,
+			SeasonDeadlineDocumentData,
 			TermsOfServiceDocument,
 			TermsOfServiceDocumentData,
 			TermsOfServiceDocumentDataSlicesSlice,
@@ -3499,6 +3767,10 @@ declare module "@prismicio/client" {
 			PrivacyPolicySliceDefaultPrimary,
 			PrivacyPolicySliceVariation,
 			PrivacyPolicySliceDefault,
+			RichTextSectionSlice,
+			RichTextSectionSliceDefaultPrimary,
+			RichTextSectionSliceVariation,
+			RichTextSectionSliceDefault,
 			SponsorLogosSlice,
 			SponsorLogosSliceDefaultPrimarySponsorsItem,
 			SponsorLogosSliceDefaultPrimary,

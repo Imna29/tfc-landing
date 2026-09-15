@@ -2,22 +2,1315 @@
  * The database schema. One table per exported const; migrations are generated
  * from this file with `pnpm db:generate` and reviewed as SQL before they run.
  *
- * Column names are written out rather than inferred from a `casing` option,
- * because that option is one of the things changing in Drizzle 1.0.
+ * Column names are written out rather than inferred from a `casing` option.
+ * That option is gone in Drizzle 1.0 — casing is chosen per table now, with
+ * `snakeCase.table(…)` — and names spelled out here were never subject to it.
+ *
+ * `users`, `sessions`, `accounts` and `verifications` are the four tables
+ * `better-auth` requires. Their columns are its columns and are named the way
+ * it names them — see `server/utils/auth.ts`, which is where the mapping from
+ * its vocabulary to this one is written down. The four extra columns on
+ * `users` are ours, `role` among them — see {@link Role} for why it is not
+ * one of its.
  */
-import { pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import {
+  boolean,
+  check,
+  foreignKey,
+  index,
+  integer,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
+// Relative rather than `#shared/…`, unlike every other server module: this
+// file is also compiled by `drizzle-kit generate`, which knows nothing of the
+// alias Nuxt provides. Type-only, so the import is erased before either sees
+// it — the values these name are spelled out again in the check constraints
+// below, where Postgres can hold them.
+import type { EntryStatus } from "../../shared/entries";
+import type { BoutStatus, Corner } from "../../shared/events";
+import type { Discipline } from "../../shared/fightCard";
+import type { LockKind } from "../../shared/locks";
+import type { Method, Question } from "../../shared/pricing";
+import type { NoResultReason, RecordedMethod } from "../../shared/results";
+
+/**
+ * What a user is allowed to do: play, or also run the game.
+ *
+ * An admin is a fan with a role, not a second kind of account — they hold
+ * Coins and can play like anyone else. Deliberately not a `better-auth`
+ * field: nothing it serves may read or write this column, so no route can
+ * grant it and no sign-up can ask for it. The only way to become an admin is
+ * the `update` in the README, run by hand against the database.
+ *
+ * Spelled out here and again in the `users_role_known` check constraint
+ * below, rather than both derived from one array: a constraint built from an
+ * array renders as `in ($1, $2)` in the generated migration, which is not a
+ * constraint at all.
+ */
+export type Role = "fan" | "admin";
 
 /**
  * A person with an account.
  *
- * Only `username` is ever shown publicly — it exists so that doing well on the
- * leaderboard does not publish someone's real name. The columns signup
- * actually collects (password, real name, date of birth) arrive with the
- * accounts ticket.
+ * `username` is the only column any public page may show. `phone` is never
+ * returned by the API at all: it is held so TFC can reach a fan about their
+ * account, and — because `users_phone_unique` holds it to one account — it is
+ * the whole of "one account per person" (ADR-0018). It is stored in E.164 and
+ * never as it was typed: `normalisePhone` in `shared/signUp.ts` reduces every
+ * spelling of one number to one string, and a `user.create.before` hook runs it
+ * on the way in so that this index compares like with like whichever route the
+ * account came through. Without that, the uniqueness below means nothing.
+ *
+ * **`phone` is nullable, and that is about the past rather than the present.**
+ * Every account created since ADR-0018 carries one — `parseSignUpDetails`
+ * refuses a sign-up without it and `better-auth` has it `required` — but the
+ * accounts that predate the decision have no phone number and there is no
+ * value that would be true for them. Backfilling an invented one would put a
+ * number in this column that reaches nobody, which is worse than admitting the
+ * gap: `where phone is null` is the list of fans TFC still has to ask. Postgres
+ * treats nulls as distinct in a unique index, so those rows neither collide
+ * with each other nor weaken the rule for anybody who does have one.
+ *
+ * `email_verified` is `better-auth`'s column and this application no longer
+ * reads it. Nothing sends a confirmation link and nothing is gated on one
+ * (ADR-0018), so it stays `false` on every row TFC creates. It is here because
+ * `better-auth`'s user model requires it, not because it means anything.
+ *
+ * There is deliberately no avatar column, and deliberately no real name or
+ * date of birth: fans are identified by username (ADR-0009), and ADR-0018
+ * retired the two columns and the gate that were the only reasons TFC ever
+ * held either.
+ *
+ * `role` is what the admin area checks on every request. It defaults to `fan`,
+ * so an account is only ever an admin because someone said so in SQL.
  */
-export const users = pgTable("users", {
+export const users = pgTable(
+  "users",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    username: text("username").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    phone: text("phone"),
+    role: text("role").$type<Role>().notNull().default("fan"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Case-insensitive, because a username is how one fan tells another apart
+    // on a leaderboard and `ironmike` beside `IronMike` is not two people
+    // anyone can tell apart.
+    uniqueIndex("users_username_unique").on(sql`lower(${table.username})`),
+    // One account per person, and the only enforcement of it there is
+    // (ADR-0018). Plain rather than lower-cased, unlike the username above: a
+    // phone number has no case, and `normalisePhone` has already reduced it to
+    // the one spelling this index can compare.
+    uniqueIndex("users_phone_unique").on(table.phone),
+    // Granting the admin role is a hand-written `update` (see the README), and
+    // a hand-written `update` can be misspelled. Postgres refuses `'Admin'`
+    // here rather than storing a role that quietly matches nothing.
+    check("users_role_known", sql`${table.role} in ('fan', 'admin')`),
+  ],
+);
+
+/** One signed-in device. `better-auth` reads a session by its token cookie. */
+export const sessions = pgTable("sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
-  username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
+  token: text("token").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * How a user proves who they are. One row per credential: today that is only
+ * ever the hashed password from signing up.
+ *
+ * `better-auth` calls this an account; a fan calls their whole login an
+ * account. Nothing outside `server/utils/auth.ts` should need to read this table.
+ */
+export const accounts = pgTable(
+  "accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    providerId: text("provider_id").notNull(),
+    issuer: text("issuer").notNull(),
+    accountId: text("account_id").notNull(),
+    password: text("password"),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+    scope: text("scope"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("accounts_issuer_account_id_unique").on(table.issuer, table.accountId)],
+);
+
+/**
+ * A short-lived token sent to an email address. Since ADR-0018 retired address
+ * verification there is one kind left: a password reset. Rows are consumed on
+ * use and expire on their own.
+ */
+export const verifications = pgTable("verifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Whether a Season is being played, or is over.
+ *
+ * The road runs one way. Closing a Season freezes its final standings into
+ * {@link finalStandings} and there is no route back — `a_closed_season_is_never_reopened`
+ * refuses the `update` that would try, for the reason ADR-0006 makes a Lock
+ * final: the frozen standings are the permanent record of how a Season went
+ * (ADR-0018), and a Season that could be reopened is a record that could be
+ * made to say something else afterwards.
+ *
+ * `seasons_one_open` below is what makes "the current Season" a fact rather
+ * than whichever row happens to sort last, and closing is what lets the next
+ * one open at all.
+ *
+ * Spelled out here and again in `seasons_status_known`, for the reason given
+ * on {@link Role}.
+ */
+export type SeasonStatus = "open" | "closed";
+
+/**
+ * An admin-declared block of Events, and the scope of every Balance and
+ * leaderboard.
+ *
+ * Every fan starts a Season with the same hundred Coins and there are no
+ * top-ups: a fan who reaches zero waits for the next Season. That rule is only
+ * as good as the Coin ledger's constraints — see {@link coinTransactions}.
+ *
+ * `openedBy` and `closedBy` are which admin did each. Nothing reads either;
+ * they are recorded because "who did this, and when" is the question a Season
+ * nobody remembers opening will be asked, and it cannot be answered later if
+ * it was not written down at the time. Closing is the higher-consequence of
+ * the two — it is what freezes a Season's standings for good — which is why
+ * `seasons_closing_is_recorded` holds the admin and the date to the status
+ * together rather than leaving either optional.
+ */
+export const seasons = pgTable(
+  "seasons",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    status: text("status").$type<SeasonStatus>().notNull().default("open"),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    openedBy: uuid("opened_by")
+      .notNull()
+      .references(() => users.id),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+    closedBy: uuid("closed_by").references(() => users.id),
+  },
+  (table) => [
+    // A Season's name is how a fan tells last year's standings from this
+    // year's, so two Seasons called "Season 2" would make the history
+    // unreadable. Case-insensitive for the same reason usernames are.
+    uniqueIndex("seasons_name_unique").on(sql`lower(${table.name})`),
+    // At most one Season open at a time. Postgres holds this rather than a
+    // route checking first and inserting after, because two admins opening a
+    // Season in the same moment would both find nothing open and both be
+    // right — and the second Season would grant everybody another hundred
+    // Coins.
+    uniqueIndex("seasons_one_open")
+      .on(table.status)
+      .where(sql`${table.status} = 'open'`),
+    check("seasons_status_known", sql`${table.status} in ('open', 'closed')`),
+    // A closed Season without the date it closed on is a frozen standing
+    // nobody can date, and an open one carrying a closing date is a row two
+    // columns disagree about.
+    check(
+      "seasons_closed_is_dated",
+      sql`(${table.status} = 'closed') = (${table.closedAt} is not null)`,
+    ),
+    // And carries the admin who closed it, for the same reason. A Season that
+    // froze its standings with nobody's name against the decision is the one
+    // row a disputed result cannot be traced back through.
+    check(
+      "seasons_closing_is_recorded",
+      sql`(${table.status} = 'closed') = (${table.closedBy} is not null)`,
+    ),
+  ],
+);
+
+/**
+ * What moved Coins. One kind per ticket that can move them, added by that
+ * ticket's own migration.
+ *
+ * Five of them, and the discipline is the point: Coins come into existence as
+ * a Season grant, leave a Balance as an Entry's commitment, come back as the
+ * Reward a winning Entry earned, come back untouched as the refund a cancelled
+ * Entry returns, and go back where they came from as the reversal a corrected
+ * result writes. `coin_transactions_kind_known` is what says so, in SQL
+ * somebody reads. A kind permitted before anything writes it is a kind nobody
+ * has thought about.
+ *
+ * `entry_refund` is the row a cancellation writes and the row an Entry of
+ * nothing but No Results writes as well: the same movement for the same
+ * reason, the Amount back in full (ADR-0005). `entries_are_refunded_in_full`
+ * is what holds both to it.
+ *
+ * `entry_reversal` is the one that undoes rather than moves, and the one this
+ * whole ledger exists for (ADR-0003). It names the row it takes back in
+ * {@link coinTransactions.reverses} and is worth exactly the negative of it,
+ * so a Reward paid on a result that turned out to be wrong is *taken back in
+ * the ledger* rather than deleted out of it — the mistake and its correction
+ * both readable afterwards, which is the whole argument against a mutable
+ * balance column.
+ *
+ * Each of them is also held to a direction and a cause, because a Reward that
+ * took Coins away or pointed at a Season would be a Balance nobody could
+ * explain from the row that moved it. See the check constraints below.
+ */
+export type CoinTransactionKind =
+  | "season_grant"
+  | "entry_commitment"
+  | "entry_reward"
+  | "entry_refund"
+  | "entry_reversal";
+
+/** What a Coin Transaction points at as the thing that caused it. */
+export type CoinTransactionCause = "season" | "entry";
+
+/**
+ * The Coin ledger: one append-only row per movement of Coins, and the source
+ * of truth for every Balance (ADR-0003).
+ *
+ * There is no mutable balance column anywhere in this schema. {@link balanceCache}
+ * is a materialised copy of what these rows add up to, and can be thrown away
+ * and rebuilt from them at any time.
+ *
+ * **Append-only is enforced by the database.** The migration that creates this
+ * table also creates a trigger that refuses every `update` and `delete`, so a
+ * mistake is corrected by writing a reversing row rather than by rewriting
+ * what happened — which is the whole reason ADR-0003 chose a ledger.
+ *
+ * `seasonId` is the scope: which Season's Balance this row moves. `cause` and
+ * `causeId` are the provenance: what caused it to be written. A Season grant is
+ * scoped to and caused by the same Season; an Entry's commitment is scoped to
+ * the Season being played and caused by the Entry. They were here from the
+ * first row rather than added with the second kind because provenance cannot be
+ * back-filled: rows written before anyone recorded what caused them can never
+ * be made to explain themselves.
+ *
+ * Neither foreign key cascades, unlike the ones on `sessions` and `accounts`:
+ * deleting a fan who holds Coins is refused rather than quietly taking their
+ * ledger with them. Nothing deletes a fan today, and when something needs to,
+ * what happens to their rows is a decision somebody makes then.
+ *
+ * The constraints are what make the Season rules' "no mid-Season top-ups"
+ * (`CONTEXT.md`) true rather than merely intended. A fan gets one grant per Season and it is worth
+ * exactly the hundred Coins `STARTING_BALANCE` names in `shared/coins.ts`,
+ * whatever code asks for — including code nobody has written yet, and a
+ * hand-typed `insert` at three in the morning.
+ */
+export const coinTransactions = pgTable(
+  "coin_transactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: text("kind").$type<CoinTransactionKind>().notNull(),
+    /** Signed: Coins arriving are positive, Coins leaving are negative. */
+    amount: integer("amount").notNull(),
+    /** Why, in a sentence, for whoever has to explain a Balance to a fan. */
+    reason: text("reason").notNull(),
+    cause: text("cause").$type<CoinTransactionCause>().notNull(),
+    causeId: uuid("cause_id").notNull(),
+    /**
+     * The row this one takes back, on a reversal, and null on every other kind.
+     *
+     * A reversal points at exactly one movement and is worth the negative of
+     * it, which is what makes "standing" a question the two triggers below can
+     * ask: a Reward with no reversal naming it is a Reward that still counts,
+     * and one with a reversal beside it is a Reward that was paid and taken
+     * back. Both rows stay, because both things happened (ADR-0003).
+     */
+    reverses: uuid("reverses").references((): AnyPgColumn => coinTransactions.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // The whole Coin printer, shut. One grant per fan per Season, refused by
+    // Postgres rather than by whoever remembers to check first.
+    uniqueIndex("coin_transactions_one_grant_per_fan")
+      .on(table.userId, table.seasonId)
+      .where(sql`${table.kind} = 'season_grant'`),
+    // One commitment per Entry, so that a submission retried after a dropped
+    // connection cannot charge a fan twice for the Entry it already wrote.
+    uniqueIndex("coin_transactions_one_commitment_per_entry")
+      .on(table.causeId)
+      .where(sql`${table.kind} = 'entry_commitment'`),
+    // A movement is taken back once. #14 held "one Reward per Entry" and "one
+    // refund per Entry" as two indexes of this shape, and #16 replaced them
+    // with `won_entries_are_rewarded_once` and `entries_are_refunded_in_full`,
+    // which say the stronger thing: an Entry holds one Reward *standing*, and
+    // holds it exactly when it is Won. An index cannot ask that — "standing"
+    // is a row somewhere else not existing — but it can ask this, and this is
+    // the half of it a correction could otherwise get wrong twice: reversing
+    // the same Reward again would take the Coins away a second time, and no
+    // count of Rewards would look any different afterwards.
+    uniqueIndex("coin_transactions_one_reversal_per_row").on(table.reverses),
+    // Every Balance read and every rebuild groups by these two.
+    index("coin_transactions_by_fan").on(table.seasonId, table.userId),
+    // And everything that asks what an Entry's Coins have done looks it up by
+    // this one: the two triggers below, and the correction that reads which
+    // Rewards are still standing before it reverses any of them. Until #16
+    // there were two partial unique indexes on this column doing the work by
+    // accident; this is the same lookup, asked for on purpose.
+    index("coin_transactions_by_cause").on(table.causeId),
+    check(
+      "coin_transactions_kind_known",
+      sql`${table.kind} in ('season_grant', 'entry_commitment', 'entry_reward', 'entry_refund',
+        'entry_reversal')`,
+    ),
+    check("coin_transactions_cause_known", sql`${table.cause} in ('season', 'entry')`),
+    // A row that moves nothing is not a movement; it is a row somebody wrote
+    // by accident, and it makes the ledger longer without making it say more.
+    check("coin_transactions_moves_coins", sql`${table.amount} <> 0`),
+    check("coin_transactions_reason_is_written", sql`length(trim(${table.reason})) > 0`),
+    // Hard-coded rather than read from a setting, and so a migration to
+    // change. Everyone starting a Season on the same number is the level field
+    // the whole competition rests on; changing it is a decision somebody
+    // should have to write down and have reviewed.
+    check(
+      "coin_transactions_grant_is_the_starting_balance",
+      sql`${table.kind} <> 'season_grant' or (${table.amount} = 100
+        and ${table.cause} = 'season' and ${table.causeId} = ${table.seasonId})`,
+    ),
+    // Coins committed to an Entry leave the Balance, and they leave it for
+    // that Entry: a commitment that added Coins, or that pointed at anything
+    // else, would be a Balance nobody could explain from the row that moved
+    // it. How many is the Entry's own business — the Amount is checked
+    // against what the fan holds by `entry_commitments_are_within_the_balance`.
+    check(
+      "coin_transactions_commitment_leaves_the_balance",
+      sql`${table.kind} <> 'entry_commitment'
+        or (${table.amount} < 0 and ${table.cause} = 'entry')`,
+    ),
+    // And a Reward returns Coins to it, for the Entry that earned them. The
+    // mirror of the rule above, and worth stating separately: these are the
+    // only two rows the ledger writes about an Entry, and a sign typed the
+    // wrong way round on either is Coins created or destroyed with no error
+    // anywhere.
+    check(
+      "coin_transactions_reward_returns_coins",
+      sql`${table.kind} <> 'entry_reward'
+        or (${table.amount} > 0 and ${table.cause} = 'entry')`,
+    ),
+    // And so does a refund, for the Entry that was cancelled. It is a third
+    // row about an Entry rather than a reversal of the commitment, because the
+    // ledger records what happened rather than unwriting it (ADR-0003): the
+    // Coins were committed, and then they came back. How many is not something
+    // a check can see — that the refund is the whole Amount and nothing else
+    // is `entries_are_refunded_in_full`'s to say.
+    check(
+      "coin_transactions_refund_returns_coins",
+      sql`${table.kind} <> 'entry_refund'
+        or (${table.amount} > 0 and ${table.cause} = 'entry')`,
+    ),
+    // A reversal names what it takes back, and only a reversal does. Without
+    // both directions there are two rows nothing else in this table could make
+    // sense of: a reversal that reverses nothing, which is Coins removed from
+    // a Balance with no movement behind it, and a Reward pointing at another
+    // row, which would make it look reversed to everything that reads
+    // "standing" as "nothing names me".
+    check(
+      "coin_transactions_a_reversal_names_what_it_undoes",
+      sql`(${table.kind} = 'entry_reversal') = (${table.reverses} is not null)`,
+    ),
+    // And it takes Coins back rather than handing them out. The two rows a
+    // correction can reverse — a Reward and a refund — both returned Coins, so
+    // undoing either is negative; a positive reversal would be this ticket's
+    // way of writing the Coin printer the rest of these checks close. That it
+    // is worth exactly the negative of the row it names is
+    // `a_reversal_undoes_the_row_it_names`, which is the only rule here that
+    // has to read another row to ask.
+    check(
+      "coin_transactions_reversal_takes_coins_back",
+      sql`${table.kind} <> 'entry_reversal'
+        or (${table.amount} < 0 and ${table.cause} = 'entry')`,
+    ),
+  ],
+);
+
+/**
+ * The materialised Balance: what one fan's Coin Transactions add up to in one
+ * Season.
+ *
+ * Named a cache on purpose. ADR-0003 forbids a mutable balance column, and
+ * this looks exactly like one at a glance — so it says at every call site that
+ * it is derived data, safe to delete, and rebuildable from
+ * {@link coinTransactions} by `rebuildBalanceCache` in `server/utils/coins.ts`. It exists because a
+ * leaderboard and a site header cannot aggregate the whole ledger on every
+ * request (ADR-0009 rules out putting Redis in front of that).
+ *
+ * `balance` is deliberately not constrained to be positive. Reversing a Reward
+ * a fan has already committed elsewhere takes them below zero, and that is a
+ * correction working (ADR-0003), not a bug to be refused.
+ */
+export const balanceCache = pgTable(
+  "balance_cache",
+  {
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    balance: integer("balance").notNull(),
+    /**
+     * When this Balance last moved, taken from the fan's last Coin Transaction
+     * in the Season rather than from the clock at the moment the row was
+     * written. It is what breaks a tie between two fans holding the same
+     * Coins, so it has to be derived like the total beside it: a rebuild that
+     * restamped it would come back with the leaderboard in a different order.
+     * See `materialiseBalances` in `server/utils/coins.ts`.
+     */
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seasonId, table.userId] }),
+    // The standings of one Season, in the order they are read in: Balance
+    // first, then who reached that total first, then the fan's own id — the
+    // ordering `BY_STANDING` in `server/utils/standings.ts` decides a Rank by.
+    // The leaderboard reads the top ten of it and every profile reads one row,
+    // and without this both sort every fan in the Season to answer.
+    //
+    // The primary key leads with the Season too, so it answers "what does this
+    // fan hold?" and cannot answer "who holds the most?" — a Balance is not
+    // what it is ordered by.
+    index("balance_cache_by_standing").on(
+      table.seasonId,
+      table.balance.desc(),
+      table.updatedAt,
+      table.userId,
+    ),
+  ],
+);
+
+/**
+ * What a Season finished as: every fan's final Balance and the Rank it put
+ * them at, written once when the Season closed and never again.
+ *
+ * The one table in this schema that is neither derived nor append-only but
+ * **write-once**. {@link balanceCache} is a copy of the ledger that can be
+ * thrown away and rebuilt; this is a record of a moment, and the moment does
+ * not come back. `final_standings_are_frozen` refuses every `update` and
+ * `delete`, the way `coin_transactions_are_append_only` does, because this is
+ * the permanent record of how a Season went (ADR-0018) — and a record that can
+ * be edited afterwards is not one.
+ *
+ * **The Rank is stored rather than derived, and that is the whole point.** It
+ * could be worked out again from `balance_cache` — the rows are still there
+ * after a Season closes — but only as long as that cache still holds what it
+ * held on the day. A Rank breaks a tie by `updated_at` (`BY_STANDING` in
+ * `server/utils/standings.ts`), a correction on a closed Season's Bout would
+ * move both columns, and a fan recorded as finishing second would then be
+ * sitting somewhere the standings no longer explain. `freezeFinalStandings` writes this in the
+ * same statement it reads the order in, so the Rank here is that reading and
+ * not a later one.
+ *
+ * `entriesPlayed` is frozen for the same reason it is shown at all: it is the
+ * column beside the Coins on the standings a fan reads, and reading it live
+ * from a Season nobody is playing any more would be a second query answering a
+ * question this row has already answered.
+ *
+ * Neither foreign key cascades, like the ledger's: a fan who finished a Season
+ * cannot be deleted out from under the record of where they finished.
+ */
+export const finalStandings = pgTable(
+  "final_standings",
+  {
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** Where they finished, 1 being the top. */
+    rank: integer("rank").notNull(),
+    /** The Coins they finished on, which is what the Rank is an ordering of. */
+    balance: integer("balance").notNull(),
+    /** The Entries they played in the Season, a cancelled one never being one. */
+    entriesPlayed: integer("entries_played").notNull(),
+    /** When the Season closed, which is the moment all of this was true. */
+    frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.seasonId, table.userId] }),
+    // One fan per place, and the order the standings are read back in. Two
+    // fans sharing 2nd is what a snapshot ordered by Balance alone would
+    // produce — `BY_STANDING` breaks that tie on purpose, and this is Postgres
+    // refusing to store a record that did not.
+    uniqueIndex("final_standings_one_fan_per_place").on(table.seasonId, table.rank),
+    // 1 is the top and there is no 0th place. A rank of zero would be an
+    // off-by-one in the window that wrote it, silently recording everybody a
+    // place higher than they finished.
+    check("final_standings_rank_is_a_place", sql`${table.rank} >= 1`),
+    check("final_standings_entries_played_is_counted", sql`${table.entriesPlayed} >= 0`),
+  ],
+);
+
+/**
+ * One TFC fight card, copied out of Prismic (ADR-0001).
+ *
+ * Prismic is where a card is authored and the marketing site reads it from.
+ * This is the copy the game runs on: once a Bout here is open, a Prediction
+ * points at a row in {@link bouts} by id, and a later edit in Prismic changes
+ * the poster on the website and nothing a fan has committed Coins to.
+ *
+ * `prismicId` is the document the card came from, and is unique: one Prismic
+ * document is one Event, however many times it is re-imported. It is a `text`
+ * column rather than a `uuid` because a Prismic id (`adYU6hEAACMAWIl9`) is
+ * theirs, not ours.
+ *
+ * `seasonId` is which Season's Coins are committed on it. It is set on every
+ * import rather than only the first: a card whose Bouts are all still closed
+ * has nothing riding on it, so re-importing it into the Season actually being
+ * played is right, and once anything is open re-import is refused entirely.
+ *
+ * `importedBy` and `importedAt` are who pulled this version of the card
+ * through and when, which is the question asked when a lineup on the site
+ * disagrees with the lineup in the game.
+ */
+export const events = pgTable(
+  "events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    prismicId: text("prismic_id").notNull(),
+    title: text("title").notNull(),
+    scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
+    venue: text("venue").notNull(),
+    posterUrl: text("poster_url"),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+    importedBy: uuid("imported_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    // One Event per Prismic document. Importing the same card twice would put
+    // the same fights on the game twice, with Coins split between two copies
+    // of every Bout.
+    uniqueIndex("events_one_per_prismic_document").on(table.prismicId),
+    // "The upcoming Event" is the question the public card page asks (#10).
+    index("events_by_scheduled_start").on(table.scheduledStart),
+    check("events_title_is_written", sql`length(trim(${table.title})) > 0`),
+    check("events_venue_is_written", sql`length(trim(${table.venue})) > 0`),
+  ],
+);
+
+/**
+ * One scheduled fight on a card: what a fan predicts against, and what a
+ * Prediction will point at.
+ *
+ * Both corners are written out rather than kept in a table of their own,
+ * because a Bout has exactly two and always will. A corner carries the name it
+ * is fought under, and — only when that corner is a fighter with a document —
+ * the Prismic id, the uid their profile page is reached by, and their image.
+ * A corner with only a name is the late replacement ADR-0001's authoring
+ * surface has to allow for: requiring a `fighter` document 48 hours out would
+ * mean either a rushed half-empty document or a Bout that cannot be published,
+ * and the second costs predictions on a fight that is actually happening.
+ *
+ * The images are URLs into Prismic's CDN rather than files of our own
+ * (ADR-0009 rules out object storage), copied at import so the card renders
+ * from one query rather than from Postgres and a CMS together. The records are
+ * copied for that same reason, and are the one thing on a corner that a
+ * published `fighter` document may still be missing — a gap on the card rather
+ * than a card that cannot be imported.
+ *
+ * **A Bout that is no longer closed is never deleted.** The migration that
+ * creates this table also creates a trigger refusing it, so re-importing a
+ * card that has been opened is refused by Postgres and not merely by the route
+ * that asks first — a replaced Bout is a Prediction pointing at a fight that
+ * no longer exists.
+ */
+export const bouts = pgTable(
+  "bouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    /** Where on the card it is fought: 1 is first. */
+    cardOrder: integer("card_order").notNull(),
+    status: text("status").$type<BoutStatus>().notNull().default("closed"),
+    redName: text("red_name").notNull(),
+    redFighterId: text("red_fighter_id"),
+    redFighterUid: text("red_fighter_uid"),
+    redImageUrl: text("red_image_url"),
+    redRecord: text("red_record"),
+    blueName: text("blue_name").notNull(),
+    blueFighterId: text("blue_fighter_id"),
+    blueFighterUid: text("blue_fighter_uid"),
+    blueImageUrl: text("blue_image_url"),
+    blueRecord: text("blue_record"),
+    /**
+     * What is being fought, and the one fact about a Bout the game asks a
+     * different Question because of (ADR-0017).
+     *
+     * A value the game recognises rather than the name an editor typed, unlike
+     * the division beside it: an MMA Bout carries eight Outcomes, a CageBox
+     * Bout six and a Cage Grappling Bout two, so a discipline nothing knows
+     * about is a Bout nothing can price. Read from the uid of the `discipline`
+     * document in Prismic — see `disciplineFor` in `shared/events.ts`.
+     */
+    discipline: text("discipline").$type<Discipline>().notNull(),
+    /** The weight class, as the `division` document names it. */
+    division: text("division").notNull(),
+    scheduledRounds: integer("scheduled_rounds").notNull(),
+    mainEvent: boolean("main_event").notNull().default(false),
+    titleFight: boolean("title_fight").notNull().default(false),
+  },
+  (table) => [
+    // Card order is how the Bouts are told apart on the card and the order
+    // they are locked in, so two Bouts cannot share a place.
+    uniqueIndex("bouts_one_per_place_on_the_card").on(table.eventId, table.cardOrder),
+    // One Bout closes a card.
+    uniqueIndex("bouts_one_main_event")
+      .on(table.eventId)
+      .where(sql`${table.mainEvent}`),
+    check("bouts_status_known", sql`${table.status} in ('closed', 'open', 'locked', 'settled')`),
+    check("bouts_card_order_is_a_place", sql`${table.cardOrder} >= 1`),
+    // Spelled out again in `SCHEDULED_ROUNDS` in `shared/events.ts`, which is
+    // what the import refuses with and what the Prismic field is bounded by.
+    check("bouts_rounds_are_scheduled", sql`${table.scheduledRounds} between 1 and 12`),
+    check(
+      "bouts_corners_are_named",
+      sql`length(trim(${table.redName})) > 0 and length(trim(${table.blueName})) > 0`,
+    ),
+    // Nobody fights themselves. Two corners pointing at one `fighter`
+    // document is a Bout somebody built by copying the row above it.
+    check(
+      "bouts_corners_are_two_fighters",
+      sql`${table.redFighterId} is null or ${table.redFighterId} <> ${table.blueFighterId}`,
+    ),
+    // Spelled out again in `Discipline` in `shared/fightCard.ts`, and read
+    // again by `a_result_records_the_method_its_discipline_asks`, which is the
+    // trigger holding a Result to what its Bout was asked.
+    check(
+      "bouts_discipline_known",
+      sql`${table.discipline} in ('mma', 'cagebox', 'cage_grappling')`,
+    ),
+    check("bouts_division_is_written", sql`length(trim(${table.division})) > 0`),
+  ],
+);
+
+/**
+ * One selectable answer to one Question about a Bout — "Fighter A", "Fighter A
+ * by KO/TKO" — carrying the Multiplier that answer pays.
+ *
+ * Every Bout is imported with its whole set, and **how big that set is is the
+ * discipline's to say** (ADR-0017): eight on an MMA Bout, six on a CageBox one
+ * — which cannot end in a Submission — and two on a Cage Grappling Bout, which
+ * is asked for a winner and nothing else. How long a Bout is booked for still
+ * decides nothing (ADR-0016). They are written by the import that creates the
+ * Bout and by nothing else — see `defaultOutcomes` in `shared/pricing.ts`,
+ * which is the one place that says what a Bout is asked.
+ *
+ * **Every answer names the corner it is about** (ADR-0015), so `corner` is on
+ * every row and `method` is the thing it is asked *about*: a corner always,
+ * plus a method exactly where `question` says so.
+ * `outcomes_answers_its_question` is what says so.
+ *
+ * The two unique indexes are what stop a Bout being asked the same thing twice
+ * — two "Fighter A by KO/TKO" Outcomes on one Bout would be two different
+ * Multipliers for one answer, and no saying which a fan was shown. Both are
+ * corner-inclusive, and they have to be: they held a Bout to one answer per
+ * Question by NULL-distinctness while a method row carried no corner, and with
+ * a corner on every row `(bout_id, corner)` alone would collide across the
+ * Questions. Only the winner one is partial, because `(bout_id, corner)` is
+ * unique among winner rows and nowhere else; the method one is unique over the
+ * whole table, which is what lets `predictions` point at it.
+ *
+ * `pricedAt` and `pricedBy` are the difference between a seeded default and a
+ * price. Import seeds a Multiplier on every Outcome so that pricing a card is a
+ * Bout's numbers adjusted rather than authored from blank (ADR-0002), and those
+ * seeded numbers are deliberately not a price: they are null here until an
+ * admin has saved the Bout, and a Bout with an unpriced Outcome cannot be
+ * opened. The migration that creates this table holds that with a trigger, so
+ * it is true of a hand-written `update` as well as of the route.
+ *
+ * A Multiplier is copied onto a Prediction when an Entry is submitted and
+ * never read back (ADR-0002), which is why nothing here is frozen once a Bout
+ * is open: correcting a mispriced Outcome changes what the next Entry is
+ * offered and never an Entry that already exists.
+ */
+export const outcomes = pgTable(
+  "outcomes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id, { onDelete: "cascade" }),
+    question: text("question").$type<Question>().notNull(),
+    /** Which fighter this answer is about, on every Outcome (ADR-0015). */
+    corner: text("corner").$type<Corner>().notNull(),
+    /** How that fighter wins, on a method Outcome. Null on a winner Outcome. */
+    method: text("method").$type<Method>(),
+    /**
+     * What this answer pays.
+     *
+     * `numeric(5, 2)` rather than a float, because Postgres stores and
+     * compares it as the decimal it is: 1.90 typed by an admin is 1.90 in the
+     * column, and every Multiplier in the table is a number somebody could
+     * have typed. It is handed to JavaScript as a number, which is what a
+     * Prediction copies and a Reward is computed from.
+     */
+    multiplier: numeric("multiplier", { precision: 5, scale: 2, mode: "number" }).notNull(),
+    /** When an admin priced it, or null while it is still the seeded default. */
+    pricedAt: timestamp("priced_at", { withTimezone: true }),
+    /** Which admin priced it, for the "who set this?" a mispriced card asks. */
+    pricedBy: uuid("priced_by").references(() => users.id),
+  },
+  (table) => [
+    // One winner Outcome per corner. Partial because `(bout_id, corner)` is
+    // unique among winner rows and among no others — a Bout carries four rows
+    // for each of its corners. Nothing points a foreign key at this one, which
+    // is what makes a partial index usable here: Postgres will not reference
+    // one.
+    uniqueIndex("outcomes_one_per_corner")
+      .on(table.boutId, table.corner)
+      .where(sql`${table.question} = 'winner'`),
+    // One method Outcome per corner. Unique over the whole table rather than
+    // over the method Question — a winner row's null method is distinct from
+    // everything, so those rows sit in this index without colliding — which is
+    // what lets `predictions_method_is_offered` point at it.
+    uniqueIndex("outcomes_one_per_method").on(table.boutId, table.corner, table.method),
+    check("outcomes_question_known", sql`${table.question} in ('winner', 'method')`),
+    check("outcomes_corner_known", sql`${table.corner} in ('red', 'blue')`),
+    check(
+      "outcomes_method_known",
+      sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
+    ),
+    // A corner always, plus a method exactly where the Question names one
+    // (ADR-0015). Without this a winner row could carry a method, and nothing
+    // downstream would know which of the two answers a fan had picked. The
+    // corner is said here as well as on the column, because this is where the
+    // whole shape of an answer is written down.
+    check(
+      "outcomes_answers_its_question",
+      sql`${table.corner} is not null
+        and ((${table.question} = 'winner' and ${table.method} is null)
+          or (${table.question} = 'method' and ${table.method} is not null))`,
+    ),
+    // A Multiplier at or below 1 pays a correct Prediction its own Coins back
+    // or less, which is not a price anybody meant to type. The ceiling is the
+    // stuck key: 190 where 1.90 was meant. Spelled out again in `MULTIPLIER`
+    // in `shared/pricing.ts`, which is what the admin area refuses with.
+    check("outcomes_multiplier_pays", sql`${table.multiplier} > 1 and ${table.multiplier} <= 100`),
+    // A price nobody is recorded as having set is a price nobody can be asked
+    // about.
+    check(
+      "outcomes_priced_is_attributed",
+      sql`(${table.pricedAt} is null) = (${table.pricedBy} is null)`,
+    ),
+  ],
+);
+
+/**
+ * The Lock audit log: one row per Bout that has locked, saying who locked it,
+ * when, and how.
+ *
+ * "When a fan complains their Bout locked too early, that log is the answer" —
+ * which is why `lockedAt` is the moment the Bout *stopped taking Predictions*
+ * rather than the moment a row happened to be written. An automatic Lock falls
+ * due at a moment the card decides (`automaticLock` in `shared/locks.ts`) and
+ * is applied by whichever request arrives after it; dating it at the second of
+ * those would be an answer nobody could give.
+ *
+ * One row per Bout, held by the primary key: a Bout locks once. There is no
+ * unlocking and so no second row — `a_locked_bout_is_never_reopened` refuses
+ * the status going back, and `bout_locks_are_append_only` refuses this row
+ * being rewritten or removed, for the reason ADR-0003 gives about the Coin
+ * ledger. A log that can be edited answers nothing.
+ *
+ * `lockedBy` is the admin whose action locked it: the one who pressed the
+ * button, or the one who entered the result that locked it behind them. It is
+ * null for the two Locks the clock performs, and `bout_locks_manual_is_attributed`
+ * holds the two in step — a Lock somebody caused is attributed to them, and
+ * one nobody caused is attributed to nobody. `AttributedLockKind` in
+ * `shared/locks.ts` is the same rule in TypeScript, so the only writer that
+ * can reach this table cannot break it.
+ *
+ * Attribution is not the same question as whether anybody decided to lock the
+ * Bout: a `result` Lock has an admin against it and was still nobody's
+ * decision to close that fight at that moment. What they decided to do was
+ * enter a result.
+ *
+ * The foreign key deliberately does not cascade, like the ones on
+ * {@link predictions}: a Bout that has locked is never deleted — the trigger
+ * in `20260825191407_event_import` refuses to replace one that is not closed — and
+ * this is that door locked from the other side.
+ */
+export const boutLocks = pgTable(
+  "bout_locks",
+  {
+    boutId: uuid("bout_id")
+      .primaryKey()
+      .references(() => bouts.id),
+    kind: text("kind").$type<LockKind>().notNull(),
+    /** When the Bout stopped taking Predictions. */
+    lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Which admin locked it, or null where the clock did. */
+    lockedBy: uuid("locked_by").references(() => users.id),
+  },
+  (table) => [
+    check(
+      "bout_locks_kind_known",
+      sql`${table.kind} in ('manual', 'scheduled', 'sweep', 'result')`,
+    ),
+    // A Lock somebody performed and nobody is recorded as having performed is
+    // a Lock nobody can be asked about; a Lock the clock performed with an
+    // admin against it is a person blamed for the clock.
+    check(
+      "bout_locks_manual_is_attributed",
+      sql`(${table.lockedBy} is not null) = (${table.kind} in ('manual', 'result'))`,
+    ),
+  ],
+);
+
+/**
+ * What happened in a Bout: the Result an admin recorded, and the thing every
+ * Prediction on it is graded against.
+ *
+ * One row per Bout, which is what the primary key on `boutId` says. That is
+ * also the first of the three things standing between "settle this Bout" being
+ * pressed twice and a fan being paid twice: the second insert is refused by
+ * the key rather than by whichever route remembered to ask.
+ *
+ * **A Bout with a Result is `settled`, and a settled Bout has a Result.** The
+ * migration that creates this table holds it with a deferred constraint
+ * trigger, the same shape `locked_bouts_are_recorded` uses and for a sharper
+ * reason: a Result recorded with the Bout still taking Predictions is Coins
+ * moving on a fight whose ending is on the row beside it. Tying the two
+ * together is what makes that unreachable, because a settled Bout is refused a
+ * Prediction by `predictions_are_made_on_open_bouts`.
+ *
+ * There is no append-only trigger here, unlike {@link boutLocks}. A Lock is
+ * never undone, so a record of one never needs correcting; a Result is entered
+ * by a person watching a fight and can be entered wrong, which is the case
+ * ADR-0003 built the whole ledger around. A correction reverses what this row
+ * settled, updates it in place and grades every Entry again (#16) — it has to
+ * be the corrected Result afterwards, because it is what every Prediction on
+ * the Bout is graded against wherever one is shown.
+ *
+ * `enteredBy` and `enteredAt` are who said this is what happened and when,
+ * which is the question a corrected result asks first. They are the *standing*
+ * statement: a correction moves them to the admin who corrected it, and the
+ * one they replaced goes to {@link boutResultCorrections} rather than being
+ * written over. `corrected_results_are_recorded` is what makes that not
+ * something a writer has to remember.
+ *
+ * **A Bout that produced nothing gradable is recorded here too**, as a row
+ * naming the reason and no winner (ADR-0005). One table rather than two,
+ * because the thing being recorded is the same thing — an admin saying how a
+ * Bout ended — and everything that asks "has this Bout been settled?" asks it
+ * of one row either way, `results_are_entered_on_settled_bouts` included. The
+ * two shapes are held apart by `bout_results_is_a_result_or_no_result`: a row
+ * names a winner and a method, or it names the reason there is neither.
+ */
+export const boutResults = pgTable(
+  "bout_results",
+  {
+    boutId: uuid("bout_id")
+      .primaryKey()
+      .references(() => bouts.id),
+    /**
+     * The corner that won, which every winner answer is graded against, or
+     * null on a Bout that decided none (ADR-0005).
+     */
+    winner: text("winner").$type<Corner>(),
+    /**
+     * How it ended, or null on a Bout that produced nothing gradable — and null
+     * as well on one whose discipline asks no method Question (ADR-0017).
+     *
+     * `RecordedMethod` rather than `Method`: a disqualification is a way a
+     * Bout ends and is not one of the answers the game offers, so it settles
+     * the winner Question and turns the method Question into a No Result.
+     *
+     * The two ways this is null are told apart by `winner`, which is null on
+     * one and not on the other — and that is what `endingFrom` in
+     * `server/utils/results.ts` reads. Which methods a Bout may record is a
+     * fact about the row in {@link bouts} beside it, so it is held by the
+     * `a_result_records_the_method_its_discipline_asks` trigger rather than by
+     * a check here — a check constraint cannot read another table.
+     */
+    method: text("method").$type<RecordedMethod>(),
+    /**
+     * Why the Bout produced nothing gradable, or null where it produced a
+     * Result. The four ADR-0005 names: cancelled, withdrawal, draw, no contest.
+     */
+    noResult: text("no_result").$type<NoResultReason>(),
+    enteredAt: timestamp("entered_at", { withTimezone: true }).notNull().defaultNow(),
+    enteredBy: uuid("entered_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    check(
+      "bout_results_winner_known",
+      sql`${table.winner} is null
+        or ${table.winner} in ('red', 'blue')`,
+    ),
+    // One value wider than `outcomes_method_known` and `predictions_method_known`,
+    // and that is ADR-0005's whole point: a Bout can end by disqualification,
+    // and no fan was ever offered it as an answer.
+    check(
+      "bout_results_method_known",
+      sql`${table.method} is null
+        or ${table.method} in ('ko_tko', 'submission', 'decision', 'disqualification')`,
+    ),
+    check(
+      "bout_results_no_result_known",
+      sql`${table.noResult} is null
+        or ${table.noResult} in ('cancelled', 'withdrawal', 'draw', 'no_contest')`,
+    ),
+    // A row records a Result or a No Result, and never half of either. A row
+    // naming a reason and a winner would be two accounts of one Bout with
+    // nothing to say which of them every Prediction on it is graded against,
+    // and a row naming neither would settle a Bout while saying nothing at all.
+    //
+    // **The winner alone is what tells them apart** (ADR-0017). It used to be
+    // the winner and the method together, because every Bout was asked both
+    // Questions; a Cage Grappling Bout is asked one, and a Result on it names a
+    // winner and no method. That a Bout records the methods its discipline asks
+    // — and only those — is the
+    // `a_result_records_the_method_its_discipline_asks` trigger's, which can
+    // read the Bout this check cannot.
+    check(
+      "bout_results_is_a_result_or_no_result",
+      sql`(${table.noResult} is null) = (${table.winner} is not null)
+        and (${table.noResult} is null or ${table.method} is null)`,
+    ),
+  ],
+);
+
+/**
+ * The Result audit log: one row per correction, holding the ending it replaced.
+ *
+ * {@link boutResults} always says what the game grades against, which is what
+ * a correction updates it to be. This is where what it used to say goes, and
+ * it is the difference between an audit trail that can say "the Bout was
+ * recorded as Beridze by KO/TKO, and that was wrong" and one that can only say
+ * that somebody changed something.
+ *
+ * The question it answers is asked after the fact, by a fan whose Entry was
+ * Won and is now Lost, so it is append-only for exactly the reason
+ * `bout_locks_are_append_only` is: a log somebody can tidy up afterwards
+ * answers nothing.
+ *
+ * Four moments and two people, and each of them is asked about: `enteredAt`
+ * and `enteredBy` are who made the statement being replaced and when they made
+ * it, `correctedAt` and `correctedBy` are who replaced it. Reading a Bout's
+ * corrections oldest-first is reading everything anybody has ever said about
+ * that fight, in the order they said it.
+ *
+ * The columns describing the superseded ending are the same three
+ * {@link boutResults} carries, held to the same values by checks of their own —
+ * a log that could hold a shape the table it logs could never have held is a
+ * log of something that did not happen.
+ */
+export const boutResultCorrections = pgTable(
+  "bout_result_corrections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id),
+    /** The corner the superseded Result named, or null where it was a No Result. */
+    winner: text("winner").$type<Corner>(),
+    /** How the superseded Result said it ended. */
+    method: text("method").$type<RecordedMethod>(),
+    /** Why the superseded row said the Bout produced nothing gradable. */
+    noResult: text("no_result").$type<NoResultReason>(),
+    /** When the superseded statement was made, and by which admin. */
+    enteredAt: timestamp("entered_at", { withTimezone: true }).notNull(),
+    enteredBy: uuid("entered_by")
+      .notNull()
+      .references(() => users.id),
+    /** When it was corrected, and by which admin. */
+    correctedAt: timestamp("corrected_at", { withTimezone: true }).notNull().defaultNow(),
+    correctedBy: uuid("corrected_by")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => [
+    // Every correction of one Bout, oldest first, which is the only order this
+    // is ever read in.
+    index("bout_result_corrections_by_bout").on(table.boutId, table.correctedAt),
+    check(
+      "bout_result_corrections_winner_known",
+      sql`${table.winner} is null
+        or ${table.winner} in ('red', 'blue')`,
+    ),
+    check(
+      "bout_result_corrections_method_known",
+      sql`${table.method} is null
+        or ${table.method} in ('ko_tko', 'submission', 'decision', 'disqualification')`,
+    ),
+    check(
+      "bout_result_corrections_no_result_known",
+      sql`${table.noResult} is null
+        or ${table.noResult} in ('cancelled', 'withdrawal', 'draw', 'no_contest')`,
+    ),
+    // The same shape as `bout_results_is_a_result_or_no_result`, for the reason
+    // given above: a log that could hold a shape the table it logs could never
+    // have held is a log of something that did not happen. The superseded
+    // Result of a Cage Grappling Bout named a winner and no method (ADR-0017),
+    // and this is where that stays writeable.
+    check(
+      "bout_result_corrections_is_a_result_or_no_result",
+      sql`(${table.noResult} is null) = (${table.winner} is not null)
+        and (${table.noResult} is null or ${table.method} is null)`,
+    ),
+  ],
+);
+
+/**
+ * The committed unit: between one and ten Predictions and an Amount of Coins.
+ *
+ * An Entry is what a fan submits and what their history lists. Its Coins leave
+ * the Balance the moment it is written — as a Coin Transaction, in the same
+ * transaction as these rows (ADR-0003) — so there is no state anywhere in
+ * which an Entry exists and its Amount has not been committed.
+ *
+ * `seasonId` is which Season's Balance it moves and which leaderboard it
+ * counts towards. It is the Season being played when the Entry is submitted,
+ * and never changes: an Entry belongs to the competition it was made in.
+ *
+ * Deliberately without a combined Multiplier column, and without the Reward
+ * one. Both are the product of what is on {@link predictions}, and a stored
+ * copy would be a second answer to a question that already has one — the shape
+ * ADR-0003 refuses for a Balance, for the same reason. What is frozen is what
+ * ADR-0002 says has to be: the Multiplier of each answer, on the Prediction
+ * that answered it. `potentialReward` in `shared/entries.ts` is where the two
+ * become a Reward, said once for the panel a fan confirms in, the answer the
+ * server sends back, and the settlement that eventually pays it.
+ *
+ * How many Predictions an Entry may hold is not something a column can say, so
+ * the migration that creates this table holds it with a deferred constraint
+ * trigger: an Entry is between one and ten Predictions when the transaction
+ * that wrote it commits, whatever wrote it.
+ *
+ * **Cancelling is three more rules a column cannot hold**, and
+ * `20260831190048_cancelling_an_entry` wrote each of them: an Entry reaches
+ * `cancelled` out of `open` and never leaves it
+ * (`an_entry_is_cancelled_once_out_of_open`), only while every Bout in it is
+ * still open (`entries_are_cancelled_while_every_bout_is_open`), and never
+ * apart from the refund that returns its whole Amount
+ * (`entries_are_refunded_in_full`). The last is the shape
+ * `results_are_entered_on_settled_bouts` uses and the same kind of promise: a
+ * status and a Coin movement that are only ever true together.
+ *
+ * **What holds every other status is the Coins, not the status.**
+ * `entries_are_refunded_in_full` and `won_entries_are_rewarded_once` each tie a
+ * status to a movement *standing* — a Reward or a refund no reversal names —
+ * in both directions, so an Entry is Won exactly while it holds its one Reward
+ * and Refunded exactly while it holds its Amount back. That is what lets a
+ * corrected result move an Entry between them (#16) while making it impossible
+ * to move one without moving the Coins that go with it. Only `cancelled` is
+ * held as a status rule as well, because it is the fan's own decision about a
+ * card that had not started and nothing corrects one.
+ */
+export const entries = pgTable(
+  "entries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    seasonId: uuid("season_id")
+      .notNull()
+      .references(() => seasons.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id),
+    /** The Coins committed to it, which have already left the Balance. */
+    amount: integer("amount").notNull(),
+    status: text("status").$type<EntryStatus>().notNull().default("open"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    // Every Entry a fan holds in one Season: the listing beside the card
+    // (`committedEntries`), and what settlement re-reads.
+    index("entries_by_fan").on(table.seasonId, table.userId),
+    // Every Entry a fan has ever committed, newest first, which is My
+    // Predictions (`entryHistory` in `server/utils/history.ts`). A second index
+    // rather than a reordering of the one above, because they are read by two
+    // different questions: that one always knows the Season, and this one is
+    // for the page that deliberately does not narrow to it — history is kept
+    // forever, so the query behind it has to stay affordable as the Seasons
+    // pile up rather than only while a fan has played one.
+    index("entries_by_fan_over_time").on(table.userId, table.submittedAt.desc()),
+    check(
+      "entries_status_known",
+      sql`${table.status} in ('open', 'won', 'lost', 'cancelled', 'refunded')`,
+    ),
+    // Spelled out again in `AMOUNT` in `shared/entries.ts`, which is what the
+    // page and the route refuse with. There is no ceiling here: the maximum is
+    // the fan's whole Balance, and the ledger is the only thing that knows it.
+    check("entries_amount_is_committed", sql`${table.amount} >= 1`),
+  ],
+);
+
+/**
+ * One answer to one Question on one Bout, carrying what that answer paid.
+ *
+ * The same shape as the {@link outcomes} row it is a copy of (ADR-0014): a
+ * Question, the corner the answer is about, a `method` exactly where the
+ * Question names one, and one Multiplier.
+ * `predictions_answers_its_question` says so here the way
+ * `outcomes_answers_its_question` says it there, and it is what stops a winner
+ * row carrying a method — which nothing downstream could grade, because there
+ * would be no saying which of the two the fan gave.
+ *
+ * **An Entry holds at most one Prediction per Bout**, and
+ * `predictions_one_per_bout_in_an_entry` is what makes that true rather than
+ * intended. It is load-bearing in a way it was not: "Fighter A by Decision"
+ * says everything "Fighter A wins" says and more (ADR-0015), so chaining them
+ * would pay as though a fan had predicted two things when they gave nearly one
+ * sentence — a systematic overpayment somebody would find and farm. Under this
+ * shape nothing correlated is ever multiplied: within a Bout there is one
+ * answer, and across Bouts the events are independent. A fan holding two views
+ * on one Bout commits two Entries, which are funded, cancelled and graded
+ * separately.
+ *
+ * The answer is stored as what it says rather than as a reference to the
+ * Outcome that offered it, and `predictions_method_is_offered` is what keeps
+ * the two from ever disagreeing: `(bout_id, corner, method)` points at an
+ * Outcome row of that Bout, so a method answer exists here only if the Bout was
+ * actually offering it, to that fighter — "Beridze by Submission" on a Bout
+ * offering it only to Tsiklauri has nothing to point at, and an Outcome a
+ * re-import took away is one nothing here can name. What the key holds is
+ * *which answer was offered*, not what it pays: the Multiplier is in no
+ * constraint, and copying the right number onto the right answer is `priceOf`'s,
+ * on both sides of a submission. Postgres does not check a foreign key whose
+ * columns include a null, which is exactly right: `method` is null on every
+ * winner row, and non-null on every row the key is meant to hold.
+ *
+ * **There is no second key for the winner Question, and that is a consequence
+ * of the corner rather than an omission.** It was `(bout_id, corner)`, which
+ * Postgres could check because a null corner on every method row left that pair
+ * unique across the table. With a corner on every row it is unique only among
+ * winner rows, a foreign key cannot reference a partial unique index, and no
+ * other column set is both unique across {@link outcomes} and non-null on a
+ * winner Prediction — so there is no widening that saves it.
+ *
+ * What holds that answer to the card instead is a chain rather than one key.
+ * `predictions_bout_id_bouts_id_fk` says the Bout exists and
+ * `predictions_corner_known` says the corner is one of two; a Prediction can
+ * only be written on an open Bout (`predictions_are_made_on_open_bouts`),
+ * which can only have been opened once every Outcome on it was priced
+ * (`bouts_are_opened_only_when_priced`), so both winner Outcomes are there
+ * before any fan can answer. What is genuinely given up is narrower than the
+ * key was: nothing now refuses deleting a winner Outcome that committed
+ * Predictions point at. Nothing in the application deletes one, and taking the
+ * Bout away with it is refused by the key above and by the trigger in
+ * `20260825191407_event_import` while Predictions exist.
+ *
+ * The Multiplier is what that answer paid at the moment of submission
+ * (ADR-0002), and one number rather than three because every Multiplier stands
+ * for its own answer outright and none of them combine within a Bout.
+ *
+ * Neither foreign key cascades. A Bout fans hold Coins against is never
+ * deleted — the trigger in `20260825191407_event_import` already refuses to
+ * replace one that is not closed, and this is the same door locked from the
+ * other side — and an Entry is not deleted either, for the reason ADR-0003
+ * gives about the ledger: what happened is not rewritten.
+ */
+export const predictions = pgTable(
+  "predictions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entryId: uuid("entry_id")
+      .notNull()
+      .references(() => entries.id),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id),
+    /** Which of the two Questions this Prediction answers. */
+    question: text("question").$type<Question>().notNull(),
+    /** Which fighter the fan's answer is about, on every Prediction (ADR-0015). */
+    corner: text("corner").$type<Corner>().notNull(),
+    /** How they say that fighter wins, on a method Prediction. Null on a winner one. */
+    method: text("method").$type<Method>(),
+    /**
+     * What that answer paid when the Entry was submitted.
+     *
+     * `numeric(5, 2)` like the Outcome it was copied from, so that the number
+     * a fan was shown is the number stored, to the place they saw it.
+     */
+    multiplier: numeric("multiplier", { precision: 5, scale: 2, mode: "number" }).notNull(),
+  },
+  (table) => [
+    // ADR-0014, held by Postgres rather than by whichever route remembers to
+    // ask. A rule that lives only in a handler is one refactor away from
+    // disappearing, and this one is what makes the model safe to multiply.
+    uniqueIndex("predictions_one_per_bout_in_an_entry").on(table.entryId, table.boutId),
+    // Everything settlement reads: every Prediction on a Bout that just got a
+    // result (#14).
+    index("predictions_by_bout").on(table.boutId),
+    // The answer was one the Bout was offering, for the fighter it names. It
+    // points at the Outcome row that priced it, through the unique index
+    // `outcomes` already has — which is also what makes "that Outcome is not on
+    // this Bout" a refusal from the database rather than only from a route.
+    foreignKey({
+      name: "predictions_method_is_offered",
+      columns: [table.boutId, table.corner, table.method],
+      foreignColumns: [outcomes.boutId, outcomes.corner, outcomes.method],
+    }),
+    check("predictions_question_known", sql`${table.question} in ('winner', 'method')`),
+    check("predictions_corner_known", sql`${table.corner} in ('red', 'blue')`),
+    check(
+      "predictions_method_known",
+      sql`${table.method} is null or ${table.method} in ('ko_tko', 'submission', 'decision')`,
+    ),
+    // A corner always, plus a method exactly where the Question names one — the
+    // same rule `outcomes_answers_its_question` holds the Outcome to, because
+    // this is a copy of one. Without it a winner row could carry a method, and
+    // nothing grading it would know which of the two the fan gave.
+    check(
+      "predictions_answers_its_question",
+      sql`${table.corner} is not null
+        and ((${table.question} = 'winner' and ${table.method} is null)
+          or (${table.question} = 'method' and ${table.method} is not null))`,
+    ),
+    // The same bounds an Outcome's Multiplier is held to, copied here because
+    // this is a copy of one: a Prediction paying ×1 or less returns a fan who
+    // was right their own Coins back or fewer.
+    check(
+      "predictions_multiplier_pays",
+      sql`${table.multiplier} > 1 and ${table.multiplier} <= 100`,
+    ),
+  ],
+);

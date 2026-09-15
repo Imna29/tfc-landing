@@ -1,4 +1,18 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": []
+  // Everything below is generated or vendored: another tool owns the bytes, and
+  // reformatting them here only churns them back on the next regeneration.
+  "ignorePatterns": [
+    // Vendored from mattpocock/skills, pinned by hash in skills-lock.json.
+    ".agents/**",
+    // Slice Machine's source of truth for the Prismic models, and the types it
+    // generates from them.
+    "customtypes/**",
+    "app/slices/*/model.json",
+    "prismicio-types.d.ts",
+    // drizzle-kit writes these snapshots and rewrites them on every generate.
+    "server/db/migrations/**",
+    // Prose is hand-written; the formatter restyles emphasis markers and wrapping.
+    "**/*.md"
+  ]
 }

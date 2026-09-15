@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isFilled } from "@prismicio/client";
+import { asLinkAttrs, isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 
 defineProps(
@@ -14,7 +14,9 @@ defineProps(
     :data-slice-variation="slice.variation"
   >
     <div class="container mx-auto px-6 md:px-20">
-      <p class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant mb-12">
+      <p
+        class="text-center text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant mb-12"
+      >
         {{ slice.primary.title }}
       </p>
       <div class="flex flex-wrap justify-center items-center gap-12 md:gap-24">
@@ -22,7 +24,7 @@ defineProps(
           v-for="(sponsor, index) in slice.primary.sponsors"
           :key="index"
           :is="isFilled.link(sponsor.link) ? 'a' : 'div'"
-          v-bind="isFilled.link(sponsor.link) ? { href: sponsor.link.url, target: sponsor.link.target } : {}"
+          v-bind="isFilled.link(sponsor.link) ? asLinkAttrs(sponsor.link) : {}"
           class="opacity-30 grayscale hover:grayscale-0 hover:opacity-100 transition-all"
         >
           <img
@@ -33,7 +35,7 @@ defineProps(
             decoding="async"
             fetchpriority="low"
             class="h-16 w-auto object-contain"
-          >
+          />
         </component>
       </div>
     </div>

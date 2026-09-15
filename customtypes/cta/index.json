@@ -1,46 +1,46 @@
 {
+  "format": "custom",
   "id": "cta",
-  "label": "cta",
-  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
-        "type": "UID",
         "config": {
           "label": "UID"
-        }
+        },
+        "type": "UID"
       },
       "label": {
-        "type": "Text",
         "config": {
           "label": "label",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "link": {
-        "type": "Link",
         "config": {
-          "label": "link",
-          "placeholder": "",
-          "select": null,
           "allowTargetBlank": true,
           "allowText": true,
+          "label": "link",
+          "placeholder": "",
           "repeat": false,
+          "select": null,
           "variants": [
             "Primary",
             "Secondary"
           ]
-        }
+        },
+        "type": "Link"
       },
       "icon": {
-        "type": "Text",
         "config": {
           "label": "icon",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       }
     }
   },
-  "status": true,
-  "format": "custom"
+  "label": "cta",
+  "repeatable": true,
+  "status": true
 }

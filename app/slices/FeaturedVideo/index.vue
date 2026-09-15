@@ -57,7 +57,7 @@ const closeModal = () => {
         playsinline
         class="w-full h-full object-cover opacity-60 grayscale hover:grayscale-0 transition-all duration-1000"
       >
-        <source :src="videoUrl" type="video/mp4">
+        <source :src="videoUrl" type="video/mp4" />
       </video>
       <div v-else class="w-full h-full bg-surface-container-low" />
       <div
@@ -66,11 +66,10 @@ const closeModal = () => {
     </div>
 
     <div class="relative z-10 text-center px-4 max-w-5xl">
-
       <h1
         class="font-headline font-black italic text-6xl md:text-8xl lg:text-9xl uppercase tracking-tighter leading-none text-white drop-shadow-2xl"
       >
-        {{ headlineOne }} <br>
+        {{ headlineOne }} <br />
         <span class="text-primary">{{ headlineTwo }}</span>
       </h1>
       <p

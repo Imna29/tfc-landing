@@ -1,0 +1,525 @@
+/**
+ * The Coin ledger: the only code that writes a Coin Transaction, and the only
+ * code that writes the materialised Balance those rows add up to.
+ *
+ * Balance is derived, never stored (ADR-0003). `balance_cache` exists so that
+ * a site header and a leaderboard do not aggregate the whole ledger on every
+ * request, and it is written here in exactly one way — as a `select` back out
+ * of the ledger. There is deliberately no "add this much to the cache" path,
+ * because a cache that is incremented can drift from the rows it claims to
+ * summarise, and a cache that is derived cannot.
+ *
+ * That is also what makes {@link rebuildBalanceCache} more than a repair
+ * script: it is the same statement the write path runs, with nothing narrowing
+ * it. `test/server/coins.test.ts` throws the cache away and rebuilds it.
+ *
+ * Everything here takes the transaction it is to run inside rather than
+ * reaching for a connection of its own — see {@link DatabaseTransaction} for
+ * why that is not a preference.
+ */
+import { STARTING_BALANCE } from "#shared/coins";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { Database, DatabaseTransaction } from "../db/client";
+import { balanceCache, coinTransactions, users } from "../db/schema";
+import { useDatabase } from "./db";
+
+/**
+ * Writes the Season's starting Coins into the ledger and brings the Balances
+ * they move in step. Answers how many fans were granted.
+ *
+ * `forFan` narrows it to one fan, for somebody who joined after the Season
+ * opened; without it, every fan with an account, which is what opening a
+ * Season does. Either way they get the same hundred Coins — a fan joining at
+ * the last Event of a Season is behind on the leaderboard, which is fair,
+ * rather than behind on Coins, which would not be.
+ *
+ * The amount is not a parameter and never will be. A function that took one
+ * would be the Coin printer the Season rules exist to rule out, and every
+ * caller would then be something that had to be trusted with it.
+ *
+ * A fan who holds a grant for this Season already is skipped rather than
+ * refused — `coin_transactions_one_grant_per_fan` is what guarantees at most
+ * one, and honouring it here means this can be run again after a failure
+ * without paying anybody twice.
+ *
+ * Takes the transaction to run inside rather than opening one: opening a
+ * Season writes the Season row and these together or not at all.
+ */
+export async function grantStartingCoins(
+  tx: DatabaseTransaction,
+  seasonId: string,
+  reason: string,
+  forFan?: string,
+): Promise<number> {
+  const onlyThisFan = forFan ? sql`where ${users.id} = ${forFan}::uuid` : sql``;
+
+  // An `insert ... select` rather than a row per fan, because opening a Season
+  // grants to everybody at once and a round trip each would hold the
+  // transaction open for as long as the promotion has fans.
+  const granted = await tx.execute<{ user_id: string }>(sql`
+    insert into ${coinTransactions} (season_id, user_id, kind, amount, reason, cause, cause_id)
+    select ${seasonId}::uuid, ${users.id}, 'season_grant', ${STARTING_BALANCE},
+           ${reason}, 'season', ${seasonId}::uuid
+    from ${users}
+    ${onlyThisFan}
+    on conflict do nothing
+    returning user_id
+  `);
+
+  if (granted.length > 0) {
+    await materialiseBalances(tx, seasonId, forFan ? [forFan] : undefined);
+  }
+
+  return granted.length;
+}
+
+/**
+ * Grants one fan the Season's starting Coins in a transaction of its own, for
+ * the callers that are not already inside one — a fan signing up, whose
+ * account `better-auth` has already committed by the time this runs.
+ */
+export function grantOneFanTheirStartingCoins(
+  seasonId: string,
+  reason: string,
+  userId: string,
+): Promise<number> {
+  return useDatabase().transaction((tx) => grantStartingCoins(tx, seasonId, reason, userId));
+}
+
+/**
+ * What a fan holds, read so that nothing else can move it until this
+ * transaction is done with it.
+ *
+ * **Every transaction that writes a Coin Transaction takes this row first.**
+ * The `for update` is what makes "an Amount above the fan's Balance is
+ * refused" true of two requests arriving together. Without it, two submissions
+ * in the same moment both read a hundred Coins, both find themselves within
+ * it, and a fan commits two hundred: neither transaction can see the other's
+ * uncommitted ledger row, so no constraint on the ledger could catch it
+ * either. Taking the row first means the second submission waits, and reads
+ * the Balance the first one left behind.
+ *
+ * A cancellation takes it for a quieter reason, and takes it all the same.
+ * {@link materialiseBalances} recomputes a Balance from the ledger rather than
+ * adding to it, and a statement that begins before a concurrent transaction
+ * commits sums the ledger without its rows — so a refund and a submission
+ * overlapping would leave the cache saying a number neither of them meant.
+ * Nobody is over-credited by that, because the ledger is the Balance
+ * (ADR-0003); the cached copy just goes on being wrong until the next
+ * movement. Queueing on this row is what stops it.
+ *
+ * A fan with no row holds nothing. It is the row {@link balanceOf} answers
+ * zero for — a fan whose account was created while no Season was open — and
+ * locking nothing is right for them: they can afford no Entry at all, so there
+ * is nothing to serialise.
+ *
+ * Takes the transaction to run inside because a lock outside one is released
+ * the moment the statement ends, which is a lock that has held nothing.
+ */
+export async function balanceToMoveFrom(
+  tx: DatabaseTransaction,
+  seasonId: string,
+  userId: string,
+): Promise<number> {
+  const [held] = await balanceRow(tx, seasonId, userId).for("update");
+
+  return held?.balance ?? 0;
+}
+
+/**
+ * Takes the Balance row of every fan these movements touch, so that nothing
+ * else can move them until this transaction is done.
+ *
+ * {@link balanceToMoveFrom} for a set of fans at once, and for the second of
+ * the two reasons that function gives rather than the first: nothing here is
+ * asking whether anybody can afford anything. It is that
+ * {@link materialiseBalances} recomputes a Balance from the ledger rather than
+ * adding to it, so a statement that began before a concurrent submission
+ * committed sums the ledger without its rows — and the cached copy is left
+ * saying a number neither transaction meant. Nobody is over-credited by that,
+ * because the ledger is the Balance (ADR-0003), but it stays wrong until the
+ * next movement, and a correction is precisely the moment fans are looking.
+ *
+ * One statement rather than a row each, because a correction on a well-attended
+ * card moves hundreds of fans and a round trip apiece would hold the
+ * transaction open for as long as the card has an audience. Ordered, so that
+ * two of them whose fans overlap queue behind one another rather than
+ * deadlocking half way — the reason `entriesRidingOn` orders its own take.
+ *
+ * A fan with no row holds nothing and locks nothing, which is right: they have
+ * no Coin Transactions in the Season, so there is no cached total to be wrong.
+ */
+export async function balancesToMoveFrom(
+  tx: DatabaseTransaction,
+  moving: readonly { seasonId: string; userId: string }[],
+): Promise<void> {
+  if (moving.length === 0) return;
+
+  await tx
+    .select({ userId: balanceCache.userId })
+    .from(balanceCache)
+    .where(
+      and(
+        inArray(balanceCache.seasonId, [...new Set(moving.map((one) => one.seasonId))]),
+        inArray(balanceCache.userId, [...new Set(moving.map((one) => one.userId))]),
+      ),
+    )
+    .orderBy(balanceCache.seasonId, balanceCache.userId)
+    .for("update");
+}
+
+/**
+ * The one query behind both ways of reading a Balance: the materialised row,
+ * or nothing for a fan who has none.
+ *
+ * Written once because the two callers differ in one word — the `for update`
+ * one of them adds — and two copies of the same `where` is two places for the
+ * Season and the fan to come apart.
+ */
+function balanceRow(executor: Database | DatabaseTransaction, seasonId: string, userId: string) {
+  return executor
+    .select({ balance: balanceCache.balance })
+    .from(balanceCache)
+    .where(and(eq(balanceCache.seasonId, seasonId), eq(balanceCache.userId, userId)))
+    .limit(1);
+}
+
+/**
+ * Takes the Coins an Entry commits out of a fan's Balance, and brings the
+ * materialised copy of it in step.
+ *
+ * The ledger row is the movement (ADR-0003): the Coins leave at submission,
+ * not at settlement, and this is the only place that says so. It writes and
+ * does not ask — whether the fan holds this many is
+ * {@link balanceToMoveFrom}'s question, asked under a lock a moment earlier,
+ * and `entry_commitments_are_within_the_balance` is what refuses this
+ * regardless.
+ *
+ * Takes the transaction to run inside: an Entry that exists without its
+ * commitment is Coins a fan is playing with twice.
+ */
+export async function commitCoins(
+  tx: DatabaseTransaction,
+  commitment: {
+    seasonId: string;
+    userId: string;
+    entryId: string;
+    amount: number;
+    reason: string;
+  },
+): Promise<void> {
+  await tx.insert(coinTransactions).values({
+    seasonId: commitment.seasonId,
+    userId: commitment.userId,
+    kind: "entry_commitment",
+    // Signed, like every row in the ledger: Coins leaving are negative.
+    amount: -commitment.amount,
+    reason: commitment.reason,
+    cause: "entry",
+    causeId: commitment.entryId,
+  });
+
+  await materialiseBalances(tx, commitment.seasonId, [commitment.userId]);
+}
+
+/**
+ * Coins coming back to a Balance about one Entry.
+ *
+ * The two ways that happens are the same movement in every respect the ledger
+ * can see — a Reward a winning Entry earned, and the Amount an Entry that was
+ * cancelled or left with nothing gradable is made whole with — so they are the
+ * same shape, told apart by the `kind` the row is written with and by the
+ * `reason` beside it.
+ */
+export interface CoinsReturned {
+  /** The Season whose Balance it moves, which is the Entry's own. */
+  seasonId: string;
+  userId: string;
+  entryId: string;
+  /** The Coins it returns, which is what its `kind` says it should be. */
+  amount: number;
+  reason: string;
+}
+
+/**
+ * Returns the Coins a winning Entry earned, and brings the materialised copy of
+ * every Balance it moved in step. Answers how many Coins that was.
+ *
+ * One of the two ends of {@link commitCoins}: the Amount left the Balance at
+ * submission, and this is what a winning Entry puts back into one — the other
+ * being {@link refundEntries}, which puts back exactly what was taken. It
+ * writes and does not ask — whether these Entries won is settlement's question,
+ * asked of the Results under a row lock — and `won_entries_are_rewarded_once`
+ * is what refuses a second standing Reward for an Entry regardless of what
+ * asked for it, and refuses one beside an Entry that did not win at all.
+ */
+export function creditRewards(
+  tx: DatabaseTransaction,
+  rewards: readonly CoinsReturned[],
+): Promise<number> {
+  return returnCoins(tx, "entry_reward", rewards);
+}
+
+/**
+ * Returns the Amount an Entry committed, and brings the materialised copy of
+ * every Balance it moved in step. Answers how many Coins that was.
+ *
+ * The third way Coins move about an Entry, and the only one that puts back
+ * exactly what was taken: the Amount, in full, as one row each. Two things
+ * reach it and neither of them is a Reward — a fan cancelling an Entry while
+ * every Bout in it is still open, and settlement finding an Entry in which
+ * every Prediction turned out to be a No Result (ADR-0005). The Coins do the
+ * same thing either way; which of the two it was is the `reason` on the row.
+ *
+ * It writes and does not ask. Whether an Entry may be cancelled at all is
+ * `cancelEntry`'s question in `server/utils/cancellation.ts`, and whether one
+ * has been left with nothing gradable is `gradeEntry`'s — both asked under a
+ * row lock — and `entries_are_refunded_in_full` holds the row and the Entry's
+ * status to each other at commit, which is also what refuses a second standing
+ * refund whatever asked for it.
+ *
+ * The commitment is left where it is rather than being unwritten. The ledger
+ * is append-only (ADR-0003) and it is the record of what happened: the Coins
+ * were committed, and then they came back, which is two rows because it was
+ * two events.
+ */
+export function refundEntries(
+  tx: DatabaseTransaction,
+  refunds: readonly CoinsReturned[],
+): Promise<number> {
+  return returnCoins(tx, "entry_refund", refunds);
+}
+
+/**
+ * One movement being taken back, and why.
+ *
+ * `transactionId` is the row it undoes, which is the whole of what makes this
+ * a reversal rather than a second opinion about somebody's Balance: the ledger
+ * can be read afterwards as "this Reward was paid, and then this row took it
+ * back", and everything asking whether an Entry still holds a Reward asks
+ * whether anything names the one it was paid.
+ *
+ * `amount` is the movement as it was written — positive, because the only two
+ * rows that can be reversed both returned Coins. The row this writes is worth
+ * the negative of it, and `a_reversal_undoes_the_row_it_names` refuses it
+ * otherwise.
+ */
+export interface CoinsReversed {
+  /** The Coin Transaction this takes back. */
+  transactionId: string;
+  seasonId: string;
+  userId: string;
+  entryId: string;
+  /** What that row moved, which is what this one moves back. */
+  amount: number;
+  reason: string;
+}
+
+/**
+ * Takes back Coins an Entry was given, and brings the materialised copy of
+ * every Balance it moved in step. Answers how many Coins were taken back.
+ *
+ * The movement ADR-0003 built the ledger for. A Result entered wrong has
+ * already paid Rewards and returned Amounts by the time anybody notices, and
+ * the only defensible fix is a row saying so: the Reward stays where it is,
+ * this stands beside it, and a fan disputing their Balance can be shown both.
+ * Nothing here rewrites or deletes anything — `coin_transactions_are_append_only`
+ * would refuse it, and its hint says to do exactly this instead.
+ *
+ * It writes and does not ask. Which movements are no longer right is
+ * `correctResult`'s question in `server/utils/corrections.ts`, asked of the
+ * re-graded Entries under a row lock, and the rules underneath are what hold
+ * regardless: `coin_transactions_one_reversal_per_row` refuses taking the same
+ * Reward back twice, and `a_reversal_undoes_the_row_it_names` refuses a
+ * reversal that is not worth what it claims to undo.
+ *
+ * **A Balance can go below zero here, and that is the correction working.** A
+ * fan paid a Reward on a wrong result may have committed those Coins to other
+ * Entries before anybody noticed; taking the Reward back leaves them owing,
+ * and `entry_commitments_are_within_the_balance` deliberately holds only
+ * commitments to the Balance so that this row is never the thing refused. The
+ * alternative is leaving Coins in circulation that were never won.
+ */
+export async function reverseCoins(
+  tx: DatabaseTransaction,
+  reversed: readonly CoinsReversed[],
+): Promise<number> {
+  if (reversed.length === 0) return 0;
+
+  await tx.insert(coinTransactions).values(
+    reversed.map((movement) => ({
+      seasonId: movement.seasonId,
+      userId: movement.userId,
+      kind: "entry_reversal" as const,
+      // Signed, like every row in the ledger: Coins leaving are negative.
+      amount: -movement.amount,
+      reason: movement.reason,
+      cause: "entry" as const,
+      causeId: movement.entryId,
+      reverses: movement.transactionId,
+    })),
+  );
+
+  await materialiseMoved(tx, reversed);
+
+  return reversed.reduce((coins, movement) => coins + movement.amount, 0);
+}
+
+/**
+ * The one statement behind both of the above: the rows, then the Balances they
+ * moved.
+ *
+ * Written once because a Reward and a refund differ in the `kind` column and in
+ * nothing else, and two copies of this would be two places for the sign, the
+ * cause or the Season grouping to be typed the wrong way round — which is
+ * ADR-0003's "Coins created or destroyed with no error anywhere" in its
+ * quietest form. What each of them *means* is on the two functions above,
+ * where a caller reads it.
+ *
+ * Every movement of one settlement in one statement rather than a row each,
+ * because a Bout on a well-attended card decides hundreds of Entries and a
+ * round trip apiece would hold the transaction open for as long as the card has
+ * fans. Nothing is written at all for a settlement that moved nothing, which is
+ * every Bout an admin enters a result for before the chains on it are finished.
+ *
+ * Takes the transaction to run inside because an Entry marked Won whose Reward
+ * was not written, or Refunded without its Amount, is Coins destroyed with no
+ * error anywhere (ADR-0003).
+ */
+async function returnCoins(
+  tx: DatabaseTransaction,
+  kind: "entry_reward" | "entry_refund",
+  returned: readonly CoinsReturned[],
+): Promise<number> {
+  if (returned.length === 0) return 0;
+
+  await tx.insert(coinTransactions).values(
+    returned.map((movement) => ({
+      seasonId: movement.seasonId,
+      userId: movement.userId,
+      kind,
+      // Signed, like every row in the ledger: Coins arriving are positive.
+      amount: movement.amount,
+      reason: movement.reason,
+      cause: "entry" as const,
+      causeId: movement.entryId,
+    })),
+  );
+
+  await materialiseMoved(tx, returned);
+
+  return returned.reduce((coins, movement) => coins + movement.amount, 0);
+}
+
+/**
+ * Brings the materialised Balance of every fan these movements touched back in
+ * step with the ledger.
+ *
+ * Grouped by Season rather than assuming one. An Entry belongs to the Season it
+ * was submitted in and a Bout to the Season its card was imported into, and
+ * those are the same Season today — but this is the statement that would
+ * silently write half a Season's Balances if they ever were not.
+ */
+async function materialiseMoved(
+  tx: DatabaseTransaction,
+  moved: readonly { seasonId: string; userId: string }[],
+): Promise<void> {
+  const fansBySeason = new Map<string, Set<string>>();
+
+  for (const movement of moved) {
+    const fans = fansBySeason.get(movement.seasonId) ?? new Set<string>();
+
+    fans.add(movement.userId);
+    fansBySeason.set(movement.seasonId, fans);
+  }
+
+  for (const [seasonId, fans] of fansBySeason) {
+    await materialiseBalances(tx, seasonId, [...fans]);
+  }
+}
+
+/**
+ * Writes what the ledger says these fans' Balances are into `balance_cache`.
+ *
+ * `forFans` is the fans whose rows just moved. Passing nothing recomputes the
+ * whole Season, which is what a rebuild is.
+ *
+ * **`updated_at` is derived too, and that is not decoration.** It is the
+ * moment the fan's last Coin Transaction in the Season was written, taken from
+ * the ledger beside the sum — never `now()`, which is the moment this
+ * statement happened to run. A Rank breaks a tie by who reached the total
+ * first (`CONTEXT.md`, `BY_STANDING` in `server/utils/standings.ts`), so
+ * stamping the write time here would mean {@link rebuildBalanceCache} came
+ * back with every tied fan in a new order — the leaderboard reshuffled by a
+ * repair that is supposed to change nothing. ADR-0003 says this table is
+ * derived data; a column nothing derives it from is the one place that could
+ * quietly stop being true.
+ */
+async function materialiseBalances(
+  tx: DatabaseTransaction,
+  seasonId: string,
+  forFans?: string[],
+): Promise<void> {
+  const onlyTheseFans = forFans
+    ? sql`and user_id in (${sql.join(
+        forFans.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})`
+    : sql``;
+
+  await tx.execute(sql`
+    insert into ${balanceCache} (season_id, user_id, balance, updated_at)
+    select season_id, user_id, sum(amount), max(created_at)
+    from ${coinTransactions}
+    where season_id = ${seasonId}::uuid ${onlyTheseFans}
+    group by season_id, user_id
+    on conflict (season_id, user_id) do update
+      set balance = excluded.balance, updated_at = excluded.updated_at
+  `);
+}
+
+/**
+ * Throws the materialised Balance for a Season away and derives it again from
+ * the ledger.
+ *
+ * Nothing in the application calls this: the write path keeps the cache in
+ * step on its own. It exists because ADR-0003 claims the cache is derived data
+ * that can always be rebuilt, and a claim nothing can act on is not a claim —
+ * `test/server/coins.test.ts` corrupts the cache and proves this puts it back.
+ *
+ * The one thing here that is handed a connection rather than reaching for the
+ * app's own, because its only caller is in another process and connects
+ * separately.
+ *
+ * The delete is what makes it a rebuild rather than a refresh: a cached
+ * Balance for a fan with no rows in this Season is exactly the kind of wrong
+ * a rebuild has to be able to remove.
+ */
+export function rebuildBalanceCache(database: Database, seasonId: string): Promise<void> {
+  return database.transaction(async (tx) => {
+    await tx.delete(balanceCache).where(eq(balanceCache.seasonId, seasonId));
+    await materialiseBalances(tx, seasonId);
+  });
+}
+
+/**
+ * A fan's Balance for a Season, read from the materialised copy.
+ *
+ * A fan with no row has no Coin Transactions in this Season, which is zero
+ * Coins — not a missing answer. It happens to a fan whose account was created
+ * while no Season was open and who has not been granted anything since.
+ *
+ * `on` is for the callers already inside a transaction, which is where a
+ * Balance that has just moved has to be read from: on the one connection a
+ * serverless function has (ADR-0010), reaching for the application's own would
+ * wait on a connection the transaction itself is holding.
+ */
+export async function balanceOf(
+  seasonId: string,
+  userId: string,
+  on: Database | DatabaseTransaction = useDatabase(),
+): Promise<number> {
+  const [held] = await balanceRow(on, seasonId, userId);
+
+  return held?.balance ?? 0;
+}

@@ -1,27 +1,27 @@
 {
+  "description": "PrivacyPolicy",
   "id": "privacy_policy",
-  "type": "SharedSlice",
   "name": "PrivacyPolicy",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "content": {
-          "type": "StructuredText",
           "config": {
+            "allowTargetBlank": true,
             "label": "content",
-            "placeholder": "",
             "multi": "paragraph,preformatted,heading1,heading2,heading3,heading4,heading5,heading6,strong,em,hyperlink,image,embed,list-item,o-list-item,rtl",
-            "allowTargetBlank": true
-          }
+            "placeholder": ""
+          },
+          "type": "StructuredText"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "PrivacyPolicy"
+  ]
 }

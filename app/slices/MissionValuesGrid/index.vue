@@ -41,7 +41,7 @@ onMounted(async () => {
         }
       });
     },
-    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.1, rootMargin: "0px 0px -40px 0px" },
   );
 
   items.forEach((item) => {
@@ -89,7 +89,10 @@ onUnmounted(() => {
         :class="{ 'mma-active': itemStates[1] }"
         :style="{ transitionDelay: '100ms' }"
       >
-        <Icon :name="slice.primary.items[1].icon || 'material-symbols:bolt'" class="text-6xl mb-6" />
+        <Icon
+          :name="slice.primary.items[1].icon || 'material-symbols:bolt'"
+          class="text-6xl mb-6"
+        />
         <h3 class="font-headline text-3xl font-black italic uppercase">
           {{ slice.primary.items[1].title }}
         </h3>

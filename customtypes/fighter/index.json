@@ -1,259 +1,259 @@
 {
+  "format": "custom",
   "id": "fighter",
-  "label": "Fighter",
-  "repeatable": true,
   "json": {
     "Main": {
       "uid": {
-        "type": "UID",
         "config": {
           "label": "UID"
-        }
+        },
+        "type": "UID"
       },
       "name": {
-        "type": "Text",
         "config": {
           "label": "name",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "nickname": {
-        "type": "Text",
         "config": {
           "label": "nickname",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "record": {
-        "type": "Text",
         "config": {
           "label": "record",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "age": {
-        "type": "Text",
         "config": {
           "label": "age",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "image": {
-        "type": "Image",
         "config": {
-          "label": "image",
           "constraint": {},
+          "label": "image",
           "thumbnails": []
-        }
+        },
+        "type": "Image"
       },
       "division": {
-        "type": "Link",
         "config": {
-          "label": "division",
-          "select": "document",
           "customtypes": [
             {
-              "id": "division",
               "fields": [
                 "name"
-              ]
+              ],
+              "id": "division"
             }
           ],
-          "repeat": false
-        }
+          "label": "division",
+          "repeat": false,
+          "select": "document"
+        },
+        "type": "Link"
       },
       "disciplines": {
-        "type": "Group",
         "config": {
-          "label": "disciplines",
-          "repeat": true,
           "fields": {
             "discipline": {
-              "type": "Link",
               "config": {
-                "label": "discipline",
-                "select": "document",
                 "customtypes": [
                   {
-                    "id": "discipline",
                     "fields": [
                       "name"
-                    ]
+                    ],
+                    "id": "discipline"
                   }
                 ],
-                "repeat": false
-              }
+                "label": "discipline",
+                "repeat": false,
+                "select": "document"
+              },
+              "type": "Link"
             }
-          }
-        }
+          },
+          "label": "disciplines",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "badges": {
-        "type": "Group",
         "config": {
-          "label": "badges",
-          "repeat": true,
           "fields": {
             "label": {
-              "type": "Text",
               "config": {
                 "label": "label",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             }
-          }
-        }
+          },
+          "label": "badges",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "height": {
-        "type": "Text",
         "config": {
           "label": "height",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "reach": {
-        "type": "Text",
         "config": {
           "label": "reach",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "gym": {
-        "type": "Text",
         "config": {
           "label": "gym",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "from": {
-        "type": "Text",
         "config": {
           "label": "from",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       },
       "history": {
-        "type": "StructuredText",
         "config": {
+          "allowTargetBlank": true,
           "label": "history",
-          "placeholder": "",
           "multi": "paragraph,preformatted,heading2,heading3,heading4,heading5,heading6,strong,em,hyperlink,image,embed,list-item,o-list-item,rtl,heading1",
-          "allowTargetBlank": true
-        }
+          "placeholder": ""
+        },
+        "type": "StructuredText"
       },
       "recent_battles": {
-        "type": "Group",
         "config": {
-          "label": "recent battles",
-          "repeat": true,
           "fields": {
             "result": {
-              "type": "Text",
               "config": {
                 "label": "result",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "date": {
-              "type": "Text",
               "config": {
                 "label": "date",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "opponent": {
-              "type": "Text",
               "config": {
                 "label": "opponent",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "event": {
-              "type": "Text",
               "config": {
                 "label": "event",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "method": {
-              "type": "Text",
               "config": {
                 "label": "method",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "round": {
-              "type": "Text",
               "config": {
                 "label": "round",
                 "placeholder": ""
-              }
+              },
+              "type": "Text"
             },
             "youtube_link": {
-              "type": "Embed",
               "config": {
                 "label": "youtube link",
                 "placeholder": ""
-              }
+              },
+              "type": "Embed"
             }
-          }
-        }
+          },
+          "label": "recent battles",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "instagram_link": {
-        "type": "Link",
         "config": {
+          "allowTargetBlank": true,
+          "allowText": true,
           "label": "instagram link",
           "placeholder": "",
-          "select": null,
-          "allowTargetBlank": true,
-          "allowText": true,
-          "repeat": false
-        }
+          "repeat": false,
+          "select": null
+        },
+        "type": "Link"
       },
       "tapology_link": {
-        "type": "Link",
         "config": {
-          "label": "tapology link",
-          "placeholder": "",
-          "select": null,
           "allowTargetBlank": true,
           "allowText": true,
-          "repeat": false
-        }
+          "label": "tapology link",
+          "placeholder": "",
+          "repeat": false,
+          "select": null
+        },
+        "type": "Link"
       },
       "combat_archive": {
-        "type": "Group",
         "config": {
-          "label": "combat archive",
-          "repeat": true,
           "fields": {
             "image": {
-              "type": "Image",
               "config": {
-                "label": "image",
                 "constraint": {},
+                "label": "image",
                 "thumbnails": []
-              }
+              },
+              "type": "Image"
             }
-          }
-        }
+          },
+          "label": "combat archive",
+          "repeat": true
+        },
+        "type": "Group"
       },
       "banner_image": {
-        "type": "Image",
         "config": {
-          "label": "banner image",
           "constraint": {},
+          "label": "banner image",
           "thumbnails": []
-        }
+        },
+        "type": "Image"
       },
       "fighting_out_of": {
-        "type": "Text",
         "config": {
           "label": "fighting out of",
           "placeholder": ""
-        }
+        },
+        "type": "Text"
       }
     }
   },
-  "status": true,
-  "format": "custom"
+  "label": "Fighter",
+  "repeatable": true,
+  "status": true
 }

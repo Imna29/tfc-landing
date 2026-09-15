@@ -19,6 +19,11 @@
  * anticipates this shape — "any new authenticated route must be added to the
  * exemption list" — and it is the side of the trade-off that needs watching,
  * because forgetting to exempt a route fails open.
+ *
+ * These rules also assume there is only one spelling of each path to exempt.
+ * Vue Router does not assume that on its own — `/PROFILE` matched `/profile`
+ * and missed its exemption — so `nuxt.config.ts` makes route matching
+ * case-sensitive. See ADR-0012.
  */
 import type { NuxtConfig } from "nuxt/schema";
 
@@ -67,13 +72,34 @@ export const routeRules = {
   ...section("/api", uncached),
 
   // ── Sections that read a session, server-rendered per request ──
-  ...section("/predictions", { ...uncached, ssr: true }),
+  // Signing in and signing up are personalised before a fan even has an
+  // account: the page sets a session cookie, and an edge-cached copy of it
+  // would be the same page for everyone who followed.
+  ...section("/account", { ...uncached, ssr: true }),
   ...section("/profile", { ...uncached, ssr: true }),
   ...section("/admin", { ...uncached, ssr: true }),
 
   // The leaderboard is public, but it pins the signed-in user's own row below
   // the top ten, so the page as a whole is personalised (ADR-0008).
   ...section("/leaderboard", { ...uncached, ssr: true }),
+
+  // And so is what a Season finished as, for exactly the same reason: a
+  // visitor reads the top ten of it, and a fan reads the place they came,
+  // however far down. A stored copy would be one fan's final Rank served to
+  // everybody who followed them onto it.
+  ...section("/standings", { ...uncached, ssr: true }),
+
+  // ── Exempt for staleness rather than for privacy ──
+  // The card a fan reads is the same HTML for every visitor, signed in or
+  // out, which is exactly the shape of page the marketing rule would happily
+  // store. It is exempt anyway: a copy ten minutes old is a Bout shown open
+  // that locked eight minutes ago, and a Multiplier shown that has since been
+  // corrected. This is the easier of the two reasons to forget, which is why
+  // it is written here rather than only in the page.
+  //
+  // Building and submitting an Entry is under here too, and that half does
+  // read a session — so this rule holds for both reasons.
+  ...section("/predictions", { ...uncached, ssr: true }),
 
   // ── Prismic slice simulator: a development tool, never cached ──
   ...section("/slice-simulator", { ...uncached, ssr: true }),

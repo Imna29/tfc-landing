@@ -2,6 +2,7 @@ import defu from "defu";
 import { createRouter, toRouteMatcher } from "radix3";
 import { describe, expect, it } from "vitest";
 import { routeRules } from "../../route-rules";
+import { ADMIN_PREFIXES } from "../../server/utils/adminArea";
 
 /**
  * Resolves a path the way Nitro itself does at runtime — every matching rule
@@ -35,15 +36,38 @@ describe("routes that read a session", () => {
   const sessionPaths = [
     "/api",
     "/api/health",
+    "/api/accounts/me",
+    "/account",
+    "/account/sign-in",
+    "/account/sign-up",
     "/api/entries",
+    // The two a fan reads of their own, both as personal as an answer gets:
+    // their Balance and Rank on the profile, and every Entry they have ever
+    // committed on My Predictions.
+    "/api/coins/standing",
+    "/api/predictions/history",
     "/api/prismic/revalidate",
     "/predictions",
     "/predictions/tfc-12",
+    // Nothing but one fan's own answers, and exempt by sitting under the card
+    // rather than by a rule of its own — which is the arrangement worth
+    // asserting, because it is the one nobody would remember to add.
+    "/predictions/mine",
     "/profile",
     "/profile/entries",
     "/admin",
     "/admin/events/tfc-12",
+    // The console an admin runs a live card from, which is as personalised as
+    // the rest of the admin area and staler faster than any of it: a copy ten
+    // minutes old is a Bout shown open that locked eight minutes ago.
+    "/admin/console",
+    "/api/admin/console",
     "/leaderboard",
+    // What a Season finished as is as personalised as the leaderboard: a fan
+    // reads the place they came, however far down it they were.
+    "/standings",
+    "/standings/a-season",
+    "/api/standings/a-season",
   ];
 
   it.each(sessionPaths)("%s is exempt from the edge cache", (path) => {
@@ -54,7 +78,7 @@ describe("routes that read a session", () => {
     expect(rulesFor(path).cache).toBe(false);
   });
 
-  it.each(["/predictions", "/profile", "/admin", "/leaderboard"])(
+  it.each(["/predictions", "/profile", "/admin", "/leaderboard", "/standings"])(
     "%s is server-rendered",
     (path) => {
       expect(rulesFor(path).ssr).toBe(true);
@@ -97,7 +121,14 @@ function vercelExemptsFromEdgeCache(path: string) {
 }
 
 describe("section index paths", () => {
-  const sectionIndexes = ["/api", "/predictions", "/profile", "/admin", "/leaderboard"];
+  const sectionIndexes = [
+    "/api",
+    "/predictions",
+    "/profile",
+    "/admin",
+    "/leaderboard",
+    "/standings",
+  ];
 
   it.each(sectionIndexes)("%s is exempt in Nitro's router", (path) => {
     expect(rulesFor(path).isr).toBe(false);
@@ -110,12 +141,15 @@ describe("section index paths", () => {
     expect(vercelExemptsFromEdgeCache(path)).toBe(true);
   });
 
-  it.each(["/predictions/tfc-12", "/profile/entries", "/admin/events/tfc-12"])(
-    "%s is exempt in Vercel's route table",
-    (path) => {
-      expect(vercelExemptsFromEdgeCache(path)).toBe(true);
-    },
-  );
+  it.each([
+    "/predictions/tfc-12",
+    "/predictions/mine",
+    "/profile/entries",
+    "/admin/events/tfc-12",
+    "/standings/a-season",
+  ])("%s is exempt in Vercel's route table", (path) => {
+    expect(vercelExemptsFromEdgeCache(path)).toBe(true);
+  });
 
   it.each(["/", "/some-prismic-page", "/fighters/some-fighter"])(
     "%s still goes to the cached catch-all",
@@ -132,4 +166,17 @@ describe("the slice simulator", () => {
     expect(rulesFor(path).isr).toBe(false);
     expect(rulesFor(path).ssr).toBe(true);
   });
+});
+
+describe("the admin area", () => {
+  // `server/utils/adminArea.ts` guards these prefixes and says only the
+  // spelling exempted here is ever served. That is only true while every
+  // prefix it guards is in fact exempt, which is what this asserts — the two
+  // lists live in different files and nothing else would notice them parting.
+  it.each(ADMIN_PREFIXES.flatMap((prefix) => [prefix, `${prefix}/events/tfc-12`]))(
+    "%s is exempt from the edge cache",
+    (path) => {
+      expect(rulesFor(path).isr).toBe(false);
+    },
+  );
 });

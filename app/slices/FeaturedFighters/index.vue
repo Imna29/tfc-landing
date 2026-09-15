@@ -70,7 +70,7 @@ const initializeCardObserver = () => {
         }
       });
     },
-    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
   );
 
   cards.forEach((card) => {
@@ -116,7 +116,10 @@ const { data: fighterDocuments } = await useAsyncData(
 const fighterDocumentsById = computed(
   () =>
     new Map(
-      (fighterDocuments.value ?? []).map((fighterDocument) => [fighterDocument.id, fighterDocument]),
+      (fighterDocuments.value ?? []).map((fighterDocument) => [
+        fighterDocument.id,
+        fighterDocument,
+      ]),
     ),
 );
 
@@ -171,7 +174,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     observer.observe(sectionRef.value);
   }
@@ -213,10 +216,7 @@ onUnmounted(() => {
       >
         <div
           class="aspect-[3/4] overflow-hidden clip-slanted"
-          :class="[
-            'mma-fade-up',
-            { 'mma-active': cardStates[fighter.id] }
-          ]"
+          :class="['mma-fade-up', { 'mma-active': cardStates[fighter.id] }]"
           :style="{ transitionDelay: `${index * 100}ms` }"
         >
           <img
@@ -235,10 +235,7 @@ onUnmounted(() => {
         </div>
         <div
           class="p-8"
-          :class="[
-            'mma-fade-up',
-            { 'mma-active': cardStates[fighter.id] }
-          ]"
+          :class="['mma-fade-up', { 'mma-active': cardStates[fighter.id] }]"
           :style="{ transitionDelay: `${index * 100 + 80}ms` }"
         >
           <div class="flex justify-between items-start mb-6">

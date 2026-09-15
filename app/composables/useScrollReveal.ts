@@ -9,7 +9,7 @@ export interface ScrollRevealOptions {
 
 export function useScrollReveal(
   targetRef: Ref<HTMLElement | null>,
-  options: ScrollRevealOptions = {}
+  options: ScrollRevealOptions = {},
 ) {
   const {
     threshold = 0.15,
@@ -50,7 +50,7 @@ export function useScrollReveal(
           }
         });
       },
-      { threshold, rootMargin }
+      { threshold, rootMargin },
     );
 
     observer.observe(el);
@@ -70,7 +70,7 @@ export function useScrollReveal(
 export function useStaggerReveal(
   parentRef: Ref<HTMLElement | null>,
   childSelector: string,
-  options: ScrollRevealOptions & { staggerDelay?: number } = {}
+  options: ScrollRevealOptions & { staggerDelay?: number } = {},
 ) {
   const {
     threshold = 0.1,
@@ -126,7 +126,7 @@ export function useStaggerReveal(
           }
         });
       },
-      { threshold, rootMargin }
+      { threshold, rootMargin },
     );
 
     children.forEach((child) => {

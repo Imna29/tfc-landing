@@ -1,5 +1,5 @@
 allowBuilds:
-  '@parcel/watcher': true
+  "@parcel/watcher": true
   # testcontainers' docker client only needs the local unix socket here; the
   # native ssh2 crypto bindings are for connecting to a remote docker host.
   cpu-features: false

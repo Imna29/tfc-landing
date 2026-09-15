@@ -1,47 +1,47 @@
 {
+  "description": "AboutUsHero",
   "id": "about_us_hero",
-  "type": "SharedSlice",
   "name": "AboutUsHero",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "title_highlight": {
-          "type": "Text",
           "config": {
             "label": "title highlight",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "subtitle": {
-          "type": "Text",
           "config": {
             "label": "subtitle",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "image": {
-          "type": "Image",
           "config": {
-            "label": "image",
             "constraint": {},
+            "label": "image",
             "thumbnails": []
-          }
+          },
+          "type": "Image"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "AboutUsHero"
+  ]
 }

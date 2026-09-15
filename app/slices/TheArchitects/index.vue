@@ -69,7 +69,7 @@ const initializeObservers = () => {
         }
       });
     },
-    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
   );
 
   leaderCards.forEach((card) => {
@@ -102,7 +102,7 @@ onMounted(async () => {
           }
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
     const header = sectionRef.value.querySelector("[data-section-header]");
     if (header) headerObserver.observe(header);
@@ -137,10 +137,7 @@ onUnmounted(() => {
           v-for="(leader, index) in leaders"
           :key="leader.id"
           class="group space-y-6 text-center md:text-left hover:scale-[1.02] transition-all duration-700 ease-out"
-          :class="[
-            'mma-fade-up',
-            { 'mma-active': cardStates[leader.id] }
-          ]"
+          :class="['mma-fade-up', { 'mma-active': cardStates[leader.id] }]"
           :style="{ transitionDelay: `${(index % 3) * 100}ms` }"
           :data-leader-id="leader.id"
         >
@@ -158,8 +155,10 @@ onUnmounted(() => {
               decoding="async"
               fetchpriority="low"
               :src="leader.image.url"
+            />
+            <div
+              class="absolute bottom-0 left-0 p-6 bg-gradient-to-t from-black to-transparent w-full"
             >
-            <div class="absolute bottom-0 left-0 p-6 bg-gradient-to-t from-black to-transparent w-full">
               <p
                 class="text-primary font-headline font-black italic uppercase tracking-widest text-sm"
               >

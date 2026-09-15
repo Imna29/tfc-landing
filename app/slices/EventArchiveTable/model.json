@@ -1,96 +1,96 @@
 {
+  "description": "EventArchiveTable",
   "id": "event_archive_table",
-  "type": "SharedSlice",
   "name": "EventArchiveTable",
+  "type": "SharedSlice",
   "variations": [
     {
-      "id": "default",
-      "name": "Default",
       "description": "Default",
-      "imageUrl": "",
       "docURL": "...",
-      "version": "initial",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
       "primary": {
         "title": {
-          "type": "Text",
           "config": {
             "label": "title",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "table_headers": {
-          "type": "Group",
           "config": {
-            "label": "table headers",
-            "repeat": true,
             "fields": {
               "text": {
-                "type": "Text",
                 "config": {
                   "label": "text",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               }
-            }
-          }
+            },
+            "label": "table headers",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "events": {
-          "type": "Group",
           "config": {
-            "label": "events",
-            "repeat": true,
             "fields": {
               "name": {
-                "type": "Text",
                 "config": {
                   "label": "name",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "date": {
-                "type": "Date",
                 "config": {
                   "label": "date",
                   "placeholder": ""
-                }
+                },
+                "type": "Date"
               },
               "result": {
-                "type": "Text",
                 "config": {
                   "label": "result",
                   "placeholder": ""
-                }
+                },
+                "type": "Text"
               },
               "replay_youtube_link": {
-                "type": "Embed",
                 "config": {
                   "label": "replay youtube link",
                   "placeholder": ""
-                }
+                },
+                "type": "Embed"
               }
-            }
-          }
+            },
+            "label": "events",
+            "repeat": true
+          },
+          "type": "Group"
         },
         "load_more_button_label": {
-          "type": "Text",
           "config": {
             "label": "load more button label",
             "placeholder": ""
-          }
+          },
+          "type": "Text"
         },
         "load_more_button_link": {
-          "type": "Link",
           "config": {
-            "label": "load more button link",
-            "placeholder": "",
-            "select": null,
             "allowTargetBlank": true,
             "allowText": true,
-            "repeat": false
-          }
+            "label": "load more button link",
+            "placeholder": "",
+            "repeat": false,
+            "select": null
+          },
+          "type": "Link"
         }
-      }
+      },
+      "version": "initial"
     }
-  ],
-  "description": "EventArchiveTable"
+  ]
 }

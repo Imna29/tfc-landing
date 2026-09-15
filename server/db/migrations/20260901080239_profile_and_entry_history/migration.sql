@@ -1,0 +1,1 @@
+CREATE INDEX "entries_by_fan_over_time" ON "entries" USING btree ("user_id","submitted_at" DESC NULLS LAST);

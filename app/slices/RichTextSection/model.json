@@ -1,0 +1,27 @@
+{
+  "description": "RichTextSection",
+  "id": "rich_text_section",
+  "name": "RichTextSection",
+  "type": "SharedSlice",
+  "variations": [
+    {
+      "description": "Default",
+      "docURL": "...",
+      "id": "default",
+      "imageUrl": "",
+      "name": "Default",
+      "primary": {
+        "content": {
+          "config": {
+            "allowTargetBlank": true,
+            "label": "content",
+            "multi": "paragraph,heading1,heading2,heading3,strong,em,hyperlink,list-item,o-list-item",
+            "placeholder": ""
+          },
+          "type": "StructuredText"
+        }
+      },
+      "version": "initial"
+    }
+  ]
+}
