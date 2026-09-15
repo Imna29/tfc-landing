@@ -1427,6 +1427,15 @@ Vercel project, both `openssl rand -hex 32`:
 - `NUXT_REVALIDATE_BYPASS_TOKEN` — read at **build** time as well as at
   runtime, so changing it takes a redeploy, not just a restart.
 
+Both have to be readable by whatever runs the build, which since ADR-0019 is
+the deploy workflow rather than Vercel — `vercel pull` fetches the environment
+the target is configured with, so setting them on the Vercel project is still
+where it is done. A build that cannot see the bypass token deploys anyway,
+without it: `/api/prismic/revalidate` then answers 503 naming the variable, and
+a publish waits out the ten minutes. That is deliberate — Vercel refuses a
+deployment whose bypass token is under 32 characters, and a deploy that is red
+for everyone is worse than a webhook that says what it is missing.
+
 Then in Prismic, under *Settings → Webhooks*, add one pointing at
 `https://<the site>/api/prismic/revalidate` with that secret. "Trigger it now"
 answers `{"ok": true, "type": "test-trigger"}` and purges nothing.
