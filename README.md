@@ -120,6 +120,14 @@ variable `PREVIEW_ALIAS` (for example `dev.tfcgeo.com`) is the stable hostname a
 Two databases means two of everything the database holds. A dev database has no
 admin until the `role` grant in the Admin section is run against it too.
 
+Both `DATABASE_URL`s are a **direct** connection, on 5432, rather than a
+transaction-mode pooled one, and that is load-bearing rather than a default
+nobody chose. Statements are prepared against the session, which is what makes
+one cost a single round trip to Postgres instead of two, and a transaction-mode
+pooler rejects session-level prepared statements. Moving either database onto a
+pooled connection string means putting `prepare: false` back in
+`server/db/client.ts` in the same commit. See ADR-0023.
+
 Until `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` all exist, the
 deploy workflow names what is missing in the run summary and stops without
 deploying. A branch that goes red on every push is a branch people stop reading.

@@ -4,6 +4,7 @@ import type { H3Event } from "h3";
 import { users } from "../db/schema";
 import { useAuth } from "./auth";
 import { useDatabase } from "./db";
+import { askedOncePerRequest } from "./perRequest";
 
 /**
  * A signed-in fan, plus the id the server needs to write rows against them.
@@ -27,14 +28,34 @@ export function fanFrom(user: { name: string; email: string }): Fan {
   return { username: user.name, email: user.email };
 }
 
-/** Who is making this request, or `null` if nobody is signed in. */
-export async function currentFan(event: H3Event): Promise<SignedInFan | null> {
-  const session = await useAuth().api.getSession({ headers: event.headers });
+/**
+ * Who is making this request, or `null` if nobody is signed in.
+ *
+ * Read once per request, however many times it is asked. Rendering
+ * `/predictions` asks twice — `/api/accounts/me` behind `useFan`, and
+ * `/api/predictions/entries` — and every request under `/admin` asks twice
+ * more, once in `server/middleware/admin.ts` and once in the handler. Each ask
+ * is a `sessions` row and a `users` row, and the second pair cannot have learnt
+ * anything the first did not: they are a millisecond apart, in one request,
+ * about one cookie. See ADR-0023, and `server/utils/perRequest.ts`.
+ *
+ * **The cookie is what the question is about**, because the answer is about
+ * whoever it names. An internal call carries the render's cookie, which is
+ * what makes sharing the answer right; a call made with a different cookie, or
+ * none, is a different question and is asked. Without that, a render whose
+ * first internal call went out unsigned would answer "nobody is signed in" for
+ * the rest of the page.
+ */
+export const currentFan = askedOncePerRequest(
+  async (event: H3Event): Promise<SignedInFan | null> => {
+    const session = await useAuth().api.getSession({ headers: event.headers });
 
-  if (!session) return null;
+    if (!session) return null;
 
-  return { id: session.user.id, ...fanFrom(session.user) };
-}
+    return { id: session.user.id, ...fanFrom(session.user) };
+  },
+  (event) => event.headers.get("cookie") ?? "nobody's cookie",
+);
 
 /**
  * Who is making this request, refusing it if nobody is.
@@ -65,8 +86,9 @@ export async function requireFan(event: H3Event): Promise<SignedInFan> {
  * `/admin` and `/api/admin`, so a handler that calls this is not what stops a
  * fan getting in — it is how the handler learns *which* admin is acting, for
  * the "who did this, and when" that lock and settlement records need. Calling
- * it costs one more session lookup and one more row read, and buys a route
- * that is still locked if it is ever moved out from under the prefix.
+ * it costs one more row read — the session behind it is the one
+ * {@link currentFan} already read for this request — and buys a route that is
+ * still locked if it is ever moved out from under the prefix.
  */
 export async function requireAdmin(event: H3Event): Promise<SignedInFan> {
   const fan = await requireFan(event);

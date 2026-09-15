@@ -69,11 +69,15 @@ export function createDatabase(databaseUrl: string) {
     max: poolSize(),
     idle_timeout: 20,
     connect_timeout: 10,
-    // Transaction-mode poolers (Supabase's Supavisor, and PgBouncer depending
-    // on version) reject session-level prepared statements. The host is not
-    // chosen yet, so stay compatible with all of them.
-    prepare: false,
+    // `prepare` is deliberately not set, which leaves it at the driver's own
+    // default of `true`. It was `false` here, because a transaction-mode
+    // pooler — Supabase's Supavisor, and PgBouncer depending on version —
+    // rejects session-level prepared statements, and the host was undecided.
+    // See {@link prepareEveryStatement} for what the decision was and what it
+    // took to make the setting mean anything.
   });
+
+  prepareEveryStatement(client);
 
   // `{ client }` rather than a positional argument, and no `schema`: Drizzle
   // 1.0 takes an already-built driver only through the config object, and
@@ -82,4 +86,63 @@ export function createDatabase(databaseUrl: string) {
   // every query in this codebase is written with `select`/`insert`/`update` —
   // so there is nothing to hand over.
   return drizzle({ client });
+}
+
+/**
+ * Makes this connection keep the shape of every statement it runs, so that a
+ * statement costs one round trip to Postgres rather than two.
+ *
+ * **Why this is a line of code and not a setting.** A statement the driver has
+ * not kept the shape of has to be Parsed before it can be Bound, and those are
+ * two writes with a wait between them:
+ *
+ * ```
+ * Parse+Describe+Flush   → wait
+ * Bind+Execute+Sync      → wait
+ * ```
+ *
+ * A statement carrying no parameters is the exception and always cost one:
+ * `postgres` sends those as a simple query, which has nothing to Parse ahead
+ * of. `/api/health` is the whole of that category here.
+ *
+ * Leaving `prepare` at its default above is not enough on its own, which is
+ * the part worth writing down. Drizzle passes `prepare: false` of its own on
+ * every query that was not given a name with `.prepare("…")`, and `postgres`
+ * requires both — `q.prepare = options.prepare && q.options.prepare` — so the
+ * connection's setting decides nothing by itself and a page goes on paying
+ * twice. That is measurable and was measured: with the setting alone, a
+ * `/predictions` render still made two round trips for each of its seven
+ * statements (`test/server/round-trips.test.ts`).
+ *
+ * So the driver's own `unsafe` — which is what Drizzle runs every statement
+ * through — is asked to prepare regardless. `postgres` then keeps each
+ * statement against the connection and Binds straight to it next time.
+ *
+ * **What makes this safe is the connection, and it is the connection that
+ * could stop being safe.** Production connects to Postgres directly, on 5432:
+ * one session for as long as the process holds it, which is what a
+ * session-level prepared statement needs. A transaction-mode pooler hands a
+ * request whichever backend is free, and a statement prepared against one is
+ * not there on the next — so moving to a pooled connection string means
+ * putting `prepare: false` back above, in the same commit as the change to the
+ * environment secret. That is enough on its own, and was checked rather than
+ * assumed: the connection's `false` is the half of the `&&` this cannot reach,
+ * so setting it turns this straight off again.
+ *
+ * Statements inside a transaction are left alone, because `postgres` builds
+ * the transaction its own handle and this one is not it. Those are the writes
+ * — an Entry submitted, a Bout settled — rather than the reads a page is made
+ * of, and ADR-0022's arithmetic is about what a render costs.
+ *
+ * Written for the three-argument call, which is the only one `postgres` types
+ * and the only one Drizzle makes. Its other shape — `unsafe(string, options)`
+ * — is told apart by counting arguments, and would arrive here as parameters.
+ *
+ * See ADR-0023.
+ */
+function prepareEveryStatement(client: postgres.Sql): void {
+  const ask = client.unsafe;
+
+  client.unsafe = (string, parameters, options) =>
+    ask(string, parameters, { ...options, prepare: true });
 }

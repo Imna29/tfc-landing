@@ -55,3 +55,11 @@ Each doubles or trebles a number that is about to be measured in milliseconds,
 and none of them is what made a page take two seconds. Distance was. If a page
 of the game is ever slow again with the Function in the right place, these three
 are where to look, and the round-trip count is the thing to measure.
+
+**All three were picked up in [[adr-0023]], so the paragraph above is history
+rather than description**, and so is the sentence further up that says each
+statement costs two round trips because of `prepare: false`. What still holds is
+everything about the region, the distance and what it cost. A signed-in
+`/predictions` render now makes seven statements and about seven round trips,
+and the round-trip count is still the thing to measure —
+`test/server/round-trips.test.ts` is what measures it.
