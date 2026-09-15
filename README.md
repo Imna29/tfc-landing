@@ -1412,3 +1412,32 @@ authenticated and sent a real request — which a stubbed `fetch` would only hav
 proved about the stub. That file pins its port, because `BETTER_AUTH_URL` is
 what emailed links are built from and has to be configuration the server starts
 with rather than something discovered from it afterwards.
+
+## Prismic and the edge cache
+
+`route-rules.ts` puts `isr: 600` over `/**`, so on Vercel a page is stored at
+the edge for ten minutes and then refreshed *behind* the next request — the
+visitor at minute eleven still gets the old HTML. Each region caches
+separately. That, not Prismic, is why an edit can seem not to land.
+
+A Prismic webhook purges the pages on publish instead. Set two variables in the
+Vercel project, both `openssl rand -hex 32`:
+
+- `NUXT_PRISMIC_WEBHOOK_SECRET`
+- `NUXT_REVALIDATE_BYPASS_TOKEN` — read at **build** time as well as at
+  runtime, so changing it takes a redeploy, not just a restart.
+
+Then in Prismic, under *Settings → Webhooks*, add one pointing at
+`https://<the site>/api/prismic/revalidate` with that secret. "Trigger it now"
+answers `{"ok": true, "type": "test-trigger"}` and purges nothing.
+
+A publish re-renders every page the site serves from Prismic, not just the
+changed documents — the footer is on every page and fighters appear in three
+slices, so the pages one publish affects cannot be worked out from the document
+ids Prismic sends. `server/utils/prismic-paths.ts` maps types to paths, and **a
+new type with a page of its own has to be added there**.
+
+Two things the webhook does not cover: unpublishing a document (it is gone from
+the query, so its page waits out the ten minutes), and a misconfigured or
+uncalled webhook. Both fall back on the expiry, so a mistake here is slow, not
+broken.

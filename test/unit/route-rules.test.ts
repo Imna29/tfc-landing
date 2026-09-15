@@ -46,6 +46,7 @@ describe("routes that read a session", () => {
     // committed on My Predictions.
     "/api/coins/standing",
     "/api/predictions/history",
+    "/api/prismic/revalidate",
     "/predictions",
     "/predictions/tfc-12",
     // Nothing but one fan's own answers, and exempt by sitting under the card

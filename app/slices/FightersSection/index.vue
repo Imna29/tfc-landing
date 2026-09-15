@@ -279,6 +279,7 @@ const divisionOrder = [
   "FEATHERWEIGHT",
   "LIGHTWEIGHT",
   "WELTERWEIGHT",
+  "MIDDLEWEIGHT",
   "HEAVYWEIGHT",
 ];
 

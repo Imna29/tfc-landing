@@ -18,11 +18,21 @@ const getTags = (tagsString: string | null | undefined) => {
 
 const sectionRef = ref<HTMLElement | null>(null);
 const isHeaderInView = ref(false);
+const isMobileViewport = ref(false);
 const cardStates = ref<Record<number, boolean>>({});
 let headerObserver: IntersectionObserver | null = null;
 let cardObserver: IntersectionObserver | null = null;
+let mobileViewportQuery: MediaQueryList | null = null;
+
+const handleViewportChange = () => {
+  isMobileViewport.value = mobileViewportQuery?.matches ?? false;
+};
 
 onMounted(async () => {
+  mobileViewportQuery = window.matchMedia("(max-width: 767px)");
+  mobileViewportQuery.addEventListener("change", handleViewportChange);
+  isMobileViewport.value = mobileViewportQuery.matches;
+
   await nextTick();
   if (!sectionRef.value) return;
 
@@ -79,6 +89,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  mobileViewportQuery?.removeEventListener("change", handleViewportChange);
   headerObserver?.disconnect();
   cardObserver?.disconnect();
 });
@@ -131,7 +142,12 @@ onUnmounted(() => {
               loading="lazy"
               decoding="async"
               fetchpriority="low"
-              class="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-110 group-hover:scale-100"
+              :class="[
+                'w-full h-full object-cover transition-all duration-500',
+                isMobileViewport && cardStates[index]
+                  ? 'grayscale-0 scale-100'
+                  : 'grayscale group-hover:grayscale-0 scale-110 group-hover:scale-100',
+              ]"
               :src="event.image.url"
             />
             <div
