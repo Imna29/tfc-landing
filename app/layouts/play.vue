@@ -173,5 +173,7 @@ const closeMenu = () => {
         </ul>
       </div>
     </footer>
+
+    <PlayDisclaimer />
   </div>
 </template>

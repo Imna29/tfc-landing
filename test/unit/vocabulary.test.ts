@@ -49,6 +49,16 @@ describe("findBannedTerms", () => {
     expect(findBannedTerms("Marketing")).toEqual([]);
   });
 
+  it("lets the disclaimer say what the game is not", () => {
+    // Decided in `CONTEXT.md`: the legal disclaimer in `app/utils/disclaimer.ts`
+    // has to name the thing to deny it. The sentence passes; the word does not.
+    expect(findBannedTerms("PlayTFC does not constitute betting or gambling")).toEqual([]);
+    expect(findBannedTerms("does not constitute betting, but place a bet")).toEqual([
+      { term: "bet", match: "betting", line: 1 },
+      { term: "bet", match: "bet", line: 1 },
+    ]);
+  });
+
   it("says which line each one is on", () => {
     expect(findBannedTerms("clean\nyour stake\nclean\nthe payout")).toEqual([
       { term: "stake", match: "stake", line: 2 },

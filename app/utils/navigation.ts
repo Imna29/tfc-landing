@@ -134,11 +134,12 @@ export const PLAY_NAV: readonly NavLink[] = [
  * played, and a page that reached production with the line unwritten would be
  * a prediction game that looks like something else.
  *
- * **This is now the only place the app says it at all.** It used to be the
- * short version of a published term on a rules page a nav item away, and
- * ADR-0018 removed that page — so the line that survived it carries the whole
- * claim rather than a summary of one, and says what Coins are instead of what
- * they are not worth relative to something TFC no longer awards.
+ * It used to be the short version of a published term on a rules page a nav
+ * item away, and ADR-0018 removed that page — so this line carries the claim on
+ * every page, and says what Coins are instead of what they are not worth
+ * relative to something TFC no longer awards. The full legal statement, in
+ * English and Georgian, is `PLAY_DISCLAIMER` in `app/utils/disclaimer.ts`,
+ * shown once on a fan's first visit to the section.
  */
 export const PLAY_FINE_PRINT =
   "TFC Predictions is free to play. Coins are worth nothing outside the game: they have no " +
