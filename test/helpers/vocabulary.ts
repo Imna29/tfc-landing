@@ -33,6 +33,16 @@ export const BANNED_TERMS = [
  */
 const ALLOWED_WORDS: ReadonlySet<string> = new Set(["marketing"]);
 
+/**
+ * Sentences that may name a banned term, because what they say is that the
+ * game is not that thing.
+ *
+ * There is exactly one: the legal disclaimer in `app/utils/disclaimer.ts`, which
+ * has to use the word to deny it. Matched as a whole phrase on one line, so the
+ * word used anywhere else, in that file or any other, is still reported.
+ */
+const ALLOWED_PHRASES = [/\bdoes not constitute betting or gambling\b/gi];
+
 export interface BannedTermMatch {
   /** The term as `CONTEXT.md` bans it. */
   term: string;
@@ -77,7 +87,12 @@ const PATTERNS = BANNED_TERMS.map((term) => ({ term, regex: inflectionPattern(te
 export function findBannedTerms(text: string): BannedTermMatch[] {
   const found: BannedTermMatch[] = [];
 
-  text.split("\n").forEach((lineText, index) => {
+  text.split("\n").forEach((line, index) => {
+    // Blanked rather than removed, so every match after one keeps its position.
+    const lineText = ALLOWED_PHRASES.reduce(
+      (blanked, phrase) => blanked.replace(phrase, (allowed) => " ".repeat(allowed.length)),
+      line,
+    );
     const onThisLine: Array<{ at: number; found: BannedTermMatch }> = [];
 
     for (const { term, regex } of PATTERNS) {
