@@ -15,12 +15,16 @@ The list is enforced rather than remembered: `test/unit/vocabulary.test.ts` swee
 a fan can read and every decision record in `docs/adr/`, matching inflections, so a word
 reached for out of habit fails a run rather than a review.
 
-Two deliberate exceptions. **marketing** never counts, though banning "market" catches it: it
+Three deliberate exceptions. **marketing** never counts, though banning "market" catches it: it
 is the word for the site TFC runs beside the game and has no synonym, the rule is about the
 game's vocabulary rather than the company's, and a guard that fires on legitimate copy is a
-guard somebody switches off. And **this file is not swept**: it is the rule rather than prose
-subject to it, and it cannot ban a word without naming it — every entry below that says never
-"odds" or never a "stake" would fail a check that cannot tell a mention from a use.
+guard somebody switches off. **The disclaimer's denial** passes: the legal disclaimer PlayTFC
+shows a fan on their first visit (`app/utils/disclaimer.ts`) says the game "does not constitute
+betting or gambling", and it cannot deny being a thing without naming it. That sentence is
+allowed as a whole, and the word anywhere else is still caught. And **this file is not swept**:
+it is the rule rather than prose subject to it, and it cannot ban a word without naming it —
+every entry below that says never "odds" or never a "stake" would fail a check that cannot tell
+a mention from a use.
 
 ## Prediction Game
 
