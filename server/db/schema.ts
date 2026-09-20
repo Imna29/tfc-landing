@@ -664,7 +664,7 @@ export const bouts = pgTable(
     eventId: uuid("event_id")
       .notNull()
       .references(() => events.id, { onDelete: "cascade" }),
-    /** Where on the card it is fought: 1 is first. */
+    /** Where on the card it sits, counted from the top: 1 is the main event. */
     cardOrder: integer("card_order").notNull(),
     status: text("status").$type<BoutStatus>().notNull().default("closed"),
     redName: text("red_name").notNull(),
@@ -695,8 +695,9 @@ export const bouts = pgTable(
     titleFight: boolean("title_fight").notNull().default(false),
   },
   (table) => [
-    // Card order is how the Bouts are told apart on the card and the order
-    // they are locked in, so two Bouts cannot share a place.
+    // Card order is how the Bouts are told apart on the card, and — read from
+    // the highest place down, because 1 is the main event — the order they are
+    // locked in. So two Bouts cannot share a place.
     uniqueIndex("bouts_one_per_place_on_the_card").on(table.eventId, table.cardOrder),
     // One Bout closes a card.
     uniqueIndex("bouts_one_main_event")

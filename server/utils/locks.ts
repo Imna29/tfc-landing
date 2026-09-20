@@ -89,8 +89,13 @@ export interface AsAt {
 }
 
 /**
- * The smallest card order on the Bout's own card, which is what
+ * The highest card order on the Bout's own card, which is what
  * {@link automaticLock} compares a Bout against.
+ *
+ * The highest rather than the smallest, because a TFC card is numbered from the
+ * top: Bout 1 is the main event and is fought last. `firstFought` in
+ * `shared/locks.ts` is the same question asked of a card already in hand, and
+ * the two must never disagree.
  *
  * A fragment rather than three copies of the same correlated subquery: every
  * reader of a Bout's Lock moment needs it, and it is the kind of SQL that goes
@@ -100,7 +105,7 @@ export interface AsAt {
  * `events`.
  */
 export const firstOnTheCard = sql<number>`(
-  select min(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
+  select max(place.card_order) from ${bouts} as place where place.event_id = ${events.id}
 )`.mapWith(Number);
 
 /**
@@ -259,8 +264,15 @@ async function sweepDue(now: Date, on: DatabaseConnection): Promise<LockedBout[]
       select
         bout.id,
         card.scheduled_start,
+        -- The highest card order on the Bout's own card, because a card is
+        -- numbered from the top: Bout 1 is the main event and is fought last.
+        -- The same rule as firstOnTheCard above and firstFought in
+        -- shared/locks.ts, spelled out a third time because this statement is
+        -- correlated against bout rather than against a joined events row. It
+        -- is also the one that WRITES the Locks the other two only predict, so
+        -- the three disagreeing is a Lock at the wrong end of the card.
         bout.card_order = (
-          select min(place.card_order) from ${bouts} as place where place.event_id = bout.event_id
+          select max(place.card_order) from ${bouts} as place where place.event_id = bout.event_id
         ) as first_on_the_card
       from ${bouts} as bout
       join ${events} as card on card.id = bout.event_id

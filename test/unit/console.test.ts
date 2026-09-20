@@ -7,8 +7,13 @@ import { hasStarted, nextToLock, type ConsoleBout } from "../../shared/console";
  * The console's whole job is that this is never a decision: the card is being
  * fought, an admin is watching it one-handed in the dark, and the one control
  * on the screen has to be about the right fight. ADR-0006 says which that is —
- * Bouts lock in card order as the card progresses — and this is where that is
- * said once.
+ * Bouts lock in the order they are fought as the card progresses — and this is
+ * where that is said once.
+ *
+ * A card is numbered from the top: Bout 1 is the main event and is fought last.
+ * So an admin advances the Lock from the highest place on the card down to 1,
+ * and the Bout that closes itself at first bell is the highest one — which is
+ * what the cards below are built to count down from.
  */
 
 const START = "2026-09-12T19:00:00.000Z";
@@ -30,18 +35,24 @@ function consoleBout(overrides: Partial<ConsoleBout> = {}): ConsoleBout {
   };
 }
 
-/** A card whose opener has locked and whose other two Bouts are still open. */
+/**
+ * A card whose opener has locked and whose other two Bouts are still open.
+ *
+ * Bout 3 is the opener, because the card is numbered from the top — so it is
+ * the one the card locked at first bell — and Bout 1 is the main event, still
+ * open while the rest of the evening is fought. In the order they are fought.
+ */
 function cardBeingFought(): ConsoleBout[] {
   return [
     consoleBout({
-      cardOrder: 1,
+      cardOrder: 3,
       status: "locked",
       locksAt: START,
       locksAs: "scheduled",
       lock: { kind: "scheduled", at: START, by: null },
     }),
     consoleBout({ cardOrder: 2 }),
-    consoleBout({ cardOrder: 3, mainEvent: true }),
+    consoleBout({ cardOrder: 1, mainEvent: true }),
   ];
 }
 
@@ -50,7 +61,7 @@ describe("the Bout an admin locks next", () => {
     expect(nextToLock(cardBeingFought(), DURING)?.cardOrder).toBe(2);
   });
 
-  it("is read in card order, whatever order the Bouts arrive in", () => {
+  it("is read in fought order, whatever order the Bouts arrive in", () => {
     const card = cardBeingFought();
 
     expect(nextToLock([card[2]!, card[0]!, card[1]!], DURING)?.cardOrder).toBe(2);
@@ -59,7 +70,7 @@ describe("the Bout an admin locks next", () => {
   it("is never a Bout nobody has opened", () => {
     // Locking one is refused — a Bout that never took Predictions has nothing
     // to stop taking — so offering it would be offering a refusal.
-    const card = [consoleBout({ cardOrder: 1, status: "closed" }), consoleBout({ cardOrder: 2 })];
+    const card = [consoleBout({ cardOrder: 3, status: "closed" }), consoleBout({ cardOrder: 2 })];
 
     expect(nextToLock(card, DURING)?.cardOrder).toBe(2);
   });

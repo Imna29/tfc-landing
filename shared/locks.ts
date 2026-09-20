@@ -91,22 +91,29 @@ export const LOCK_KIND_LABELS = {
 export const SWEEP_AFTER = 6 * 60 * 60 * 1000;
 
 /**
- * Where a card starts: the smallest card order on it, which is the Bout fought
+ * Where a card starts: the highest card order on it, which is the Bout fought
  * first.
+ *
+ * The highest, because a TFC card is numbered from the top: Bout 1 is the main
+ * event and is fought last, so the evening runs from the biggest number on the
+ * card down to 1. Card order is where a Bout sits on the card, and the card is
+ * read the way it is announced — it is deliberately not the order the fights
+ * happen in.
  *
  * Said here because three readers ask it and they must never disagree — the
  * card a fan is counted down on (`locksAt` in `shared/predictions.ts`), the
  * console working out which Lock each Bout is waiting on, and, in SQL because
  * it has to be, `firstOnTheCard` in `server/utils/locks.ts`.
  *
- * Not the number 1: a Bout dropped from a lineup leaves the place it had.
+ * Not the count of the Bouts: a Bout dropped from a lineup leaves the place it
+ * had, so the top of a nine-fight card may still be 11.
  *
  * A card is in hand wherever this is asked, so a card with no Bouts is not a
- * case worth answering — `Math.min()` of nothing is `Infinity`, and a card with
- * no Bouts has nothing to lock or to count down either.
+ * case worth answering — `Math.max()` of nothing is `-Infinity`, and a card
+ * with no Bouts has nothing to lock or to count down either.
  */
 export function firstFought(bouts: readonly { cardOrder: number }[]): number {
-  return Math.min(...bouts.map((bout) => bout.cardOrder));
+  return Math.max(...bouts.map((bout) => bout.cardOrder));
 }
 
 /** When a Bout locks with nobody doing anything, and what that Lock is. */
@@ -130,8 +137,10 @@ export interface AutomaticLock {
  * a sweep happened to run rather than the moment it fell due would be an
  * answer nobody could give a fan asking why their Bout closed.
  *
- * `firstOnTheCard` is the smallest card order on the card, not the number 1: a
- * Bout dropped from a lineup leaves the place it had.
+ * `firstOnTheCard` is the *highest* card order on the card — see
+ * {@link firstFought}. Bout 1 is the main event and is fought last, so the Bout
+ * this locks at first bell is the one at the top of the numbering, and the last
+ * Bout it sweeps is Bout 1.
  */
 export function automaticLock(
   cardOrder: number,

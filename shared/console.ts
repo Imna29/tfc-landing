@@ -3,8 +3,10 @@
  * phone, while it is being fought.
  *
  * ADR-0006 keeps later Bouts open while earlier ones are fought, and pays for
- * it with an admin advancing the Lock down the card by hand — someone standing
- * in a dark arena, watching the fights, holding a phone in one hand. Every
+ * it with an admin advancing the Lock through the card by hand — someone
+ * standing in a dark arena, watching the fights, holding a phone in one hand.
+ * The card is numbered from the top, so that walk runs from the highest place
+ * on it down to Bout 1, which is the main event. Every
  * other admin screen is a form they sit down in front of before a card
  * (ADR-0011); this is the one they use during it, and the only one that gets a
  * design pass.
@@ -91,7 +93,15 @@ export interface LockConsole {
    * the hydrating page.
    */
   answeredAt: string;
-  /** Every Bout on the card, in the order they are fought. */
+  /**
+   * Every Bout on the card, in the order they are fought — so the card is read
+   * from its highest place down to Bout 1, which is the main event.
+   *
+   * Fought order rather than card order, because this is the screen of an
+   * evening in progress: the fight walking out next is the one an admin is
+   * looking for, and it is at the top. `lockConsole` in
+   * `server/utils/console.ts` is what sorts them.
+   */
   bouts: ConsoleBout[];
 }
 
@@ -99,11 +109,16 @@ export interface LockConsole {
  * The Bout an admin locks next, or null when there is none to lock.
  *
  * The open Bout fought first, which is what "advance the Lock" means: Bouts
- * lock in card order as the card progresses (ADR-0006), so at any moment there
- * is exactly one Bout an admin could sensibly be about to close. Saying so here
- * is what makes the console a single button rather than a list of them —
- * "unambiguous" is the acceptance criterion, and ambiguity in a dark arena is
- * an admin locking the wrong fight.
+ * lock in the order they are fought as the card progresses (ADR-0006), so at
+ * any moment there is exactly one Bout an admin could sensibly be about to
+ * close. Saying so here is what makes the console a single button rather than a
+ * list of them — "unambiguous" is the acceptance criterion, and ambiguity in a
+ * dark arena is an admin locking the wrong fight.
+ *
+ * Fought first is the *highest* card order still open, not the lowest: a TFC
+ * card is numbered from the top, so Bout 1 is the main event and is fought
+ * last. `firstFought` in `shared/locks.ts` is the same rule where the backstops
+ * read it, and an admin advances the Lock from the biggest number down to 1.
  *
  * A Bout nobody has opened is passed over rather than offered: locking one is
  * refused, because a Bout that never took Predictions has nothing to stop
@@ -117,7 +132,7 @@ export function nextToLock(bouts: readonly ConsoleBout[], now: number): ConsoleB
   const open = bouts.filter((bout) => boutState(bout, now) === "open");
 
   return open.reduce<ConsoleBout | null>(
-    (next, bout) => (next === null || bout.cardOrder < next.cardOrder ? bout : next),
+    (next, bout) => (next === null || bout.cardOrder > next.cardOrder ? bout : next),
     null,
   );
 }

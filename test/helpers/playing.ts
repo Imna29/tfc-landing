@@ -68,8 +68,11 @@ export function upcomingCard(
 
   return cardInTheGame({
     scheduledStart: new Date(Date.now() + 120 * 60_000),
+    // Bout 1 is the main event, because a card is numbered from the top and is
+    // fought from the highest place down — so the last Bout built here is the
+    // one the card locks at first bell.
     bouts: Array.from({ length: bouts }, (_, place) =>
-      cardBout({ cardOrder: place + 1, mainEvent: place === bouts - 1, discipline }),
+      cardBout({ cardOrder: place + 1, mainEvent: place === 0, discipline }),
     ),
     ...rest,
   });

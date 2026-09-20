@@ -139,9 +139,14 @@ export function roundsLabel(scheduledRounds: number): string {
 }
 
 /**
- * The Bouts in the order they are fought, which is rarely the order they are
- * authored in: a card is written main event first and fought the other way
- * round.
+ * The Bouts in card order, which is the order a card is announced: the main
+ * event is Bout 1 and comes first, and the Bout fought first is at the bottom.
+ *
+ * Deliberately not the order they are fought. This is what a fan reads a card
+ * in — on a poster, and on the card they predict against — and it is the order
+ * Prismic authors one in. The screen that wants the evening's running order is
+ * the live lock console, and `lockConsole` in `server/utils/console.ts` sorts
+ * that one for itself.
  *
  * Copies rather than sorting in place, so that rendering a card cannot reorder
  * something the caller is still holding.

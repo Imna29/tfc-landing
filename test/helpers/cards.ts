@@ -72,8 +72,9 @@ export function cardBout(overrides: Partial<CardBout> = {}): CardBout {
  * When the default card is fought: far enough out that every Bout is still open.
  *
  * Relative to now, and that is the whole of it. This was a fixed date until the
- * date arrived. ADR-0006 locks the `cardOrder: 1` Bout automatically at the
- * card's scheduled start, and `boutState` calls that Bout locked the instant the
+ * date arrived. ADR-0006 locks the Bout fought first — the highest card order
+ * on the card, because 1 is the main event — automatically at the card's
+ * scheduled start, and `boutState` calls that Bout locked the instant the
  * moment passes without waiting for a row to be written — so on the morning the
  * date went by, every test that opened the first Bout of a default card began
  * finding it already locked, and the suite went red with no line of source

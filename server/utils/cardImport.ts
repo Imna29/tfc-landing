@@ -185,9 +185,10 @@ export function readCard(event: PrismicEvent, referenced: readonly PrismicRefere
     return { problem: EVENT_MESSAGES.mainEventRepeated };
   }
 
-  // The order the Bouts are fought, which is rarely the order they were
-  // authored in: a card is written main event first and fought the other way
-  // round.
+  // Card order, which is the order a card is announced and authored in: 1 is
+  // the main event. The evening is fought the other way round, and the readers
+  // that care say so themselves — `firstFought` in `shared/locks.ts` and
+  // `lockConsole` in `server/utils/console.ts`.
   bouts.sort((one, another) => one.cardOrder - another.cardOrder);
 
   return {

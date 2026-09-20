@@ -24,8 +24,9 @@ import { boutState, BOUT_STATE_LABELS } from "#shared/predictions";
  * Four decisions shape it, and all four are about a thumb in a dark arena:
  *
  * - **One control, and it names one Bout.** `nextToLock` decides which, and it
- *   is never a choice: the open Bout fought first. A screen of buttons, one
- *   per fight, is a screen where the wrong one gets pressed.
+ *   is never a choice: the open Bout fought first — the highest place still open
+ *   on a card numbered from the top. A screen of buttons, one per fight, is a
+ *   screen where the wrong one gets pressed.
  * - **The control is at the bottom**, where a thumb reaches on a phone held in
  *   one hand, and it is the height of a thumb. The card scrolls above it.
  * - **It rests after every press.** The control moves to the next fight the
@@ -107,7 +108,12 @@ const pressed = ref<{ said: string; at: number } | null>(null);
 /** Whether the control is resting, so a second tap lands on nothing. */
 const resting = computed(() => pressed.value !== null && now.value - pressed.value.at < RESTS_FOR);
 
-/** The Bout to lock next, which is the only fight this screen offers. */
+/**
+ * The Bout to lock next, which is the only fight this screen offers.
+ *
+ * The open Bout fought first, which on a card numbered from the top is the
+ * highest place still open — `nextToLock` is where that rule is said.
+ */
 const next = computed(() => (card.value ? nextToLock(card.value.bouts, now.value) : null));
 
 /** Whether the card is under way, which is what arms the control. */

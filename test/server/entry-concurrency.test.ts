@@ -32,7 +32,7 @@ describe("two requests in the same moment", async () => {
   it("commits the Coins once, and refuses the Entry there are none left for", async () => {
     const card = await cardInTheGame({
       scheduledStart: new Date(Date.now() + 120 * 60_000),
-      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
     });
 
     const signedUp = await signUp();
@@ -76,7 +76,7 @@ describe("two requests in the same moment", async () => {
   it("cancels an Entry once, and returns its Coins once", async () => {
     const card = await cardInTheGame({
       scheduledStart: new Date(Date.now() + 120 * 60_000),
-      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
     });
 
     const signedUp = await signUp();
@@ -130,7 +130,7 @@ describe("two requests in the same moment", async () => {
     // Both transactions taking the Balance row first is what stops it.
     const card = await cardInTheGame({
       scheduledStart: new Date(Date.now() + 120 * 60_000),
-      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
     });
 
     const signedUp = await signUp();
