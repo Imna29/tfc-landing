@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { asText } from "@prismicio/client/richtext";
-import { asDate } from "@prismicio/client";
+import { asDate, asLink } from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 import { computed, ref, onMounted } from "vue";
+import { streamPromoCode } from "~/utils/streamPromo";
 
 const props = defineProps(
   getSliceComponentProps<Content.HeroSectionSlice>(["slice", "index", "slices", "context"]),
+);
+
+/** The discount code each button's destination takes, if any — the stream's, today. */
+const promoCodes = computed(() =>
+  props.slice.primary.cta.map((button) => streamPromoCode(asLink(button.link))),
 );
 
 const formattedEventDate = computed(() => {
@@ -100,11 +106,11 @@ onMounted(() => {
             :key="index"
             :field="button.link"
             :class="[
-              'px-10 py-5 font-black uppercase text-lg flex items-center justify-center gap-3 group mma-fade-up',
+              'relative px-10 py-5 font-black uppercase text-lg flex items-center justify-center gap-3 group mma-fade-up',
               { 'mma-active': isMounted },
               button.link.variant === 'Primary'
                 ? 'bg-primary-container text-white'
-                : 'border-2 border-outline-variant/30 text-white backdrop-blur-sm hover:bg-white/5 transition-colors',
+                : 'mma-sheen border-2 border-white bg-background/40 text-white backdrop-blur-sm hover:bg-white hover:text-background transition-colors',
             ]"
             :style="{ transitionDelay: `${0.55 + index * 0.08}s` }"
           >
@@ -115,9 +121,22 @@ onMounted(() => {
               :class="
                 button.link.variant === 'Primary'
                   ? 'group-hover:translate-x-1 transition-transform'
-                  : ''
+                  : 'text-2xl mma-play-pulse group-hover:text-primary-container'
               "
             />
+            <!--
+              The badge's skewed red tag, hung off the corner so it breaks the
+              row of rectangles. Inside the link, so a screen reader reads the
+              code as part of the button.
+            -->
+            <span
+              v-if="promoCodes[index]"
+              class="absolute -top-4 -right-2 sm:-top-5 sm:-right-5 skew-x-[-12deg] rotate-[-4deg] bg-primary-container text-white px-3 py-1 text-sm font-black uppercase tracking-tight whitespace-nowrap shadow-[3px_3px_0_0_#000] group-hover:scale-110 transition-transform"
+            >
+              <span class="block skew-x-[12deg]">
+                Promo code: <span class="tracking-wider">{{ promoCodes[index] }}</span>
+              </span>
+            </span>
           </PrismicLink>
         </div>
       </div>
