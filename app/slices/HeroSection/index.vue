@@ -4,6 +4,10 @@ import { asDate } from "@prismicio/client";
 import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 import { computed, ref, onMounted } from "vue";
+import StreamCtaVariantA from "./prototype/StreamCtaVariantA.vue";
+import StreamCtaVariantB from "./prototype/StreamCtaVariantB.vue";
+import StreamCtaVariantC from "./prototype/StreamCtaVariantC.vue";
+import StreamCtaVariantD from "./prototype/StreamCtaVariantD.vue";
 
 const props = defineProps(
   getSliceComponentProps<Content.HeroSectionSlice>(["slice", "index", "slices", "context"]),
@@ -24,6 +28,27 @@ const formattedEventDate = computed(() => {
     })
     .toUpperCase();
 });
+
+// PROTOTYPE — four takes on the stream CTA + promo code, switchable via
+// `?variant=A|B|C|D|current` on `/`, dev only. Production always renders the
+// original row below.
+const STREAM_CTA_VARIANTS = [
+  { key: "A", name: "Inverted + coupon strip", component: StreamCtaVariantA },
+  { key: "B", name: "Ticket stub", component: StreamCtaVariantB },
+  { key: "C", name: "Sticker", component: StreamCtaVariantC },
+  { key: "D", name: "Stream panel", component: StreamCtaVariantD },
+  { key: "current", name: "What ships today", component: null },
+];
+const route = useRoute();
+const streamCtaVariant = computed(() => {
+  if (!import.meta.dev) return undefined;
+  const key = typeof route.query.variant === "string" ? route.query.variant : "A";
+  return STREAM_CTA_VARIANTS.find((v) => v.key === key) ?? STREAM_CTA_VARIANTS[0];
+});
+const primaryCta = computed(() =>
+  props.slice.primary.cta.find((c) => c.link.variant === "Primary"),
+);
+const streamCta = computed(() => props.slice.primary.cta.find((c) => c.link.variant !== "Primary"));
 
 const isMounted = ref(false);
 
@@ -94,7 +119,14 @@ onMounted(() => {
         >
           {{ asText(slice.primary.description) }}
         </p>
-        <div v-if="isFilled.group(slice.primary.cta)" class="flex flex-col sm:flex-row gap-4">
+        <component
+          :is="streamCtaVariant.component"
+          v-if="streamCtaVariant?.component"
+          :primary="primaryCta"
+          :stream="streamCta"
+          :is-mounted="isMounted"
+        />
+        <div v-else-if="isFilled.group(slice.primary.cta)" class="flex flex-col sm:flex-row gap-4">
           <PrismicLink
             v-for="(button, index) in slice.primary.cta"
             :key="index"
@@ -139,5 +171,11 @@ onMounted(() => {
         }}</span>
       </div>
     </div>
+
+    <PrototypeSwitcher
+      v-if="streamCtaVariant"
+      :variants="STREAM_CTA_VARIANTS"
+      :current="streamCtaVariant.key"
+    />
   </section>
 </template>
