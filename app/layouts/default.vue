@@ -2,7 +2,7 @@
 import { isFilled } from "@prismicio/client";
 import { PrismicLink } from "@prismicio/vue";
 
-import { FIGHTER_REGISTRATION, MARKETING_NAV } from "~/utils/navigation";
+import { FIGHTER_REGISTRATION, HEADER_NAV } from "~/utils/navigation";
 
 /**
  * The marketing site: what TFC is, for anybody who has arrived to read about
@@ -19,7 +19,7 @@ const isMobileMenuOpen = ref(false);
 
 // One list, both navigations. A section added there appears in each of them,
 // rather than in whichever one whoever added it remembered.
-const navLinks = MARKETING_NAV;
+const navLinks = HEADER_NAV;
 
 const closeMobileMenu = () => {
   isMobileMenuOpen.value = false;

@@ -103,13 +103,26 @@ export const MARKETING_NAV: readonly NavLink[] = [
   { to: "/fighters", label: "Fighters" },
   { to: "/media", label: "Media" },
   { to: "/about", label: "About Us" },
-  { to: "/contact", label: "Contact" },
 ];
+
+/**
+ * How to reach TFC, shown after the sections in the header and the mobile
+ * menu.
+ *
+ * Not one of {@link MARKETING_NAV}, though it sits beside them. It is not a
+ * section of what TFC is, and the game links to it too — from its footer,
+ * beside the legal pages — which no section of the marketing site may be:
+ * `test/server/bouts.test.ts` holds the game's pages to carrying none of them.
+ */
+export const CONTACT: NavLink = { to: "/contact", label: "Contact" };
+
+/** The header's links, in order: the marketing site's sections, then Contact. */
+export const HEADER_NAV: readonly NavLink[] = [...MARKETING_NAV, CONTACT];
 
 /**
  * Where a fighter applies to fight for TFC: the header's call to action.
  *
- * It took that place from Contact, which moved in among the sections above.
+ * It took that place from {@link CONTACT}, which moved in beside the sections.
  * One form for all three disciplines, picked between on the page, and
  * `?discipline=` opens it on one — which is what a link meant for CageBox
  * fighters in particular should carry.
