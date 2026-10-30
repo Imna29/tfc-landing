@@ -551,3 +551,16 @@ above the other, and record it as the order they finished in.
 A Season has them from the moment it closes and never before. They are public, at
 `/standings/<season>`, and personalised the way the leaderboard is: a visitor reads the top
 ten, and a fan reads the place they came, however far down it they were.
+
+## The marketing site
+
+### Fighter Registration
+
+What a fighter fills in to ask TFC for a fight, at `/fighter-registration`: one form per
+[[discipline]], picked between on the page, each written to the response sheet its Google Form
+used to write to ([[adr-0024]]). The header's call to action.
+
+Not a "sign-up": signing up is a [[fan]] creating an account to play, and the two must not share a
+word. Not an "application" either, in new copy — the contact page's card still says Fighter
+Application, and is the one place that does.
+

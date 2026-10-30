@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accountPath,
+  FIGHTER_REGISTRATION,
   inPlaySection,
   MARKETING_NAV,
   MY_PREDICTIONS,
@@ -45,7 +46,16 @@ describe("the marketing navigation", () => {
       "/fighters",
       "/media",
       "/about",
+      "/contact",
     ]);
+  });
+
+  it("calls fighters to register, from outside the game", () => {
+    // The header's one button. Contact used to be it, and moved in among the
+    // sections above when Fighter Registration took its place.
+    expect(FIGHTER_REGISTRATION.to).toBe("/fighter-registration");
+    expect(inPlaySection(FIGHTER_REGISTRATION.to)).toBe(false);
+    expect(MARKETING_NAV.map((link) => link.to)).not.toContain(FIGHTER_REGISTRATION.to);
   });
 });
 

@@ -2,7 +2,7 @@
 import { isFilled } from "@prismicio/client";
 import { PrismicLink } from "@prismicio/vue";
 
-import { MARKETING_NAV } from "~/utils/navigation";
+import { FIGHTER_REGISTRATION, MARKETING_NAV } from "~/utils/navigation";
 
 /**
  * The marketing site: what TFC is, for anybody who has arrived to read about
@@ -90,12 +90,17 @@ const footer = computed(() => {
             <PlayTfcButton />
           </div>
 
-          <nav class="hidden md:flex items-center gap-8 lg:gap-10">
+          <!--
+            From lg rather than md, since it carries Contact as well: five
+            sections and the button beside them do not fit a tablet's width,
+            and a header that scrolls sideways is worse than a menu.
+          -->
+          <nav class="hidden lg:flex items-center gap-6 xl:gap-10">
             <NuxtLink
               v-for="link in navLinks"
               :key="link.to"
               :to="link.to"
-              class="text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
+              class="whitespace-nowrap text-sm font-bold uppercase tracking-widest hover:text-primary transition-colors"
             >
               {{ link.label }}
             </NuxtLink>
@@ -103,14 +108,16 @@ const footer = computed(() => {
 
           <div class="flex items-center gap-4 md:gap-6 shrink-0">
             <NuxtLink
-              to="/contact"
-              class="hidden md:inline-flex bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
+              :to="FIGHTER_REGISTRATION.to"
+              class="hidden lg:inline-flex whitespace-nowrap bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95"
+              :aria-label="FIGHTER_REGISTRATION.label"
             >
-              Contact
+              <span class="xl:hidden">Register</span>
+              <span class="hidden xl:inline">{{ FIGHTER_REGISTRATION.label }}</span>
             </NuxtLink>
             <button
               type="button"
-              class="md:hidden w-11 h-11 border border-outline-variant/30 flex items-center justify-center hover:border-primary transition-colors"
+              class="lg:hidden w-11 h-11 border border-outline-variant/30 flex items-center justify-center hover:border-primary transition-colors"
               :aria-expanded="isMobileMenuOpen"
               aria-controls="mobile-nav"
               aria-label="Toggle navigation menu"
@@ -124,7 +131,7 @@ const footer = computed(() => {
         <nav
           v-if="isMobileMenuOpen"
           id="mobile-nav"
-          class="md:hidden mt-4 border border-outline-variant/30 bg-surface-container-high"
+          class="lg:hidden mt-4 border border-outline-variant/30 bg-surface-container-high"
         >
           <NuxtLink
             v-for="link in navLinks"
@@ -136,11 +143,11 @@ const footer = computed(() => {
             {{ link.label }}
           </NuxtLink>
           <NuxtLink
-            to="/contact"
+            :to="FIGHTER_REGISTRATION.to"
             class="block bg-primary-container text-white px-6 py-2 font-bold uppercase text-sm hover:scale-105 transition-transform active:scale-95 text-center"
             @click="closeMobileMenu"
           >
-            Contact
+            {{ FIGHTER_REGISTRATION.label }}
           </NuxtLink>
         </nav>
       </div>

@@ -103,7 +103,21 @@ export const MARKETING_NAV: readonly NavLink[] = [
   { to: "/fighters", label: "Fighters" },
   { to: "/media", label: "Media" },
   { to: "/about", label: "About Us" },
+  { to: "/contact", label: "Contact" },
 ];
+
+/**
+ * Where a fighter applies to fight for TFC: the header's call to action.
+ *
+ * It took that place from Contact, which moved in among the sections above.
+ * One form for all three disciplines, picked between on the page, and
+ * `?discipline=` opens it on one — which is what a link meant for CageBox
+ * fighters in particular should carry.
+ */
+export const FIGHTER_REGISTRATION: NavLink = {
+  to: "/fighter-registration",
+  label: "Fighter Registration",
+};
 
 /**
  * The game's own navigation: the card, what this fan has committed to it, and
