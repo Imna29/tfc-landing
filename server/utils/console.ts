@@ -15,7 +15,7 @@
  */
 import type { ConsoleBout, LockConsole } from "#shared/console";
 import { firstFought } from "#shared/locks";
-import { asc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { bouts } from "../db/schema";
 import { useDatabase } from "./db";
 import { cardBeingFought } from "./events";
@@ -48,7 +48,11 @@ export async function lockConsole(at: AsAt): Promise<LockConsole | null> {
     })
     .from(bouts)
     .where(eq(bouts.eventId, card.id))
-    .orderBy(asc(bouts.cardOrder));
+    // The order they are fought, which on a card numbered from the top is the
+    // highest place first: Bout 1 is the main event and closes the evening. The
+    // console is read between two fights, so the one walking out is at the top
+    // of it.
+    .orderBy(desc(bouts.cardOrder));
 
   // Asked here in TypeScript rather than in SQL because the whole card is
   // already in hand; `firstOnTheCard` is the same question where it is not.

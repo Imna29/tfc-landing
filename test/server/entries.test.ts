@@ -322,7 +322,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // independent events — so the Multipliers multiply, which is the whole
       // of what chaining is (ADR-0014).
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -364,7 +364,7 @@ describe("the Entry a fan commits, and takes back", async () => {
 
     it("chains Predictions across different Bouts into one Entry", async () => {
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -382,7 +382,7 @@ describe("the Entry a fan commits, and takes back", async () => {
 
     it("lets a fan spread Coins across several Entries on one Event", async () => {
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -568,7 +568,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // Coins, and quietly dropping a Prediction would pay a fan for a chain
       // they did not build.
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -856,16 +856,19 @@ describe("the Entry a fan commits, and takes back", async () => {
       // failure that lets a fan win with certainty.
       const card = await cardInTheGame({
         scheduledStart: new Date(Date.now() - 60_000),
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
-      const locked = await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie);
+      // Bout 2, which is the second of the two listed and the first of them
+      // fought: a card is numbered from the top, so Bout 1 is the main event and
+      // is still taking Predictions while the opener is in the cage.
+      const locked = await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie);
 
       expect(locked.status).toBe(409);
       expect((await locked.json()).message).toBe(ENTRY_MESSAGES.boutNotOpen);
 
-      const stillOpen = await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie);
+      const stillOpen = await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie);
 
       expect(stillOpen.status).toBe(201);
     });
@@ -874,7 +877,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // The Lock doing what it exists for. Once a Bout is locked nothing more
       // is committed to it, whatever page a fan still has open.
       const card = await cardInTheGame({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -904,22 +907,26 @@ describe("the Entry a fan commits, and takes back", async () => {
       // row, and `predictions_are_made_on_open_bouts` refuses it too.
       const card = await cardInTheGame({
         scheduledStart: new Date(Date.now() - 7 * 60 * 60_000),
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
-      const refused = await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie);
+      const refused = await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie);
 
       expect(refused.status).toBe(409);
       expect((await refused.json()).message).toBe(ENTRY_MESSAGES.boutNotOpen);
 
       // The refusal is not the route's opinion alone: the sweep ran first, so
-      // the row itself says the Bout is done, and it says who closed it.
+      // the row itself says the Bout is done, and it says who closed it. Bout 1,
+      // because the sweep is the backstop behind every Bout an admin advances —
+      // and on a card numbered from the top that is the main event, whose own
+      // Lock is the last of the evening rather than the scheduled one at first
+      // bell.
       const [headliner] = await testDatabase()
         .select({ status: bouts.status, kind: boutLocks.kind })
         .from(bouts)
         .innerJoin(boutLocks, eq(boutLocks.boutId, bouts.id))
-        .where(eq(bouts.id, card.bouts[1]!.id));
+        .where(eq(bouts.id, card.bouts[0]!.id));
 
       expect(headliner).toEqual({ status: "locked", kind: "sweep" });
     });
@@ -958,7 +965,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // `predictions_question_known` refuses the Question itself — so a round
       // answer cannot be got into an Entry by any route, the database included.
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
 
@@ -989,7 +996,7 @@ describe("the Entry a fan commits, and takes back", async () => {
       // Postgres refuses here is a Prediction pointing at an Outcome that is
       // not there for that fighter.
       const card = await upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
       const fan = await fanWithCoins();
       const bout = card.bouts[0]!;
@@ -1106,7 +1113,7 @@ describe("the Entry a fan commits, and takes back", async () => {
     /** A card of two Bouts, which is what a Chained Entry needs. */
     function twoBoutCard(options: Parameters<typeof cardInTheGame>[0] = {}) {
       return upcomingCard({
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
         ...options,
       });
     }
@@ -1244,8 +1251,11 @@ describe("the Entry a fan commits, and takes back", async () => {
       const card = await twoBoutCard();
       const fan = await fanWithCoins();
 
+      // On the opener, which is Bout 2 of the two: the card is numbered from
+      // the top, so the fight that opens the evening is its highest place and
+      // Bout 1 is the main event.
       const { entry } = await accepted(
-        await submit({ amount: 10, predictions: [winner(card, 0)] }, fan.cookie),
+        await submit({ amount: 10, predictions: [winner(card, 1)] }, fan.cookie),
       );
 
       await cardHasStarted(card.eventId);
@@ -1262,7 +1272,7 @@ describe("the Entry a fan commits, and takes back", async () => {
         .select({ status: bouts.status, kind: boutLocks.kind })
         .from(bouts)
         .innerJoin(boutLocks, eq(boutLocks.boutId, bouts.id))
-        .where(eq(bouts.id, card.bouts[0]!.id));
+        .where(eq(bouts.id, card.bouts[1]!.id));
 
       expect(opener).toEqual({ status: "locked", kind: "scheduled" });
     });

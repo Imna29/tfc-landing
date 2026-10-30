@@ -91,24 +91,26 @@ describe("where a Bout is, as a fan reads it", () => {
 
 describe("the Bout that locks without an admin", () => {
   it("is the one fought first, at the moment the card starts", () => {
+    // The highest place on the card, because a card is numbered from the top:
+    // Bout 1 is the main event and is fought last.
     const tfc12 = card([bout({ cardOrder: 2 }), bout({ cardOrder: 1 })]);
 
-    expect(locksAt(bout({ cardOrder: 1 }), tfc12)).toBe("2026-09-12T19:00:00.000Z");
+    expect(locksAt(bout({ cardOrder: 2 }), tfc12)).toBe("2026-09-12T19:00:00.000Z");
   });
 
   it("is nowhere else on the card: an admin advances the rest as it progresses", () => {
     const tfc12 = card([bout({ cardOrder: 1 }), bout({ cardOrder: 2 })]);
 
-    expect(locksAt(bout({ cardOrder: 2 }), tfc12)).toBe(null);
+    expect(locksAt(bout({ cardOrder: 1 }), tfc12)).toBe(null);
   });
 
-  it("is the first Bout still, on a card whose places start above 1", () => {
-    // Card order says which is fought first, not that a card counts from 1 —
-    // a Bout dropped from the lineup leaves the place it had.
+  it("is the top of the card, not the number of Bouts on it", () => {
+    // Where the card starts is where its numbering stops — a Bout dropped from
+    // the lineup leaves the place it had, so a two-fight card can run 7 then 4.
     const tfc12 = card([bout({ cardOrder: 4 }), bout({ cardOrder: 7 })]);
 
-    expect(locksAt(bout({ cardOrder: 4 }), tfc12)).toBe("2026-09-12T19:00:00.000Z");
-    expect(locksAt(bout({ cardOrder: 7 }), tfc12)).toBe(null);
+    expect(locksAt(bout({ cardOrder: 7 }), tfc12)).toBe("2026-09-12T19:00:00.000Z");
+    expect(locksAt(bout({ cardOrder: 4 }), tfc12)).toBe(null);
   });
 });
 

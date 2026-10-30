@@ -31,7 +31,7 @@ describe("the card a visitor with no account is reading", async () => {
   function upcomingCard() {
     return cardInTheGame({
       scheduledStart: new Date(Date.now() + 120 * 60_000),
-      bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+      bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
     });
   }
 

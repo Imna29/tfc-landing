@@ -204,12 +204,18 @@ which decides nothing ([[adr-0016]]).
 
 ### Card order
 
-Where a [[bout]] sits on an [[event]]: 1 is fought first. Two Bouts on one card can never
-share a place — it is the order they are locked in as the card progresses ([[adr-0006]]),
-and the order a fan reads the card in.
+Where a [[bout]] sits on an [[event]], counted from the top: **1 is the main event, and is
+fought last**. A card runs from its highest place down to 1, so the Bout fought first is the
+biggest number on it — not 1, and not the count of the Bouts either, because a Bout dropped
+from a lineup leaves the place it had.
 
-Deliberately not the order the Bouts appear in Prismic, which is usually the reverse: a
-card is written main event first and fought the other way round.
+Two Bouts on one card can never share a place. It is the order a fan reads the card in, the
+way it is announced, and — read the other way round — the order they are locked in as the
+card progresses ([[adr-0006]]): an admin advances the Lock from the top of the numbering
+down to the main event.
+
+The same order the Bouts appear in Prismic, which is how a card is written: main event
+first.
 
 ### Import
 

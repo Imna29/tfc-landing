@@ -595,8 +595,9 @@ describe("a fight card in the game", async () => {
     /**
      * A card priced and open, starting a given number of minutes from now.
      *
-     * Minutes into the past are how a card being fought is arranged: its first
-     * Bout is past the moment it locks at, and the rest are what an admin is
+     * Minutes into the past are how a card being fought is arranged: the Bout
+     * fought first — the highest place on the card, because 1 is the main event
+     * — is past the moment it locks at, and the rest are what an admin is
      * advancing the Lock through. Relative rather than a fixed date, for the
      * reason `upcomingIn` below gives.
      */
@@ -614,12 +615,21 @@ describe("a fight card in the game", async () => {
       return { ...signedIn, eventId: imported.id, scheduledStart };
     }
 
-    /** Every Bout of the card as the admin area reads it, in card order. */
+    /**
+     * Every Bout of the card as the admin area reads it, in the order they are
+     * fought.
+     *
+     * Reversed, because the admin card is listed in card order and a card is
+     * numbered from the top: Bout 1 is the main event and is fought last. So
+     * the opener is the highest place on the card, and these read from it down
+     * — the order an admin advances the Lock in, and the order the console
+     * lists.
+     */
     async function asAdminSeesIt(eventId: string, cookie: string) {
-      return (await cardToPrice(eventId, cookie)).bouts;
+      return [...(await cardToPrice(eventId, cookie)).bouts].reverse();
     }
 
-    const twoBouts = [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })];
+    const twoBouts = [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })];
 
     it("locks the Bout fought first when the card reaches its scheduled start", async () => {
       // The first of the three backstops ADR-0006 calls mandatory. Nobody
@@ -672,9 +682,9 @@ describe("a fight card in the game", async () => {
       // The ordinary shape of a live event: the card has started, its opener
       // locked by itself, and an admin closes each fight as it comes up.
       const { cookie, eventId } = await liveCard(-1, [
-        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 1, mainEvent: true }),
         cardBout({ cardOrder: 2 }),
-        cardBout({ cardOrder: 3, mainEvent: true }),
+        cardBout({ cardOrder: 3 }),
       ]);
 
       const [, second] = await asAdminSeesIt(eventId, cookie);
@@ -725,9 +735,9 @@ describe("a fight card in the game", async () => {
       // the Lock partway through an evening. Seven hours past the start is
       // past the six the window defaults to.
       const { cookie, eventId, scheduledStart } = await liveCard(-7 * 60, [
-        cardBout({ cardOrder: 1 }),
+        cardBout({ cardOrder: 1, mainEvent: true }),
         cardBout({ cardOrder: 2 }),
-        cardBout({ cardOrder: 3, mainEvent: true }),
+        cardBout({ cardOrder: 3 }),
       ]);
 
       const card = await asAdminSeesIt(eventId, cookie);
@@ -894,7 +904,11 @@ describe("a fight card in the game", async () => {
         "/api/predictions/card",
       );
 
-      expect(predictions?.bouts[1]?.status).toBe("locked");
+      // Bout 2, because the card is numbered from the top: the opener is the
+      // highest place on it and Bout 1 is the main event. Keyed by place rather
+      // than listed, so this is the Bout that was locked and not the second one
+      // of something.
+      expect(predictions?.bouts[2]?.status).toBe("locked");
       expect(await $fetch<string>("/predictions")).toContain(BOUT_STATE_LABELS.locked);
     });
 
@@ -918,24 +932,30 @@ describe("a fight card in the game", async () => {
         return $fetch<{ card: LockConsole | null }>("/api/admin/console", { headers: { cookie } });
       }
 
-      /** Three fights with three different pairs of names, so a control that
-       * names one is unmistakably about it. */
+      /**
+       * Three fights with three different pairs of names, so a control that
+       * names one is unmistakably about it.
+       *
+       * Bout 1 is the main event and is fought last; Bout 3 opens the card and
+       * is the one that locks itself at first bell. So the evening runs 3, 2, 1
+       * — and that is the order the console lists them in.
+       */
       const threeBouts = [
-        cardBout({ cardOrder: 1 }),
+        cardBout({
+          cardOrder: 1,
+          mainEvent: true,
+          red: corner("Davit Chkheidze"),
+          blue: corner("Sandro Gogia"),
+        }),
         cardBout({
           cardOrder: 2,
           red: corner("Zurab Kapanadze"),
           blue: corner("Irakli Nadiradze"),
         }),
-        cardBout({
-          cardOrder: 3,
-          mainEvent: true,
-          red: corner("Davit Chkheidze"),
-          blue: corner("Sandro Gogia"),
-        }),
+        cardBout({ cardOrder: 3 }),
       ];
 
-      it("lists the card being fought in card order, with where each Bout has got to", async () => {
+      it("lists the card being fought in fought order, with where each Bout has got to", async () => {
         // A minute past the scheduled start: the opener has locked by itself,
         // nobody having pressed anything, and the rest of the card is what the
         // admin is about to advance the Lock through.
@@ -949,10 +969,12 @@ describe("a fight card in the game", async () => {
           venue: "Tbilisi Sports Palace",
           scheduledStart: scheduledStart.toISOString(),
         });
+        // The highest place first, because that is the fight walking out: a
+        // card is numbered from the top and Bout 1 closes it.
         expect(card?.bouts.map((bout) => [bout.cardOrder, bout.status])).toEqual([
-          [1, "locked"],
+          [3, "locked"],
           [2, "open"],
-          [3, "open"],
+          [1, "open"],
         ]);
         expect(card?.bouts[2]).toMatchObject({
           redName: "Davit Chkheidze",
@@ -977,8 +999,10 @@ describe("a fight card in the game", async () => {
 
         const after = await liveConsole(cookie);
 
+        // Down the card is down the numbering: 3 locked itself at first bell, 2
+        // has just been locked by hand, and what is left is the main event.
         expect(nextToLock(after.card!.bouts, Date.parse(after.card!.answeredAt))).toMatchObject({
-          cardOrder: 3,
+          cardOrder: 1,
         });
       });
 
@@ -1064,7 +1088,7 @@ describe("a fight card in the game", async () => {
         // control at the bottom writes the one it is about: `>Lock Bout 2<`.
         const places = [...page.matchAll(/>Bout (\d)</g)].map((found) => found[1]);
 
-        expect(places).toEqual(["1", "2", "3"]);
+        expect(places).toEqual(["3", "2", "1"]);
         expect(page).toContain("Davit Chkheidze");
       });
 
@@ -1100,7 +1124,9 @@ describe("a fight card in the game", async () => {
 
         const page = await consolePage(cookie);
 
-        expect(page).toContain(CONSOLE_MESSAGES.lockEarly(1));
+        // Bout 3, which is the fight that opens this card: nothing has locked,
+        // so the control is about the top of the numbering.
+        expect(page).toContain(CONSOLE_MESSAGES.lockEarly(3));
         expect(page).toContain(CONSOLE_MESSAGES.early);
       });
 
@@ -1135,7 +1161,7 @@ describe("a fight card in the game", async () => {
     it("counts the Bouts still to price, the open ones and the locked ones", async () => {
       const signedIn = await admin();
       const imported = await importTestCard(signedIn.id, {
-        bouts: [cardBout({ cardOrder: 1 }), cardBout({ cardOrder: 2, mainEvent: true })],
+        bouts: [cardBout({ cardOrder: 1, mainEvent: true }), cardBout({ cardOrder: 2 })],
       });
 
       const before = await listedTestCard(signedIn.cookie);
@@ -1373,12 +1399,14 @@ describe("a fight card in the game", async () => {
     });
 
     it("tells an open Bout from one that has locked", async () => {
-      // The card started a minute ago: its first Bout locks automatically at
-      // the scheduled start (ADR-0006) and the rest are still live, which is
-      // the whole shape of a card being fought.
+      // The card started a minute ago: the Bout fought first locks
+      // automatically at the scheduled start (ADR-0006) and the rest are still
+      // live, which is the whole shape of a card being fought. That Bout is the
+      // highest place on the card — Bout 2 here — because Bout 1 is the main
+      // event and is fought last.
       const { cookie, card } = await upcomingIn(-1, [
-        cardBout({ cardOrder: 1 }),
-        cardBout({ cardOrder: 2, mainEvent: true }),
+        cardBout({ cardOrder: 1, mainEvent: true }),
+        cardBout({ cardOrder: 2 }),
       ]);
 
       for (const bout of card.bouts) {
@@ -1389,8 +1417,8 @@ describe("a fight card in the game", async () => {
       const { predictions } = await publicCard();
       const now = Date.parse(predictions!.answeredAt);
 
-      expect(boutState(predictions!.bouts[1]!, now)).toBe("locked");
-      expect(boutState(predictions!.bouts[2]!, now)).toBe("open");
+      expect(boutState(predictions!.bouts[2]!, now)).toBe("locked");
+      expect(boutState(predictions!.bouts[1]!, now)).toBe("open");
 
       const page = await publicPage();
 
@@ -1404,8 +1432,8 @@ describe("a fight card in the game", async () => {
 
     it("counts nothing down, on the Bout that locks by itself or any other", async () => {
       const { cookie, card } = await upcomingIn(120, [
-        cardBout({ cardOrder: 1 }),
-        cardBout({ cardOrder: 2, mainEvent: true }),
+        cardBout({ cardOrder: 1, mainEvent: true }),
+        cardBout({ cardOrder: 2 }),
       ]);
 
       for (const bout of card.bouts) {
@@ -1419,8 +1447,8 @@ describe("a fight card in the game", async () => {
       // know a Bout has locked without waiting for the row to be written. Only
       // the Bout fought first has one; an admin advances the rest as the card
       // progresses.
-      expect(predictions?.bouts[1]?.locksAt).toBe(shown?.scheduledStart);
-      expect(predictions?.bouts[2]?.locksAt).toBe(null);
+      expect(predictions?.bouts[2]?.locksAt).toBe(shown?.scheduledStart);
+      expect(predictions?.bouts[1]?.locksAt).toBe(null);
 
       // And the page shows a fan neither of those things: no clock on the Bout
       // that locks by itself, and none across the top of the card either. A
