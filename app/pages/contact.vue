@@ -26,16 +26,14 @@ const inquiryCards: InquiryCard[] = [
     icon: "fitness-center",
     title: "Fighter Application",
     description:
-      "Ready to step into the cage? Send your record, highlights, and bio to our matchmaking team.",
+      "Ready to step into the cage? Register with your record, highlights and photo for our matchmaking team.",
     email: "",
     links: [
+      { label: "SIGN UP (MMA)", url: "/fighter-registration?discipline=mma" },
+      { label: "SIGN UP (CageBox)", url: "/fighter-registration?discipline=cagebox" },
       {
-        label: "SIGN UP (MMA)",
-        url: "https://docs.google.com/forms/d/e/1FAIpQLSerFqgHNaMjnuWks-H08Uqc83nAYXtdpl8In6OV2AE4mIrfOQ/viewform?pli=1",
-      },
-      {
-        label: "SIGN UP (CageBox)",
-        url: "https://docs.google.com/forms/d/1qxObamc1uQWOx4e-roU6uZjC_h2Kezy2jmI-3GPPcV0/viewform?utm_source=ig&utm_medium=social&utm_content=link_in_bio",
+        label: "SIGN UP (Cage Grappling)",
+        url: "/fighter-registration?discipline=cage_grappling",
       },
     ],
   },
@@ -240,16 +238,14 @@ const handleSubmit = async () => {
                 >{{ card.email }}</span
               >
               <div v-if="card.links" class="mt-3 flex flex-col gap-2">
-                <a
+                <NuxtLink
                   v-for="link in card.links"
                   :key="link.label"
-                  :href="link.url"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  :to="link.url"
                   class="text-primary font-bold group-hover:text-white uppercase text-xs tracking-widest hover:underline"
                 >
                   {{ link.label }}
-                </a>
+                </NuxtLink>
               </div>
             </div>
           </div>

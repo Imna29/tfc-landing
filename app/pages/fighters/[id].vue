@@ -366,7 +366,7 @@ const closeVideoModal = () => {
               </div>
             </div>
             <div
-              class="flex items-center gap-4 md:gap-12 w-full md:w-auto justify-between md:justify-start pl-[calc(1rem+2px)] md:pl-0"
+              class="flex flex-wrap md:flex-nowrap items-center gap-4 md:gap-12 w-full md:w-auto justify-between md:justify-start pl-[calc(1rem+2px)] md:pl-0"
             >
               <div class="text-left md:text-right min-w-0">
                 <span class="block font-bold text-primary italic break-words">{{
@@ -376,7 +376,8 @@ const closeVideoModal = () => {
               </div>
               <button
                 v-if="fight.youtubeHtml"
-                class="cursor-pointer bg-primary-container/20 hover:bg-primary-container p-3 rounded transition-colors shrink-0"
+                type="button"
+                class="cursor-pointer shrink-0 w-full md:w-auto bg-primary-container text-white skew-x-[-12deg] px-5 py-3 shadow-[4px_4px_0_#040707] transition duration-150 hover:bg-[#e8262d] hover:-translate-y-0.5 hover:shadow-[6px_6px_0_#040707] active:translate-x-1 active:translate-y-1 active:shadow-none focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-white"
                 :aria-label="`Watch fight video: ${fight.opponent} vs ${fighter.name}`"
                 @click="
                   openVideoModal({
@@ -385,11 +386,16 @@ const closeVideoModal = () => {
                   })
                 "
               >
-                <Icon
-                  name="material-symbols:smart-display"
-                  class="text-white text-2xl"
-                  style="font-variation-settings: &quot;FILL&quot; 1"
-                />
+                <span
+                  class="flex items-center justify-center gap-2 skew-x-[12deg] font-headline font-black italic uppercase tracking-wider text-sm md:text-base whitespace-nowrap"
+                >
+                  <Icon
+                    name="material-symbols:play-arrow"
+                    class="text-2xl mma-play-pulse"
+                    style="font-variation-settings: &quot;FILL&quot; 1"
+                  />
+                  Watch Fight
+                </span>
               </button>
             </div>
           </div>

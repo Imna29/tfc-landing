@@ -110,6 +110,7 @@ repository, so a run off `dev` cannot read production's connection string.
 | Vercel `BETTER_AUTH_URL` | the preview alias | `https://tfcgeo.com` |
 | Vercel `BETTER_AUTH_SECRET` | its own | its own |
 | Vercel `RESEND_API_KEY` | **unset** — emails go to the log | set |
+| Vercel `FIGHTER_REGISTRATION_SCRIPT_URL`, `FIGHTER_REGISTRATION_SECRET` | the same pair — there are no test sheets, so a preview registration is a real row | set |
 
 Repository secrets, shared by both: `VERCEL_TOKEN`, `VERCEL_ORG_ID`,
 `VERCEL_PROJECT_ID`, and optionally `VERCEL_AUTOMATION_BYPASS_SECRET` so the
@@ -1373,6 +1374,53 @@ it — not mail to strangers. Rate limiting it belongs at the route level, as
 ADR-0009 says, and has no ticket yet.
 
 `/api/accounts/sign-up` has the same gap, and has had it since #4.
+
+## Fighter registration
+
+`/fighter-registration` is where a fighter applies to fight for TFC, in MMA,
+CageBox or Cage Grappling — one page with a switch between the three, opened on
+one by `?discipline=mma|cagebox|cage_grappling`. It replaced three Google Forms,
+and it writes where they wrote: a row on each form's own response sheet, and the
+uploads into Drive, both on datatsurtsumia5@gmail.com. ADR-0024 is why.
+
+- **`shared/fighterRegistration.ts`** is every question, the sheet column each
+  answer goes under, and the limits on uploads. The page runs its checks before
+  uploading anything, and the server runs them again.
+- **`apps-script/fighter-registration/`** is the only thing holding Google
+  credentials. It is the source of truth for the Apps Script project "TFC Fighter
+  Registration" on that account; an edit made in the Apps Script editor and not
+  here is lost on the next paste.
+- **`server/api/fighter-registration/`** is two routes: `uploads` opens a Drive
+  upload for one file and hands its URL to the browser, which sends the file
+  straight to Drive; the route without a suffix writes the row.
+
+Files go up before the row is written, because the row has to link them. A
+fighter who uploads and then abandons the form leaves files in
+`TFC Fighter Registration (website uploads)` that no row links to.
+
+### Changing the script
+
+1. Edit `apps-script/fighter-registration/Code.gs`.
+2. Paste it over `Code.gs` in the Apps Script project, signed in as
+   datatsurtsumia5@gmail.com, and save.
+3. **Deploy → Manage deployments → edit (pencil) → Version: New version →
+   Deploy.** Editing the existing deployment keeps its URL; a *new* deployment
+   gets a new URL, which then has to go into Vercel.
+
+### Setting it up from nothing
+
+1. Create the Apps Script project, paste `Code.gs`, and under **Project
+   settings → Script properties** add `SHARED_SECRET`, from
+   `openssl rand -hex 32`.
+2. **Deploy → New deployment → Web app**, executing as *Me* with access for
+   *Anyone*, and authorise it. "Anyone" is what lets the site's server call it
+   without a Google sign-in; the secret is what stops anybody else from doing so.
+3. Set `FIGHTER_REGISTRATION_SCRIPT_URL` to the web app URL and
+   `FIGHTER_REGISTRATION_SECRET` to the same secret, in Vercel for both targets
+   and in `.env` locally, then redeploy.
+
+Unset, both routes answer 503 and the page tells a fighter to message TFC
+instead.
 
 ## Tests
 

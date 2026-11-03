@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   accountPath,
+  CONTACT,
+  FIGHTER_REGISTRATION,
+  HEADER_NAV,
   inPlaySection,
   MARKETING_NAV,
   MY_PREDICTIONS,
@@ -46,6 +49,22 @@ describe("the marketing navigation", () => {
       "/media",
       "/about",
     ]);
+  });
+
+  it("is followed in the header by Contact, which is not a section of it", () => {
+    // Contact sits beside the sections without being one: the game's footer
+    // links to it as well, and no section of the marketing site may appear in
+    // the game (`test/server/bouts.test.ts`).
+    expect(HEADER_NAV).toEqual([...MARKETING_NAV, CONTACT]);
+    expect(CONTACT.to).toBe("/contact");
+  });
+
+  it("calls fighters to register, from outside the game", () => {
+    // The header's one button. Contact used to be it, and moved in beside the
+    // sections when Fighter Registration took its place.
+    expect(FIGHTER_REGISTRATION.to).toBe("/fighter-registration");
+    expect(inPlaySection(FIGHTER_REGISTRATION.to)).toBe(false);
+    expect(HEADER_NAV.map((link) => link.to)).not.toContain(FIGHTER_REGISTRATION.to);
   });
 });
 
