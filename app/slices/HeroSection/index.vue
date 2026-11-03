@@ -64,7 +64,9 @@ onMounted(() => {
 
     <div class="container mx-auto px-6 md:px-20 relative z-20">
       <div class="max-w-4xl">
+        <!-- Optional: left empty in Prismic, there is no red tag at all. -->
         <div
+          v-if="isFilled.keyText(slice.primary.badge_text)"
           class="inline-block bg-primary-container text-white px-4 py-1 mb-6 font-bold uppercase tracking-tighter skew-x-[-12deg] mma-fade-left"
           :class="{ 'mma-active': isMounted }"
           :style="{ transitionDelay: '0.1s' }"
