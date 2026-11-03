@@ -42,8 +42,13 @@ onMounted(() => {
 </script>
 
 <template>
+  <!--
+    Top-anchored at every width, so the gap under the header is a number we
+    chose rather than whatever centring in 921px leaves over (it was ~164px on
+    desktop, now 80px; 112px on mobile, now 56px).
+  -->
   <section
-    class="relative min-h-[921px] flex items-start md:items-center overflow-hidden pt-28 md:pt-0"
+    class="relative min-h-[921px] flex items-start overflow-hidden pt-14 md:pt-20"
     :data-slice-type="slice.slice_type"
     :data-slice-variation="slice.variation"
   >
