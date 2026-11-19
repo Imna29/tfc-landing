@@ -4,7 +4,7 @@ import { isFilled } from "@prismicio/client";
 import type { Content } from "@prismicio/client";
 import { nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
-type BadgeType = "champion" | "undefeated" | "contender";
+type BadgeType = "champion" | "pro" | "undefeated" | "contender";
 
 interface FighterBadge {
   type: BadgeType;
@@ -175,6 +175,10 @@ const getBadgeType = (label: string): BadgeType => {
 
   if (normalizedLabel.includes("champ")) {
     return "champion";
+  }
+
+  if (/\bpro\b/.test(normalizedLabel)) {
+    return "pro";
   }
 
   if (normalizedLabel.includes("undefeat")) {
@@ -514,7 +518,13 @@ const loadMore = () => {
               <template v-for="badge in fighter.badges" :key="badge.label">
                 <span
                   v-if="badge.type === 'champion'"
-                  class="bg-primary-container text-white text-[10px] font-black italic tracking-tighter px-3 py-1 uppercase"
+                  class="bg-coin text-black text-[10px] font-black italic tracking-tighter px-3 py-1 uppercase"
+                >
+                  {{ badge.label }}
+                </span>
+                <span
+                  v-else-if="badge.type === 'pro'"
+                  class="bg-primary-container text-white text-[10px] font-bold tracking-widest px-3 py-1 uppercase"
                 >
                   {{ badge.label }}
                 </span>
